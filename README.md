@@ -1,6 +1,13 @@
 # Vehicular-Mininet-WiFi
 Scripts to run mininet-wifi experiments on vehicular perception.
-It is assumed that mininet-wifi has already been installed.
+
+## Intsall Mininet-WiFi (Skip if already installed)
+
+```
+git clone git://github.com/intrig-unicamp/mininet-wifi
+cd mininet-wifi
+sudo util/install.sh -Wlnfv
+```
 
 ## Try a simple exmaple
 ```
