@@ -9,11 +9,12 @@ from mn_wifi.link import wmediumd
 from mn_wifi.cli import CLI
 from mn_wifi.net import Mininet_wifi
 from mn_wifi.wmediumdConnector import interference
+from mininet.node import Controller
 
 
 def topology(args):
     'Create a network.'
-    net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
+    net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference, controller=Controller)
 
     info("*** Creating nodes\n")
     if '-m' in args:
@@ -28,6 +29,8 @@ def topology(args):
                          ip='192.168.0.10/24', position='40,60,0')
     ap2 = net.addStation('ap2', mac='02:00:00:00:02:00',
                          ip='192.168.1.10/24', position='70,60,0')
+
+    c1 = net.addController('c1', controller=Controller)
 
     net.setPropagationModel(model="logDistance", exp=4.5)
 
@@ -57,9 +60,9 @@ def topology(args):
     ap2.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
     ap1.setIP('192.168.0.10/24', intf='ap1-wlan0')
-    ap1.setIP('192.168.2.1/24', intf='ap1-eth1')
+    # ap1.setIP('192.168.2.1/24', intf='ap1-eth1')
     ap2.setIP('192.168.1.10/24', intf='ap2-wlan0')
-    ap2.setIP('192.168.2.2/24', intf='ap2-eth1')
+    # ap2.setIP('192.168.2.2/24', intf='ap2-eth1')
     ap1.cmd('route add -net 192.168.1.0/24 gw 192.168.2.2')
     ap2.cmd('route add -net 192.168.0.0/24 gw 192.168.2.1')
     sta1.cmd('route add -net 192.168.1.0/24 gw 192.168.0.10')
@@ -67,6 +70,12 @@ def topology(args):
     sta2.cmd('route add -net 192.168.0.0/24 gw 192.168.1.10')
     sta2.cmd('route add -net 192.168.2.0/24 gw 192.168.1.10')
 
+    info("*** Adding NAT\n")
+    net.addNAT(name='nat0', linkTo='ap1', ip='192.168.100.254').configDefault()
+    net.addNAT(name='nat1', linkTo='ap2', ip='192.168.100.255').configDefault()
+#    c1.start()
+    # ap1.start([c1])
+    # ap2.start([c1])
     info("*** Running CLI\n")
     CLI(net)
 
@@ -77,3 +86,4 @@ def topology(args):
 if __name__ == '__main__':
     setLogLevel('info')
     topology(sys.argv)
+
