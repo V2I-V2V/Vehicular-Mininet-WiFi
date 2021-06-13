@@ -1,12 +1,11 @@
 # Vehicular-Mininet-WiFi
 Scripts to run mininet-wifi experiments on vehicular perception.
 
-## Intsall Mininet-WiFi (Skip if already installed)
+## Intsall Mininet-WiFi with python3 (Skip if already installed)
 
 ```
-git clone git://github.com/intrig-unicamp/mininet-wifi
 cd mininet-wifi
-sudo util/install.sh -Wlnfv
+sudo util/install.sh -Wlnfv # this install.sh has been modified to work with only python3
 ```
 
 ## Try a simple exmaple
