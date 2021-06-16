@@ -29,6 +29,8 @@ def topology(args):
     ap2 = net.addStation('ap2', mac='02:00:00:00:02:00',
                          ip='192.168.1.10/24', position='70,60,0')
 
+    h1 = net.addHost('h1', mac='00:00:00:00:00:03', ip='192.168.3.10/24')
+
     net.setPropagationModel(model="logDistance", exp=4.5)
 
     info("*** Configuring wifi nodes\n")
@@ -39,6 +41,8 @@ def topology(args):
 
     info("*** Adding Link\n")
     net.addLink(ap1, ap2)  # wired connection
+    net.addLink(ap1, h1)
+    # net.addLink(h1, sta1)
 
     if '-p' not in args:
         info("*** Plotting Graph\n")
@@ -55,17 +59,24 @@ def topology(args):
 
     ap1.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     ap2.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
+    h1.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
+    sta1.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
     ap1.setIP('192.168.0.10/24', intf='ap1-wlan0')
     ap1.setIP('192.168.2.1/24', intf='ap1-eth1')
+    ap1.setIP('192.168.3.1/24', intf='ap1-eth2')
     ap2.setIP('192.168.1.10/24', intf='ap2-wlan0')
     ap2.setIP('192.168.2.2/24', intf='ap2-eth1')
+
     ap1.cmd('route add -net 192.168.1.0/24 gw 192.168.2.2')
+    ap1.cmd('route add -net 192.168.3.0/24 gw 192.168.3.1')
     ap2.cmd('route add -net 192.168.0.0/24 gw 192.168.2.1')
     sta1.cmd('route add -net 192.168.1.0/24 gw 192.168.0.10')
     sta1.cmd('route add -net 192.168.2.0/24 gw 192.168.0.10')
+    sta1.cmd('route add -net 192.168.3.0/24 gw 192.168.0.10')
     sta2.cmd('route add -net 192.168.0.0/24 gw 192.168.1.10')
     sta2.cmd('route add -net 192.168.2.0/24 gw 192.168.1.10')
+    # h1.cmd('route add -net 10.0.0.0/24 gw 10.0.0.1')
 
     info("*** Running CLI\n")
     CLI(net)

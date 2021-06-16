@@ -4,8 +4,19 @@ Scripts to run mininet-wifi experiments on vehicular perception.
 ## Intsall Mininet-WiFi with python3 (Skip if already installed)
 
 ```
-cd mininet-wifi
-sudo util/install.sh -Wlnfv # this install.sh has been modified to work with only python3
+git clone https://github.com/intrig-unicamp/mininet-wifi.git ~/mininet-wifi
+cp mininet-scripts/install.sh ~/mininet-wifi/util/install.sh # this install.sh has been modified to work with only python3
+cd ~/mininet-wifi
+git checkout 66a20d80063b83111df950762d260774a38d620a
+sudo util/install.sh -Wlnfv
+```
+
+## Important Note
+
+Stop nmetwork-manager before running mininet-wifi scripts (by running the following command).
+
+```
+sudo service network-manager stop
 ```
 
 ## Try a simple exmaple
