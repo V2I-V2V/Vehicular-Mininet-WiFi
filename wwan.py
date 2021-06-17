@@ -16,7 +16,7 @@ def setup_p2p_links(vehicle_id, ip, port):
     client_socket.connect((ip, port))
     # fcntl.fcntl(client_socket, fcntl.F_SETFL, os.O_NONBLOCK)
     client_socket.setblocking(0)
-    client_socket.settimeout(0.1)
+    client_socket.settimeout(1)
     msg = vehicle_id.to_bytes(2, 'big')
     client_socket.send(msg)
     return client_socket
@@ -36,7 +36,7 @@ def recv_assignment(client_socket):
         helpee_id = int.from_bytes(msg, "big")
         return helpee_id
     except socket.timeout:
-        # print("got error during recv")
+        print("got error during recv")
         return 65534
 
 

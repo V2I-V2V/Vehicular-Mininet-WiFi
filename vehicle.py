@@ -1,5 +1,5 @@
 # this file handles the main process run by each vehicle node
-
+ # -*- coding: utf-8 -*-
 import os, sys
 import threading
 import socket
@@ -11,6 +11,7 @@ import config
 import utils
 import mobility
 
+TCP_MSS = 1448
 HELPEE = 0
 HELPER = 1
 vehicle_id = int(sys.argv[1])
@@ -53,6 +54,7 @@ def setup_data_recv_thread():
     v2v_data_recv_sock.bind((host_ip, host_port))
     v2v_data_recv_sock.listen(1)
     while True:
+        print("get helpee connection")
         v2v_data_recv_sock.listen(1)
         client_socket, client_address = v2v_data_recv_sock.accept()
         new_data_recv_thread = VehicleDataRecvThread(client_socket, client_address)
@@ -87,6 +89,7 @@ class ServerControlThread(threading.Thread):
             # always receive assignment information from server
             # Note: sending location information is done in VehicleConnThread.run()
             # triggered by receiving location info from helpees
+            global current_helpee_id
             helpee_id = wwan.recv_assignment(v2i_control_socket)
             if is_helper_recv():
                 if if_recv_nothing_from_server(helpee_id):
@@ -143,7 +146,8 @@ class VehicleControlThread(threading.Thread):
                 wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket) 
             else:
                 if is_packet_assignment(data):
-                    helper_id = int.from_btes(data, 'big')
+                    print("[helper assignment] " + str(time.time()))
+                    helper_id = int.from_bytes(data, 'big')
                     helper_ip = "10.0.0." + str(helper_id+2)                    
                     new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port)
                     new_send_thread.daemon = True
@@ -164,12 +168,27 @@ class VehicleDataRecvThread(threading.Thread):
         self.client_address = helpee_addr
     
     def run(self):
+        curr_recv_bytes = 0
         while True:
             data = self.client_socket.recv(2048)
+            curr_recv_bytes += len(data)
             if data == -1:
                 self.client_socket.close()
                 break
-            print("recv pcd data from helpee")
+            if curr_recv_bytes >= 2056576:
+                print("recv a full frame: " + str(time.time()))
+                curr_recv_bytes = 0
+            # print(len(last_byte))
+            # try:
+            #     # print(last_byte.decode('utf-8'))
+            #     decoded = data.decode("utf-8", "ignore")
+            #     last_byte = decoded[-3:]
+            #     print(last_byte)
+            #     if last_byte == 'fin':
+            #         print("recv a full frame: " + str(time.time()))
+            # except:
+            #     pass
+
 
 
 class VehicleDataSendThread(threading.Thread):
@@ -184,8 +203,9 @@ class VehicleDataSendThread(threading.Thread):
     def run(self):
         while self.is_helper_alive:
             if len(pcd_data_buffer) != 0:
+                print("[Sending data] Start sending a frame to helper " + str(time.time()))
                 self.v2v_data_send_sock.send(pcd_data_buffer[0])
-                pcd_data_buffer = pcd_data_buffer[1:]
+                # pcd_data_buffer = pcd_data_buffer[1:]
             
 
 def check_if_disconnected(disconnect_timestamps):
@@ -203,11 +223,11 @@ def check_connection_state(disconnect_timestamps):
     global connection_state
     while True:
         if connection_state == "Connected":
-            print("Connected to server...")
+            # print("Connected to server...")
+            pass
         elif connection_state == "Disconnected":
             # TODO: setup a timer to resend location information every x ms
-            print("Disconnected to server... broadcast")
-            print("Call mobility.broadcast location method")
+            print("Disconnected to server... broadcast " + str(time.time()))
             mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket)
         if check_if_disconnected(disconnect_timestamps):
             connection_state = "Disconnected"
