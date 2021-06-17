@@ -30,14 +30,17 @@ def topology(args):
     net.addLink(sta2, cls=adhoc, intf='sta2-wlan0',
                 ssid='adhocNet', mode='g', channel=5, **kwargs)
     net.addLink(sta1, server, cls=TCLink)
+    # net.addLink(sta2, server, cls=TCLink)
 
 
     info("*** Addressing...\n")
     sta1.setIP6('2001::1/64', intf="sta1-wlan0")
     sta2.setIP6('2001::2/64', intf="sta2-wlan0")
     sta1.setIP('192.168.0.4/24', intf="sta1-eth1")
+    # sta2.setIP('192.168.0.5/24', intf="sta2-eth1")
 
     sta1.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
+    # sta2.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     server.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
 
