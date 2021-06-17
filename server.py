@@ -19,7 +19,7 @@ class SchedThread(threading.Thread):
     def run(self):
         while True:
             print(location_map)
-            if len(location_map) == 6:
+            if len(location_map) == 2:
                 positions = []
                 for k, v in sorted(location_map.items()):
                     positions.append(v)
@@ -71,33 +71,6 @@ class ConnectionThread(threading.Thread):
             location_map[v_id] = (x, y)
             vehicle_types[v_id] = v_type
             data = self.client_socket.recv(8)
-            # if location map is already constructed, we can do a schedule instantly
-            # if len(location_map) == 8:
-            #     positions = []
-            #     for k, v in sorted(location_map.items()):
-            #         positions.append(v)
-            #     helpee_count = 0
-            #     helper_count = 0
-            #     for k, v in vehicle_types.items():
-            #         if v == 0:
-            #             helpee_count += 1
-            #         else:
-            #             helper_count += 1
-
-            #     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
-            #     print(assignment)
-            #     # for node_num in range(len(positions)):
-            #     #     if node_num in assignment:
-            #     for cnt, node in enumerate(assignment):
-            #         print("send %d to node %d" % (cnt, node))
-            #         # print(cnt, node, client_sockets[node])
-            #         msg = cnt.to_bytes(2, 'big')
-            #         client_sockets[node].send(msg)
-            #     for node_num in range(0, helpee_count+helper_count):
-            #         if node_num not in assignment:
-            #             print("send %d to node %d" % (65535, node_num))
-            #             msg = int(65535).to_bytes(2, 'big')
-            #             client_sockets[node_num].send(msg)
         self.client_socket.close()
 
 

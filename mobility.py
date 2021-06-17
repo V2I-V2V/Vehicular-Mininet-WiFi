@@ -37,8 +37,10 @@ def update_location(node, locations):
 
 
 
-def broadcast_location(node, source_socket):
-    pass
+def broadcast_location(vehicle_id, self_loc, source_socket):
+    msg = vehicle_id.to_bytes(2, 'big') + self_loc[0].to_bytes(2, 'big') \
+        + self_loc[1].to_bytes(2, 'big')
+    source_socket.sendto(msg, ("10.255.255.255", 8888))
 
         
 def stop_broadcast_location(node, source_socket):

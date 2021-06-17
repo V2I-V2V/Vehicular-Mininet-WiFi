@@ -36,7 +36,7 @@ def recv_assignment(client_socket):
         helpee_id = int.from_bytes(msg, "big")
         return helpee_id
     except socket.timeout:
-        print("got error during recv")
+        # print("got error during recv")
         return 65534
 
 

@@ -8,12 +8,10 @@ def read_pointcloud(pointcloud_filename):
         pointcloud_filename (str): point cloud data file name
 
     Returns:
-        np.array: array of (n, 4) consisting of the pcd data points
+        byte array: byte array consisting of the pcd data points
     """
-    # TODO
-    # pcd_data = np.loadtxt(pointcloud_filename)
-    # TODO: read pcd file to raw bytes 
-    # with open(pointcloud_filename, 'b') ...
+    pcd_file = open(pointcloud_filename, "rb")
+    pcd_data = pcd_file.read()
     return pcd_data
 
 

@@ -2,7 +2,7 @@ import numpy as np
 
 
 simulation_time = 10.0
-server_ip = "127.0.0.1"
+server_ip = "192.168.0.1"
 server_port = 6666
 
 global wwan_sockets
