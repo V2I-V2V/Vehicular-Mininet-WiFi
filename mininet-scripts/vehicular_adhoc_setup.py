@@ -12,27 +12,27 @@ def topology(args):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     info("*** Creating nodes\n")
     server = net.addHost('server', mac='00:00:00:00:00:01', ip='192.168.0.1/24',
-                        position='15,15,0')
+                        position='288, 881, 0')
     sta1 = net.addStation('sta1', mac='00:00:00:00:00:02', ip6='fe80::1',
-                        position='10,10,0')
+                        position='280.225, 891.726, 0')
     sta2 = net.addStation('sta2', mac='00:00:00:00:00:03', ip6='fe80::2',
-                        position='50,10,0') 
+                        position='313.58, 855.46,0') 
 
     sta3 = net.addStation('sta3', mac='00:00:00:00:00:04', ip6='fe80::3',
-                    position='51,10,0')
+                    position='286.116, 832.733,0')
     sta4 = net.addStation('sta4', mac='00:00:00:00:00:05', ip6='fe80::4',
-                    position='52,10,0')
+                    position='320.134, 854.744,0')
 
     sta5 = net.addStation('sta5', mac='00:00:00:00:00:06', ip6='fe80::5',
-                    position='53,10,0')
+                    position='296.692, 832.28, 0')
     sta6 = net.addStation('sta6', mac='00:00:00:00:00:07', ip6='fe80::6',
-                    position='56,10,0')
+                    position='290.943, 881.713, 0')
 
     sta7 = net.addStation('sta7', mac='00:00:00:00:00:08', ip6='fe80::7',
-                    position='58,10,0')
+                    position='313.943, 891.713, 0')
 
     sta8 = net.addStation('sta8', mac='00:00:00:00:00:09', ip6='fe80::8',
-                    position='59,10,0')
+                    position='312.943, 875.713, 0')
     
     s1 = net.addSwitch('s1')
     c1 = net.addController('c1')
@@ -45,35 +45,72 @@ def topology(args):
 
     info("*** Creating links\n")
     kwargs = dict()
-    kwargs['proto'] = 'batmand'
+    kwargs['proto'] = 'olsrd'
     # add adhoc interfaces
+    channel_num = 9
     net.addLink(sta1, cls=adhoc, intf='sta1-wlan0',
-                ssid='adhocNet', mode='g', channel=5, **kwargs)
+                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta2, cls=adhoc, intf='sta2-wlan0',
-                ssid='adhocNet', mode='g', channel=5, **kwargs)
+                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta3, cls=adhoc, intf='sta3-wlan0',
-                ssid='adhocNet', mode='g', channel=5, **kwargs)
+                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta4, cls=adhoc, intf='sta4-wlan0',
-                ssid='adhocNet', mode='g', channel=5, **kwargs)
+                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta5, cls=adhoc, intf='sta5-wlan0',
-                ssid='adhocNet', mode='g', channel=5, **kwargs)
+                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta6, cls=adhoc, intf='sta6-wlan0',
-                ssid='adhocNet', mode='g', channel=5, **kwargs)
+                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta7, cls=adhoc, intf='sta7-wlan0',
-                ssid='adhocNet', mode='g', channel=5, **kwargs)
+                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta8, cls=adhoc, intf='sta8-wlan0',
-                ssid='adhocNet', mode='g', channel=5, **kwargs)
+                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
 
-    net.addLink(sta1, s1, cls=TCLink)
+    # net.addLink(sta1, cls=adhoc, intf='sta1-wlan0',
+    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+',  **kwargs)
+    # net.addLink(sta2, cls=adhoc, intf='sta2-wlan0',
+    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
+    # net.addLink(sta3, cls=adhoc, intf='sta3-wlan0',
+    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
+    # net.addLink(sta4, cls=adhoc, intf='sta4-wlan0',
+    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
+    # net.addLink(sta5, cls=adhoc, intf='sta5-wlan0',
+    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
+    # net.addLink(sta6, cls=adhoc, intf='sta6-wlan0',
+    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
+    # net.addLink(sta7, cls=adhoc, intf='sta7-wlan0',
+    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
+    # net.addLink(sta8, cls=adhoc, intf='sta8-wlan0',
+    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
+
+    # plot
+    if '-p' not in args:
+        net.plotGraph(max_x=400, max_y=1100)
+
+    # mobility
+    net.addLink(sta1, s1, cls=TCLink, bw=100, delay='10ms')
     net.addLink(server, s1, cls=TCLink)
-    net.addLink(sta2, s1, cls=TCLink)
-    net.addLink(sta3, s1, cls=TCLink)
-    net.addLink(sta4, s1, cls=TCLink)
-    net.addLink(sta5, s1, cls=TCLink)
-    net.addLink(sta6, s1, cls=TCLink)
-    net.addLink(sta7, s1, cls=TCLink)
-    net.addLink(sta8, s1, cls=TCLink)
+    net.addLink(sta2, s1, cls=TCLink, bw=100, delay='10ms')
+    net.addLink(sta3, s1, cls=TCLink, bw=100, delay='10ms')
+    net.addLink(sta4, s1, cls=TCLink, bw=100, delay='10ms')
+    net.addLink(sta5, s1, cls=TCLink, bw=100, delay='10ms')
+    net.addLink(sta6, s1, cls=TCLink, bw=100, delay='10ms')
+    net.addLink(sta7, s1, cls=TCLink, bw=100, delay='10ms')
+    net.addLink(sta8, s1, cls=TCLink, bw=100, delay='10ms')
 
+    # configure mobility
+    # net.startMobility(time=0, mob_rep=1, reverse=False)
+    # p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
+    # if '-c' not in args:
+    #     p1_start = {'position': '286.116,832.733,0.0'}
+    #     p2_start = {'position': '280.225,891.726,0.0'}
+    #     p1_end = {'position': '257.905,907.762,0.0'}
+    #     p2_end = {'position': '284.816,879.443,0.0'}
+
+    # net.mobility(sta1, 'start', time=50, **p1_start)
+    # net.mobility(sta2, 'start', time=50, **p2_start)
+    # net.mobility(sta1, 'stop', time=60, **p1_end)
+    # net.mobility(sta2, 'stop', time=60, **p2_end)
+    # net.stopMobility(time=561)
 
     info("*** Addressing...\n")
     # setup wireless intf

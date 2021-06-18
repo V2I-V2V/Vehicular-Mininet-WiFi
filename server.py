@@ -18,6 +18,7 @@ class SchedThread(threading.Thread):
 
     def run(self):
         while True:
+            print(time.time())
             print(location_map)
             if len(location_map) == 2:
                 positions = []
@@ -45,7 +46,7 @@ class SchedThread(threading.Thread):
                         print("send %d to node %d" % (65535, node_num))
                         msg = int(65535).to_bytes(2, 'big')
                         client_sockets[node_num].send(msg)
-            time.sleep(1)
+            time.sleep(0.2)
 
 
 class ConnectionThread(threading.Thread):

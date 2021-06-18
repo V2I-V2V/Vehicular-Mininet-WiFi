@@ -18,11 +18,11 @@ vehicle_id = int(sys.argv[1])
 connection_state = "Connected"
 current_helpee_id = 65535
 curr_timestamp = 0.0
-# vehicle_locs = mobility.read_locations("locations.txt")
-
-self_loc = [15, 15]
+vehicle_locs = mobility.read_locations("input/object-0227.txt")
+self_loc_trace = vehicle_locs[vehicle_id]
+self_loc = self_loc_trace[0]
 pcd_data_buffer = []
-pcd_data_buffer.append(pointcloud.read_pointcloud('single-pointcloud-frame.bin'))
+pcd_data_buffer.append(pointcloud.read_pointcloud('input/single-pointcloud-frame.bin'))
 v2i_control_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, \
                                                      socket.IPPROTO_UDP)
@@ -30,6 +30,12 @@ v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, \
 helper_data_recv_port = 8080
 helper_control_recv_port = 8888
 self_ip = "10.0.0."+str(vehicle_id+2)
+
+def self_loc_update_thread():
+    global self_loc
+    for loc in self_loc_trace:
+        self_loc = loc
+        time.sleep(0.1)
 
 def is_helper_recv():
     global connection_state
@@ -54,9 +60,9 @@ def setup_data_recv_thread():
     v2v_data_recv_sock.bind((host_ip, host_port))
     v2v_data_recv_sock.listen(1)
     while True:
-        print("get helpee connection")
         v2v_data_recv_sock.listen(1)
         client_socket, client_address = v2v_data_recv_sock.accept()
+        print("[get helpee connection] " + str(time.time()))
         new_data_recv_thread = VehicleDataRecvThread(client_socket, client_address)
         new_data_recv_thread.daemon = True
         new_data_recv_thread.start()
@@ -100,6 +106,8 @@ class ServerControlThread(threading.Thread):
                     if current_helpee_id == helpee_id:
                         print("already helping this node")
                     else:
+                        print("[Get assignment] " + str(helpee_id) + ' ' + str(time.time()))
+                        print(self_loc)
                         current_helpee_id = helpee_id
                         notify_helpee_node(helpee_id)
                         # setup_data_recv_socket()
@@ -137,7 +145,7 @@ class VehicleControlThread(threading.Thread):
             data, addr = v2v_control_socket.recvfrom(1024)            
             if connection_state == "Connected":
                 # helper
-                # print("helper recv broadcast loc")
+                print("helper recv broadcast loc " + str(time.time()))
                 # print("send self loc, helpee loc to the server")
                 helpee_id, helpee_loc = parse_location_packet_data(data)
                 # send helpee location
@@ -247,6 +255,9 @@ def main():
     v2v_control_thread.start()
     v2v_data_thread = threading.Thread(target=setup_data_recv_thread, args=())
     v2v_data_thread.start()
+    loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
+    loction_update_thread.daemon = True
+    loction_update_thread.start()
 
     check_connection_state(disconnect_timestamps)
 
