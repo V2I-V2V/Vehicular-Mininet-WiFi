@@ -6,7 +6,20 @@ from mn_wifi.link import wmediumd, adhoc, Intf
 from mn_wifi.cli import CLI
 from mn_wifi.net import Mininet_wifi
 from mn_wifi.wmediumdConnector import interference
+from threading import Thread as thread
+import numpy as np
+import time
 
+def read_v2i_traces(trace_file):
+    trace = np.loadtxt(trace_file)
+    return trace[:, 1]
+
+def replay_trace(node, ifname, trace):
+    intf = node.intf(ifname)
+    time.sleep(2)
+    for throughput in trace:
+        intf.config(bw=int(throughput))
+        time.sleep(1)
 
 def topology(args):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
@@ -45,9 +58,9 @@ def topology(args):
 
     info("*** Creating links\n")
     kwargs = dict()
-    kwargs['proto'] = 'olsrd'
+    kwargs['proto'] = 'batmand'
     # add adhoc interfaces
-    channel_num = 9
+    channel_num = 5
     net.addLink(sta1, cls=adhoc, intf='sta1-wlan0',
                 ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta2, cls=adhoc, intf='sta2-wlan0',
@@ -64,6 +77,7 @@ def topology(args):
                 ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     net.addLink(sta8, cls=adhoc, intf='sta8-wlan0',
                 ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
+    # net.addNAT(name='nat0', linkTo='s1', ip='192.168.100.1').configDefault()
 
     # net.addLink(sta1, cls=adhoc, intf='sta1-wlan0',
     #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+',  **kwargs)
@@ -86,7 +100,6 @@ def topology(args):
     if '-p' not in args:
         net.plotGraph(max_x=400, max_y=1100)
 
-    # mobility
     net.addLink(sta1, s1, cls=TCLink, bw=100, delay='10ms')
     net.addLink(server, s1, cls=TCLink)
     net.addLink(sta2, s1, cls=TCLink, bw=100, delay='10ms')
@@ -157,6 +170,13 @@ def topology(args):
     net.build()
     c1.start()
     s1.start([c1])
+
+    # trace replaying, use '-t' for replaying traces
+    if '-t' in args:
+        sta1_thrpt_trace = read_v2i_traces("input/lte-trace-example.txt")
+        replay_thread = thread(target=replay_trace, args=(sta1, "sta1-eth1", sta1_thrpt_trace))
+        replay_thread.daemon = True
+        replay_thread.start()
 
     info("*** Running CLI\n")
     CLI(net)
