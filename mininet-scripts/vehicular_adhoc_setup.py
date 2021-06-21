@@ -16,10 +16,13 @@ def read_v2i_traces(trace_file):
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
-    time.sleep(2)
+    time.sleep(20)
     for throughput in trace:
+        start_t = time.time()
         intf.config(bw=int(throughput))
-        time.sleep(1)
+        elapsed_t = time.time() - start_t
+        sleep_t = 1 - elapsed_t
+        time.sleep(sleep_t)
 
 def topology(args):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
@@ -111,30 +114,31 @@ def topology(args):
     net.addLink(sta8, s1, cls=TCLink, bw=100, delay='10ms')
 
     # configure mobility
-    # net.startMobility(time=0, mob_rep=1, reverse=False)
-    # p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
-    # if '-c' not in args:
-    #     p1_start = {'position': '286.116,832.733,0.0'}
-    #     p2_start = {'position': '280.225,891.726,0.0'}
-    #     p1_end = {'position': '257.905,907.762,0.0'}
-    #     p2_end = {'position': '284.816,879.443,0.0'}
+    if '-m' in args:
+        net.startMobility(time=0, mob_rep=1, reverse=False)
+        p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
+        if '-c' not in args:
+            p1_start = {'position': '286.116,832.733,0.0'}
+            p2_start = {'position': '280.225,891.726,0.0'}
+            p1_end = {'position': '257.905,907.762,0.0'}
+            p2_end = {'position': '284.816,879.443,0.0'}
 
-    # net.mobility(sta1, 'start', time=50, **p1_start)
-    # net.mobility(sta2, 'start', time=50, **p2_start)
-    # net.mobility(sta1, 'stop', time=60, **p1_end)
-    # net.mobility(sta2, 'stop', time=60, **p2_end)
-    # net.stopMobility(time=561)
+        net.mobility(sta1, 'start', time=50, **p1_start)
+        net.mobility(sta2, 'start', time=50, **p2_start)
+        net.mobility(sta1, 'stop', time=60, **p1_end)
+        net.mobility(sta2, 'stop', time=60, **p2_end)
+        net.stopMobility(time=61)
 
     info("*** Addressing...\n")
     # setup wireless intf
-    sta1.setIP6('2001::1/64', intf="sta1-wlan0")
-    sta2.setIP6('2001::2/64', intf="sta2-wlan0")
-    sta3.setIP6('2001::3/64', intf="sta3-wlan0")
-    sta4.setIP6('2001::4/64', intf="sta4-wlan0")
-    sta5.setIP6('2001::5/64', intf="sta5-wlan0")
-    sta6.setIP6('2001::6/64', intf="sta6-wlan0")
-    sta7.setIP6('2001::7/64', intf="sta7-wlan0")
-    sta8.setIP6('2001::8/64', intf="sta8-wlan0")
+    # sta1.setIP6('2001::1/64', intf="sta1-wlan0")
+    # sta2.setIP6('2001::2/64', intf="sta2-wlan0")
+    # sta3.setIP6('2001::3/64', intf="sta3-wlan0")
+    # sta4.setIP6('2001::4/64', intf="sta4-wlan0")
+    # sta5.setIP6('2001::5/64', intf="sta5-wlan0")
+    # sta6.setIP6('2001::6/64', intf="sta6-wlan0")
+    # sta7.setIP6('2001::7/64', intf="sta7-wlan0")
+    # sta8.setIP6('2001::8/64', intf="sta8-wlan0")
     # serup wired intf
     sta1.setIP('192.168.0.3/24', intf="sta1-eth1")
     sta2.setIP('192.168.0.4/24', intf="sta2-eth1")
@@ -144,7 +148,6 @@ def topology(args):
     sta6.setIP('192.168.0.8/24', intf="sta6-eth1")
     sta7.setIP('192.168.0.9/24', intf="sta7-eth1")
     sta8.setIP('192.168.0.10/24', intf="sta8-eth1")
-    # server.setIP('192.168.0.5/24', intf="server-eth1")
 
     sta1.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     sta2.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')

@@ -3,7 +3,8 @@ import numpy as np
 
 simulation_time = 10.0
 server_ip = "192.168.0.1"
-server_port = 6666
+server_ctrl_port = 6666
+server_data_port = 6667
 
 global wwan_sockets
 wwan_sockets = []

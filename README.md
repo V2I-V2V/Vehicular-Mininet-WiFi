@@ -27,6 +27,18 @@ sudo python sta_ap_mode.py
 This script setup 2 APs and 2STAs (each one associated with one ap). A wired connection is created between the 2APs.
 
 
+## Use the `vehicular_adhoc_setup.py` script
+
+```
+sudo python vehicular_adhoc_setup.py
+```
+
+Several options:
+
+* Enable mobility: `sudo python vehicular_adhoc_setup.py -m`
+* Replay V2I throughput traces: `sudo python vehicular_adhoc_setup.py -t`
+
+
 ## Adding or deleting nodes (on the fly)
 
 ### Adding a host 
