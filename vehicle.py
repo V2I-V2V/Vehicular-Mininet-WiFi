@@ -13,6 +13,8 @@ import mobility
 
 HELPEE = 0
 HELPER = 1
+TYPE_PCD = 0
+TYPE_OXTS = 1
 vehicle_id = int(sys.argv[1])
 connection_state = "Connected"
 current_helpee_id = 65535
@@ -22,9 +24,12 @@ self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
 pcd_data_buffer = []
 pcd_data_buffer.append(pointcloud.read_pointcloud('input/single-pointcloud-frame.bin'))
+oxts_data_buffer = []
+oxts_data_buffer.append(pointcloud.read_oxts('input/sample-oxts.txt'))
 v2i_control_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_ctrl_port)
 v2i_data_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+curr_frame_id = 0
 
 helper_data_send_thread = []
 helper_data_recv_port = 8080
@@ -32,32 +37,47 @@ helper_control_recv_port = 8888
 self_ip = "10.0.0." + str(vehicle_id+2)
 
 
-def v2i_send_pcd(pcd_data):
-    msg_len = len(pcd_data)
-    v2i_data_socket.send(msg_len.to_bytes(4, "big"))
-    print("send size " + str(msg_len))
-    start_t = time.time()
-    v2i_data_socket.send(pcd_data)
-    end_t = time.time()
-    est_v2i_thrpt = msg_len/1000000/(end_t-start_t)
+def send(socket, data, type):
+    # global curr_frame_id
+    msg_len = len(data)
+    header = msg_len.to_bytes(4, "big") + curr_frame_id.to_bytes(2, "big") \
+                + vehicle_id.to_bytes(2, "big") + type.to_bytes(2, 'big')
+
+    socket.send(header)
+    total_sent = 0
+    while total_sent < msg_len:
+        try:
+            bytes_sent = socket.send(data[total_sent:])
+            if bytes_sent == 0:
+                raise RuntimeError("socket connection broken")
+        except:
+            print('[Socket conn closed] remote has close the socket')
+            socket.close()
+            return
+        total_sent += bytes_sent
+    # curr_frame_id += 1
 
 
 
 def v2i_data_send_thread():
+    global curr_frame_id
     while connection_state == "Connected" and len(pcd_data_buffer) != 0:
         # v2i_send_pcd(pcd_data_buffer[0])
-        msg_len = len(pcd_data_buffer[0])
-        v2i_data_socket.send(msg_len.to_bytes(4, "big"))
-        total = 0
-        while total < msg_len:
-            try:
-                bytes_sent = v2i_data_socket.send(pcd_data_buffer[0][total:])
-                if bytes_sent == 0:
-                    raise RuntimeError("socket connection broken")
-            except:
-                print("V2I link disconnected")
-                break
-            total = total + bytes_sent
+        send(v2i_data_socket, pcd_data_buffer[0], TYPE_PCD)
+        send(v2i_data_socket, oxts_data_buffer[0], TYPE_OXTS)
+        curr_frame_id += 1
+        # msg_len = len(pcd_data_buffer[0])
+        # v2i_data_socket.send(msg_len.to_bytes(4, "big"))
+        # total = 0
+        # while total < msg_len:
+        #     try:
+        #         bytes_sent = v2i_data_socket.send(pcd_data_buffer[0][total:])
+        #         if bytes_sent == 0:
+        #             raise RuntimeError("socket connection broken")
+        #     except:
+        #         print("V2I link disconnected")
+        #         break
+        #     total = total + bytes_sent
         print("[V2I send pcd data] From original vehicle " + str(time.time()))
         # time.sleep(0.1)
 
@@ -71,7 +91,6 @@ def self_loc_update_thread():
 
 def is_helper_recv():
     global connection_state
-    print(connection_state)
     return connection_state == "Connected"
 
 
@@ -210,8 +229,8 @@ class VehicleDataRecvThread(threading.Thread):
         helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
                                                             config.server_data_port)
         while True and not self._is_closed:
-            data = self.client_socket.recv(4)
-            msg_len = int.from_bytes(data, "big")
+            data = self.client_socket.recv(10)
+            msg_len = int.from_bytes(data[0:4], "big")
             if len(data) <= 0:
                 print("[Helpee closed]")
                 self._is_closed = True
@@ -248,20 +267,24 @@ class VehicleDataSendThread(threading.Thread):
     
     
     def run(self):
+        global curr_frame_id
         while self.is_helper_alive:
             if len(pcd_data_buffer) != 0:
                 print("[Sending data] Start sending a frame to helper " + str(time.time()))
-                msg_len = len(pcd_data_buffer[0])
-                self.v2v_data_send_sock.send(msg_len.to_bytes(4, "big"))
-                sent_total = 0
-                while sent_total < msg_len:
-                    try:
-                        bytes_sent = self.v2v_data_send_sock.send(pcd_data_buffer[0][sent_total:])
-                        sent_total += bytes_sent
-                    except ConnectionResetError:
-                        print("[Conn reset by helper]")
-                        self.v2v_data_send_sock.close()
-                        return
+                send(self.v2v_data_send_sock, pcd_data_buffer[0], TYPE_PCD)
+                send(self.v2v_data_send_sock, oxts_data_buffer[0], TYPE_OXTS)
+                curr_frame_id += 1
+                # msg_len = len(pcd_data_buffer[0])
+                # self.v2v_data_send_sock.send(msg_len.to_bytes(4, "big"))
+                # sent_total = 0
+                # while sent_total < msg_len:
+                #     try:
+                #         bytes_sent = self.v2v_data_send_sock.send(pcd_data_buffer[0][sent_total:])
+                #         sent_total += bytes_sent
+                #     except ConnectionResetError:
+                #         print("[Conn reset by helper]")
+                #         self.v2v_data_send_sock.close()
+                #         return
                 # pcd_data_buffer = pcd_data_buffer[1:]
         print("[Change helper] close the prev conn thread")
         self.v2v_data_send_sock.close()

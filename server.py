@@ -7,11 +7,21 @@ import time
 import pcd_merge
 import numpy as np
 
+MAX_VEHICLES = 8
+MAX_FRAMES = 80
+TYPE_PCD = 0
+TYPE_OXTS = 1
+
+curr_vehicles = 6
 location_map = {}
 client_sockets = {}
 client_data_sockets = {}
 vehicle_types = {} # 0 for helpee, 1 for helper
 vehicle_pcds = {}
+pcds = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
+oxts = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
+curr_processed_frame = 0
+data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES))
 helper_helpee_socket_map = {}
 current_assignment = {}
 
@@ -108,60 +118,92 @@ class ConnectionThread(threading.Thread):
         self.client_socket.close()
 
 
-def server_recv_pcd_data(client_socket, client_addr):
+def server_recv_data(client_socket, client_addr):
     print("Connect data channel from: ", client_addr)
     data = client_socket.recv(2)
     vehicle_id = int.from_bytes(data, "big")
-    if vehicle_id not in client_data_sockets.keys():
-        client_data_sockets[vehicle_id] = [client_socket]
-    else:
-        client_data_sockets[vehicle_id].append(client_socket)
+    # if vehicle_id not in client_data_sockets.keys():
+    #     client_data_sockets[vehicle_id] = [client_socket]
+    # else:
+    #     client_data_sockets[vehicle_id].append(client_socket)
     while True:
-        data = client_socket.recv(4)
+        data = client_socket.recv(10)
         if len(data) <= 0:
             print("[Helper relay closed]")
-            break
-        pcd_size = int.from_bytes(data, "big")
+            client_socket.close()
+            return
+        msg_size = int.from_bytes(data[0:4], "big")
+        frame_id = int.from_bytes(data[4:6], "big")
+        # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
+        v_id = int.from_bytes(data[6:8], "big") 
+        data_type = int.from_bytes(data[8:10], "big") 
         # print('recv size ' + str(pcd_size))
         msg = b''
-        to_recv = pcd_size
+        to_recv = msg_size
         t_recv_start = time.time()
-        while len(msg) < pcd_size:
+        while len(msg) < msg_size:
             data_recv = client_socket.recv(65536 if to_recv > 65536 else to_recv)
             if len(data_recv) <= 0:
                 print("[Helper relay closed]")
+                client_socket.close()
                 return
             msg += data_recv
-            to_recv = pcd_size - len(msg)
-            # to_recv -= len(data_recv)
-        assert len(msg) == pcd_size
+            to_recv = msg_size - len(msg)
+        assert len(msg) == msg_size
         t_elasped = time.time() - t_recv_start
-        print("[Full frame recved] from %d, throughput: %f" % 
-                    (vehicle_id, pcd_size/1000000.0/t_elasped))
-        index = client_data_sockets[vehicle_id].index(client_socket)
-        if index > 0: # this is a helper relay socket
-            real_sender = current_assignment[vehicle_id]
-            vehicle_pcds[real_sender] = msg
-        else:
-            vehicle_pcds[vehicle_id] = msg
+        if frame_id >= MAX_FRAMES:
+            continue
+        if data_type == TYPE_PCD:
+            print("[Full frame recved] from %d, throughput: %f MB/s" % 
+                        (v_id, msg_size/1000000.0/t_elasped))
+            pcds[v_id][frame_id] = msg
+        elif data_type == TYPE_OXTS:
+            print("[Oxts recved] from %d" %  v_id)
+            oxts[v_id][frame_id] = [float(x) for x in msg.split()]
+        
+        if len(pcds[v_id][frame_id]) > 0 and len(oxts[v_id][frame_id]) > 0:
+            data_ready_matrix[v_id][frame_id] = 1
+        # if len(pcds.keys()) == 6:
+        #     pcl1 = np.frombuffer(pcds[0][0], dtype='float32').reshape([-1, 4])
+        #     pcl2 = np.frombuffer(pcds[1][0], dtype='float32').reshape([-1, 4])
+        #     pcl3 = np.frombuffer(pcds[2][0], dtype='float32').reshape([-1, 4])
+        #     pcl4 = np.frombuffer(pcds[3][0], dtype='float32').reshape([-1, 4])
+        #     pcl5 = np.frombuffer(pcds[4][0], dtype='float32').reshape([-1, 4])
+        #     pcl6 = np.frombuffer(pcds[5][0], dtype='float32').reshape([-1, 4])
+        #     points_oxts_primary = (pcl1,oxts1)
+        #     points_oxts_secondary = []
+        #     points_oxts_secondary.append((pcl2,oxts2))
+        #     points_oxts_secondary.append((pcl3,oxts3))
+        #     points_oxts_secondary.append((pcl4,oxts4))
+        #     points_oxts_secondary.append((pcl5,oxts5))
+        #     points_oxts_secondary.append((pcl6,oxts6))
+        #     pcl = pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
+        #     with open('merged.bin', 'w') as f:
+        #         pcl.tofile(f)
 
-        if len(vehicle_pcds.keys()) == 6:
-            pcl1 = np.frombuffer(vehicle_pcds[0], dtype='float32').reshape([-1, 4])
-            pcl2 = np.frombuffer(vehicle_pcds[1], dtype='float32').reshape([-1, 4])
-            pcl3 = np.frombuffer(vehicle_pcds[2], dtype='float32').reshape([-1, 4])
-            pcl4 = np.frombuffer(vehicle_pcds[3], dtype='float32').reshape([-1, 4])
-            pcl5 = np.frombuffer(vehicle_pcds[4], dtype='float32').reshape([-1, 4])
-            pcl6 = np.frombuffer(vehicle_pcds[5], dtype='float32').reshape([-1, 4])
-            points_oxts_primary = (pcl1,oxts1)
+
+def merge_data_when_ready():
+    global curr_processed_frame
+    while curr_processed_frame < MAX_FRAMES:
+        ready = True
+        for n in range(curr_vehicles):
+            if not data_ready_matrix[n][curr_processed_frame]:
+                ready = False
+                break
+        if ready:
+            print("[merge data] merge frame %d ar %f" % (curr_processed_frame, time.time()))
+            points_oxts_primary = (np.frombuffer(pcds[0][curr_processed_frame], 
+                                    dtype='float32').reshape([-1, 4]), 
+                                    oxts[0][curr_processed_frame])
             points_oxts_secondary = []
-            points_oxts_secondary.append((pcl2,oxts2))
-            points_oxts_secondary.append((pcl3,oxts3))
-            points_oxts_secondary.append((pcl4,oxts4))
-            points_oxts_secondary.append((pcl5,oxts5))
-            points_oxts_secondary.append((pcl6,oxts6))
-            pcl = pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
-            with open('merged.bin', 'w') as f:
-                pcl.tofile(f)
+            for i in range(1,curr_vehicles):
+                pcl = np.frombuffer(pcds[i][curr_processed_frame], 
+                                dtype='float32').reshape([-1, 4])
+                points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
+            merged_pcl = pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
+            with open('merged_%d.bin'%curr_processed_frame, 'w') as f:
+                merged_pcl.tofile(f)
+            curr_processed_frame += 1
 
 
 class DataConnectionThread(threading.Thread):
@@ -179,7 +221,7 @@ class DataConnectionThread(threading.Thread):
         while True:
             self.data_channel_sock.listen(1)
             client_socket, client_address = self.data_channel_sock.accept()
-            new_data_recv_thread = threading.Thread(target=server_recv_pcd_data, \
+            new_data_recv_thread = threading.Thread(target=server_recv_data, \
                                                     args=(client_socket,client_address))
             new_data_recv_thread.daemon = True
             new_data_recv_thread.start()
@@ -199,6 +241,8 @@ def main():
     data_channel_thread = DataConnectionThread()
     data_channel_thread.daemon = True
     data_channel_thread.start()
+    data_process_thread = threading.Thread(target=merge_data_when_ready)
+    data_process_thread.start()
     while True:
         server.listen(1)
         client_socket, client_address = server.accept()
