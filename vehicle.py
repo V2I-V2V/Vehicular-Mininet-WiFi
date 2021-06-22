@@ -100,16 +100,6 @@ def setup_data_recv_thread():
         new_data_recv_thread.start()
 
 
-def setup_data_send_socket(helper_id):
-    pass
-
-
-def close_old_data_recv_socket():
-    # close the old recv socket for the previous helpee
-    # need to confirm the data has been sent and then close the socket
-    pass
-
-
 def notify_helpee_node(helpee_id):
     print("notifying the helpee node to send data")
     send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -145,8 +135,6 @@ class ServerControlThread(threading.Thread):
                         print(self_loc)
                         current_helpee_id = helpee_id
                         notify_helpee_node(helpee_id)
-                        # setup_data_recv_socket()
-                        # close_old_data_recv_socket() this is done in recv thread
             time.sleep(0.2)
 
 
@@ -179,10 +167,11 @@ class VehicleControlThread(threading.Thread):
 
     def run(self):
         while True:
-            data, addr = v2v_control_socket.recvfrom(1024)            
+            data, addr = v2v_control_socket.recvfrom(1024) 
+            assert len(data) == 6 or len(data) == 2
             if connection_state == "Connected":
                 # helper
-                print("helper recv broadcast loc " + str(time.time()))
+                print("helper recv broadcast loc at " + str(time.time()))
                 # print("send self loc, helpee loc to the server")
                 helpee_id, helpee_loc = parse_location_packet_data(data)
                 # send helpee location
@@ -191,17 +180,21 @@ class VehicleControlThread(threading.Thread):
                 wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket) 
             else:
                 if is_packet_assignment(data):
-                    print("[helper assignment] " + str(time.time()))
                     helper_id = int.from_bytes(data, 'big')
+                    print("[helper assignment] " + str(helper_id) + ' ' + str(time.time()))
                     helper_ip = "10.0.0." + str(helper_id+2)                    
                     new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port)
                     new_send_thread.daemon = True
                     new_send_thread.start()
+                    if len(helper_data_send_thread) != 0:
+                        helper_data_send_thread[-1].stop()
                     helper_data_send_thread.append(new_send_thread)
                 elif self_ip != addr[0]:
-                    # helpee
-                    # print("helpee recv broadcast loc from others, do flooding")
-                    v2v_control_socket.sendto(data, ("10.255.255.255", 8888))
+                    helpee_id, helpee_loc = parse_location_packet_data(data)
+                    if helpee_id != vehicle_id:
+                        # helpee only rebroadcast loc not equal to themselves
+                        print("helpee recv broadcast loc from others, do flooding")                    
+                        v2v_control_socket.sendto(data, ("10.255.255.255", 8888))
 
 
 class VehicleDataRecvThread(threading.Thread):
@@ -216,9 +209,14 @@ class VehicleDataRecvThread(threading.Thread):
     def run(self):
         helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
                                                             config.server_data_port)
-        while True:
+        while True and not self._is_closed:
             data = self.client_socket.recv(4)
             msg_len = int.from_bytes(data, "big")
+            if len(data) <= 0:
+                print("[Helpee closed]")
+                self._is_closed = True
+                helper_relay_server_sock.close()
+                break
             helper_relay_server_sock.send(data)
             to_recv = msg_len
             curr_recv_bytes = 0
@@ -228,16 +226,16 @@ class VehicleDataRecvThread(threading.Thread):
                 curr_recv_bytes += len(data)
                 to_recv -= len(data)
                 helper_relay_server_sock.send(data)
-                if data == -1:
+                if len(data) <= 0:
                     print("[Helpee closed]")
                     self._is_closed = True
                     helper_relay_server_sock.close()
                     break
             t_elasped = time.time() - t_start
             est_v2v_thrpt = msg_len/t_elasped/1000000
-            print("[Received a full frame] %f %f" % (est_v2v_thrpt, time.time()))
             if self._is_closed:
-                break
+                return
+            print("[Received a full frame] %f %f" % (est_v2v_thrpt, time.time()))
 
 
 class VehicleDataSendThread(threading.Thread):
@@ -257,10 +255,21 @@ class VehicleDataSendThread(threading.Thread):
                 self.v2v_data_send_sock.send(msg_len.to_bytes(4, "big"))
                 sent_total = 0
                 while sent_total < msg_len:
-                    bytes_sent = self.v2v_data_send_sock.send(pcd_data_buffer[0][sent_total:])
-                    sent_total += bytes_sent
+                    try:
+                        bytes_sent = self.v2v_data_send_sock.send(pcd_data_buffer[0][sent_total:])
+                        sent_total += bytes_sent
+                    except ConnectionResetError:
+                        print("[Conn reset by helper]")
+                        self.v2v_data_send_sock.close()
+                        return
                 # pcd_data_buffer = pcd_data_buffer[1:]
-            
+        print("[Change helper] close the prev conn thread")
+        self.v2v_data_send_sock.close()
+
+
+    def stop(self):
+        self.is_helper_alive = False
+
 
 def check_if_disconnected(disconnect_timestamps):
     # print("check if V2I conn is disconnected")
@@ -291,6 +300,7 @@ def check_connection_state(disconnect_timestamps):
 # TODO: add a pcd data capture thread to read point cloud data in to pcd_data_buffer periodically
 
 def main():
+    global curr_timestamp
     trace_files = 'trace.txt'
     lte_traces = utils.read_traces(trace_files)
     disconnect_timestamps = utils.process_traces(lte_traces)

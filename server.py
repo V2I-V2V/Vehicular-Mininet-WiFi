@@ -4,11 +4,41 @@ import scheduling
 import socket
 import threading
 import time
+import pcd_merge
+import numpy as np
 
 location_map = {}
 client_sockets = {}
 client_data_sockets = {}
 vehicle_types = {} # 0 for helpee, 1 for helper
+vehicle_pcds = {}
+helper_helpee_socket_map = {}
+current_assignment = {}
+
+oxts_path1 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/oxts/'
+oxts_path2 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0022786/oxts/'
+oxts_path3 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0037122/oxts/'
+oxts_path4 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0191023/oxts/'
+oxts_path5 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0399881/oxts/'
+oxts_path6 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0735239/oxts/'
+f = open(oxts_path1+'000000.txt', 'r')
+oxts1 = [float(x) for x in f.read().split()]
+f.close()
+f = open(oxts_path2+'000000.txt', 'r')
+oxts2 = [float(x) for x in f.read().split()]
+f.close()
+f = open(oxts_path3+'000000.txt', 'r')
+oxts3 = [float(x) for x in f.read().split()]
+f.close()
+f = open(oxts_path4+'000000.txt', 'r')
+oxts4 = [float(x) for x in f.read().split()]
+f.close()
+f = open(oxts_path5+'000000.txt', 'r')
+oxts5 = [float(x) for x in f.read().split()]
+f.close()
+f = open(oxts_path6+'000000.txt', 'r')
+oxts6 = [float(x) for x in f.read().split()]
+f.close()
 
 
 class SchedThread(threading.Thread):
@@ -18,10 +48,11 @@ class SchedThread(threading.Thread):
 
 
     def run(self):
+        global current_assignment
         while True:
             print(time.time())
             print(location_map)
-            if len(location_map) == 2:
+            if len(location_map) == 6:
                 positions = []
                 for k, v in sorted(location_map.items()):
                     positions.append(v)
@@ -38,6 +69,7 @@ class SchedThread(threading.Thread):
                 # for node_num in range(len(positions)):
                 #     if node_num in assignment:
                 for cnt, node in enumerate(assignment):
+                    current_assignment[node] = cnt
                     print("send %d to node %d" % (cnt, node))
                     # print(cnt, node, client_sockets[node])
                     msg = cnt.to_bytes(2, 'big')
@@ -86,6 +118,9 @@ def server_recv_pcd_data(client_socket, client_addr):
         client_data_sockets[vehicle_id].append(client_socket)
     while True:
         data = client_socket.recv(4)
+        if len(data) <= 0:
+            print("[Helper relay closed]")
+            break
         pcd_size = int.from_bytes(data, "big")
         # print('recv size ' + str(pcd_size))
         msg = b''
@@ -93,7 +128,9 @@ def server_recv_pcd_data(client_socket, client_addr):
         t_recv_start = time.time()
         while len(msg) < pcd_size:
             data_recv = client_socket.recv(65536 if to_recv > 65536 else to_recv)
-            # print('recv from node...')
+            if len(data_recv) <= 0:
+                print("[Helper relay closed]")
+                return
             msg += data_recv
             to_recv = pcd_size - len(msg)
             # to_recv -= len(data_recv)
@@ -101,6 +138,30 @@ def server_recv_pcd_data(client_socket, client_addr):
         t_elasped = time.time() - t_recv_start
         print("[Full frame recved] from %d, throughput: %f" % 
                     (vehicle_id, pcd_size/1000000.0/t_elasped))
+        index = client_data_sockets[vehicle_id].index(client_socket)
+        if index > 0: # this is a helper relay socket
+            real_sender = current_assignment[vehicle_id]
+            vehicle_pcds[real_sender] = msg
+        else:
+            vehicle_pcds[vehicle_id] = msg
+
+        if len(vehicle_pcds.keys()) == 6:
+            pcl1 = np.frombuffer(vehicle_pcds[0], dtype='float32').reshape([-1, 4])
+            pcl2 = np.frombuffer(vehicle_pcds[1], dtype='float32').reshape([-1, 4])
+            pcl3 = np.frombuffer(vehicle_pcds[2], dtype='float32').reshape([-1, 4])
+            pcl4 = np.frombuffer(vehicle_pcds[3], dtype='float32').reshape([-1, 4])
+            pcl5 = np.frombuffer(vehicle_pcds[4], dtype='float32').reshape([-1, 4])
+            pcl6 = np.frombuffer(vehicle_pcds[5], dtype='float32').reshape([-1, 4])
+            points_oxts_primary = (pcl1,oxts1)
+            points_oxts_secondary = []
+            points_oxts_secondary.append((pcl2,oxts2))
+            points_oxts_secondary.append((pcl3,oxts3))
+            points_oxts_secondary.append((pcl4,oxts4))
+            points_oxts_secondary.append((pcl5,oxts5))
+            points_oxts_secondary.append((pcl6,oxts6))
+            pcl = pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
+            with open('merged.bin', 'w') as f:
+                pcl.tofile(f)
 
 
 class DataConnectionThread(threading.Thread):
