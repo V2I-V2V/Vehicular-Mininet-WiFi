@@ -38,6 +38,25 @@ Several options:
 * Enable mobility: `sudo python vehicular_adhoc_setup.py -m`
 * Replay V2I throughput traces: `sudo python vehicular_adhoc_setup.py -t`
 
+## Run experiments over the emulated network
+
+After starting the `vehicular_adhoc_setup.py` script, run the follwing commands in the mininet CLI.
+
+```
+xterm server sta1 sta2 sta3 sta4 sta5 sta6
+```
+
+Then at the server terminal, run
+```
+python3 server 
+```
+
+In each station terminal, run 
+
+```
+python3 vehicle.py <node_num>
+```
+where node_num = station number - 1 (e.g. `python3 vehicle 0` at sta1).
 
 ## Adding or deleting nodes (on the fly)
 
