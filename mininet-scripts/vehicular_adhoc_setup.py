@@ -10,19 +10,29 @@ from threading import Thread as thread
 import numpy as np
 import time
 
+
 def read_v2i_traces(trace_file):
     trace = np.loadtxt(trace_file)
     return trace[:, 1]
+
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
     time.sleep(20)
     for throughput in trace:
         start_t = time.time()
-        intf.config(bw=int(throughput))
+        intf.config(bw=(throughput+0.001))
         elapsed_t = time.time() - start_t
         sleep_t = 1 - elapsed_t
         time.sleep(sleep_t)
+
+
+def replay_trace_thread_on_sta(sta, ifname, trace_file):
+    thrpt_trace = read_v2i_traces(trace_file)
+    replay_thread = thread(target=replay_trace, args=(sta, ifname, thrpt_trace))
+    replay_thread.daemon = True
+    replay_thread.start()
+
 
 def topology(args):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
@@ -176,16 +186,22 @@ def topology(args):
 
     # trace replaying, use '-t' for replaying traces
     if '-t' in args:
-        sta1_thrpt_trace = read_v2i_traces("input/lte-trace-example.txt")
-        replay_thread = thread(target=replay_trace, args=(sta1, "sta1-eth1", sta1_thrpt_trace))
-        replay_thread.daemon = True
-        replay_thread.start()
+        replay_trace_thread_on_sta(sta1, "sta1-eth1", "input/traces/1.txt")
+        replay_trace_thread_on_sta(sta2, "sta2-eth1", "input/traces/2.txt")
+        replay_trace_thread_on_sta(sta3, "sta3-eth1", "input/traces/3.txt")
+        replay_trace_thread_on_sta(sta4, "sta4-eth1", "input/traces/4.txt")
+        replay_trace_thread_on_sta(sta5, "sta5-eth1", "input/traces/5.txt")
+        replay_trace_thread_on_sta(sta6, "sta6-eth1", "input/traces/6.txt")
+        replay_trace_thread_on_sta(sta7, "sta7-eth1", "input/traces/7.txt")
+        replay_trace_thread_on_sta(sta8, "sta8-eth1", "input/traces/8.txt")
+
 
     info("*** Running CLI\n")
     CLI(net)
 
     info("*** Stopping network\n")
     net.stop()
+
 
 if __name__ == '__main__':
     setLogLevel('info')
