@@ -31,24 +31,6 @@ oxts_path3 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0037122/
 oxts_path4 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0191023/oxts/'
 oxts_path5 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0399881/oxts/'
 oxts_path6 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0735239/oxts/'
-f = open(oxts_path1+'000000.txt', 'r')
-oxts1 = [float(x) for x in f.read().split()]
-f.close()
-f = open(oxts_path2+'000000.txt', 'r')
-oxts2 = [float(x) for x in f.read().split()]
-f.close()
-f = open(oxts_path3+'000000.txt', 'r')
-oxts3 = [float(x) for x in f.read().split()]
-f.close()
-f = open(oxts_path4+'000000.txt', 'r')
-oxts4 = [float(x) for x in f.read().split()]
-f.close()
-f = open(oxts_path5+'000000.txt', 'r')
-oxts5 = [float(x) for x in f.read().split()]
-f.close()
-f = open(oxts_path6+'000000.txt', 'r')
-oxts6 = [float(x) for x in f.read().split()]
-f.close()
 
 
 class SchedThread(threading.Thread):
@@ -163,23 +145,6 @@ def server_recv_data(client_socket, client_addr):
         
         if len(pcds[v_id][frame_id]) > 0 and len(oxts[v_id][frame_id]) > 0:
             data_ready_matrix[v_id][frame_id] = 1
-        # if len(pcds.keys()) == 6:
-        #     pcl1 = np.frombuffer(pcds[0][0], dtype='float32').reshape([-1, 4])
-        #     pcl2 = np.frombuffer(pcds[1][0], dtype='float32').reshape([-1, 4])
-        #     pcl3 = np.frombuffer(pcds[2][0], dtype='float32').reshape([-1, 4])
-        #     pcl4 = np.frombuffer(pcds[3][0], dtype='float32').reshape([-1, 4])
-        #     pcl5 = np.frombuffer(pcds[4][0], dtype='float32').reshape([-1, 4])
-        #     pcl6 = np.frombuffer(pcds[5][0], dtype='float32').reshape([-1, 4])
-        #     points_oxts_primary = (pcl1,oxts1)
-        #     points_oxts_secondary = []
-        #     points_oxts_secondary.append((pcl2,oxts2))
-        #     points_oxts_secondary.append((pcl3,oxts3))
-        #     points_oxts_secondary.append((pcl4,oxts4))
-        #     points_oxts_secondary.append((pcl5,oxts5))
-        #     points_oxts_secondary.append((pcl6,oxts6))
-        #     pcl = pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
-        #     with open('merged.bin', 'w') as f:
-        #         pcl.tofile(f)
 
 
 def merge_data_when_ready():
