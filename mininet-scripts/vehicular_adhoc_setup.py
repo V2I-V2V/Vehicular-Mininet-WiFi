@@ -50,7 +50,7 @@ def topology(args):
     sta1 = net.addStation('sta1', mac='00:00:00:00:00:02', ip6='fe80::1',
                         position='280.225, 891.726, 0')
     sta2 = net.addStation('sta2', mac='00:00:00:00:00:03', ip6='fe80::2',
-                        position='313.58, 855.46,0') 
+                        position='233.58, 855.46,0') 
 
     sta3 = net.addStation('sta3', mac='00:00:00:00:00:04', ip6='fe80::3',
                     position='286.116, 832.733,0')
@@ -79,7 +79,7 @@ def topology(args):
 
     info("*** Creating links\n")
     kwargs = dict()
-    kwargs['proto'] = 'batmand'
+    kwargs['proto'] = 'olsrd'
     # add adhoc interfaces
     channel_num = 5
     net.addLink(sta1, cls=adhoc, intf='sta1-wlan0',
@@ -190,23 +190,24 @@ def topology(args):
     server_cmd = "python3 server.py > server.log &"
     server.cmd(server_cmd)
 
-    v1_cmd = 'python3 vehicle.py 0 > node0.log 2>&1 &'
-    v2_cmd = 'python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
+    v1_cmd = 'sleep 4 && python3 vehicle.py 0 > node0.log 2>&1 &'
+    v2_cmd = 'sleep 4 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
                     > node1.log 2>&1 &'
-    v3_cmd = 'python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
+    v3_cmd = 'sleep 4 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
                     > node2.log 2>&1 &'
-    v4_cmd = 'python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
+    v4_cmd = 'sleep 4 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
                     > node3.log 2>&1 &'
-    v5_cmd = 'python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
+    v5_cmd = 'sleep 4 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
                     > node4.log 2>&1 &'
-    v6_cmd = 'python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
+    v6_cmd = 'sleep 4 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
                     > node5.log 2>&1 &'
-    # sta1.cmd(v1_cmd)
-    # sta2.cmd(v2_cmd)
-    # sta3.cmd(v3_cmd)
-    # sta4.cmd(v4_cmd)
-    # sta5.cmd(v5_cmd)
-    # sta6.cmd(v6_cmd)
+    # time.sleep(1)
+    sta1.cmd(v1_cmd)
+    sta2.cmd(v2_cmd)
+    sta3.cmd(v3_cmd)
+    sta4.cmd(v4_cmd)
+    sta5.cmd(v5_cmd)
+    sta6.cmd(v6_cmd)
 
     info("*** Running CLI\n")
     CLI(net)
