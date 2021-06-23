@@ -42,7 +42,7 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
-            print(time.time())
+            # print(time.time())
             print(location_map)
             if len(location_map) == 6:
                 positions = []
@@ -136,16 +136,17 @@ def server_recv_data(client_socket, client_addr):
         if frame_id >= MAX_FRAMES:
             continue
         if data_type == TYPE_PCD:
-            print("[Full frame recved] from %d, throughput: %f MB/s" % 
-                        (v_id, msg_size/1000000.0/t_elasped))
+            print("[Full frame recved] from %d, id %d throughput: %f MB/s" % 
+                        (v_id, frame_id, msg_size/1000000.0/t_elasped))
             pcds[v_id][frame_id] = msg
         elif data_type == TYPE_OXTS:
-            print("[Oxts recved] from %d" %  v_id)
+            print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
             oxts[v_id][frame_id] = [float(x) for x in msg.split()]
         
         if len(pcds[v_id][frame_id]) > 0 and len(oxts[v_id][frame_id]) > 0:
             data_ready_matrix[v_id][frame_id] = 1
-
+        
+        # print(data_ready_matrix)
 
 def merge_data_when_ready():
     global curr_processed_frame
