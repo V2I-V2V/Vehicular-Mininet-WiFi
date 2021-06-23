@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Vehicular perception server
 
 import scheduling
@@ -12,6 +13,7 @@ MAX_FRAMES = 80
 TYPE_PCD = 0
 TYPE_OXTS = 1
 
+print("running server", flush=True)
 curr_vehicles = 6
 location_map = {}
 client_sockets = {}
@@ -25,13 +27,6 @@ data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES))
 helper_helpee_socket_map = {}
 current_assignment = {}
 
-oxts_path1 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/oxts/'
-oxts_path2 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0022786/oxts/'
-oxts_path3 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0037122/oxts/'
-oxts_path4 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0191023/oxts/'
-oxts_path5 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0399881/oxts/'
-oxts_path6 = '/home/ry4nzzz/DeepGTAV-data/object-0227-1/alt_perspective/0735239/oxts/'
-
 
 class SchedThread(threading.Thread):
 
@@ -43,7 +38,7 @@ class SchedThread(threading.Thread):
         global current_assignment
         while True:
             # print(time.time())
-            print(location_map)
+            print(location_map, flush=True)
             if len(location_map) == 6:
                 positions = []
                 for k, v in sorted(location_map.items()):
@@ -199,8 +194,8 @@ def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
-    print("Vehicular perception server started")
-    print("Waiting for client request..")
+    print("Vehicular perception server started", flush=True)
+    print("Waiting for client request..", flush=True)
     sched_thread = SchedThread()
     sched_thread.daemon = True
     sched_thread.start()

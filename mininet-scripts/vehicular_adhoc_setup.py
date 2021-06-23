@@ -9,6 +9,7 @@ from mn_wifi.wmediumdConnector import interference
 from threading import Thread as thread
 import numpy as np
 import time
+import subprocess
 
 
 def read_v2i_traces(trace_file):
@@ -178,12 +179,37 @@ def topology(args):
         replay_trace_thread_on_sta(sta7, "sta7-eth1", "input/traces/7.txt")
         replay_trace_thread_on_sta(sta8, "sta8-eth1", "input/traces/8.txt")
 
+    info("*** Running vehicuar server\n")
+    # server_cmd = "python3 server.py > server.log &"
+    # server.cmd(server_cmd)
+    # server_proc = server.popen(server_cmd, stdout=subprocess.PIPE,
+    #                             stderr=subprocess.STDOUT)
+    # server_done = server_proc.poll()
+    # server_stdout, server_stderr = server_proc.communicate()
+    v1_cmd = 'python3 vehicle.py 0 > node0.log 2>&1 &'
+    v2_cmd = 'python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
+                    > node1.log 2>&1 &'
+    v3_cmd = 'python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
+                    > node2.log 2>&1 &'
+    v4_cmd = 'python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
+                    > node3.log 2>&1 &'
+    v5_cmd = 'python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
+                    > node4.log 2>&1 &'
+    v6_cmd = 'python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
+                    > node5.log 2>&1 &'
+    # sta1.cmd(v1_cmd)
+    # sta2.cmd(v2_cmd)
+    # sta3.cmd(v3_cmd)
+    # sta4.cmd(v4_cmd)
+    # sta5.cmd(v5_cmd)
+    # sta6.cmd(v6_cmd)
 
     info("*** Running CLI\n")
     CLI(net)
 
     info("*** Stopping network\n")
     net.stop()
+    # server_proc.kill()
 
 
 if __name__ == '__main__':
