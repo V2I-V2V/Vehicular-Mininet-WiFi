@@ -22,13 +22,6 @@ sudo util/install.sh -B
 sudo util/install.sh -O
 ```
 
-## Important Note
-
-Stop nmetwork-manager before running mininet-wifi scripts (by running the following command).
-
-```
-sudo service network-manager stop
-```
 
 ## Try a simple exmaple
 ```
@@ -77,9 +70,15 @@ where node_num = station number - 1 (e.g. `python3 vehicle 1 ../DeepGTAV-data/ob
 
 Note: for the main vehicle (refered as vehicle 0 here), you only need to run `python3 vehicle 0` because the the default point cloud dir is set to vehicle 0. For others, you can find the point cloud dirs at `../DeepGTAV-data/object-0227-1/alt_perspective/` (e.g. `0022786/`, `0037122/`, etc).
 
-## Useful utilities
+## Useful utilities/Troubleshooting
 
 - `sudo mn -c` cleans up mininet setups, useful when something wrong with the network script.
+
+- If you find station pings are failing, you can try to stop nmetwork-manager before running mininet-wifi scripts (by running the following command).
+
+```
+sudo service network-manager stop
+```
 
 ## Adding or deleting nodes (on the fly)
 
