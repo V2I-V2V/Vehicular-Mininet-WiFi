@@ -92,29 +92,12 @@ def topology(args):
                 ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     # net.addNAT(name='nat0', linkTo='s1', ip='192.168.100.1').configDefault()
 
-    # net.addLink(sta1, cls=adhoc, intf='sta1-wlan0',
-    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+',  **kwargs)
-    # net.addLink(sta2, cls=adhoc, intf='sta2-wlan0',
-    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
-    # net.addLink(sta3, cls=adhoc, intf='sta3-wlan0',
-    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
-    # net.addLink(sta4, cls=adhoc, intf='sta4-wlan0',
-    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
-    # net.addLink(sta5, cls=adhoc, intf='sta5-wlan0',
-    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
-    # net.addLink(sta6, cls=adhoc, intf='sta6-wlan0',
-    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
-    # net.addLink(sta7, cls=adhoc, intf='sta7-wlan0',
-    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
-    # net.addLink(sta8, cls=adhoc, intf='sta8-wlan0',
-    #             ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **kwargs)
-
     # plot
     if '-p' not in args:
         net.plotGraph(max_x=400, max_y=1100)
 
-    net.addLink(sta1, s1, cls=TCLink, bw=100, delay='10ms')
     net.addLink(server, s1, cls=TCLink)
+    net.addLink(sta1, s1, cls=TCLink, bw=100, delay='10ms')
     net.addLink(sta2, s1, cls=TCLink, bw=100, delay='10ms')
     net.addLink(sta3, s1, cls=TCLink, bw=100, delay='10ms')
     net.addLink(sta4, s1, cls=TCLink, bw=100, delay='10ms')
@@ -169,14 +152,14 @@ def topology(args):
     sta8.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     server.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
-    sta1.cmd('route add -net 10.0.0.0/24 gw 10.0.0.2')
-    sta2.cmd('route add -net 10.0.0.0/24 gw 10.0.0.3')
-    sta3.cmd('route add -net 10.0.0.0/24 gw 10.0.0.3')
-    sta4.cmd('route add -net 10.0.0.0/24 gw 10.0.0.4')
-    sta5.cmd('route add -net 10.0.0.0/24 gw 10.0.0.5')
-    sta6.cmd('route add -net 10.0.0.0/24 gw 10.0.0.6')
-    sta7.cmd('route add -net 10.0.0.0/24 gw 10.0.0.7')
-    sta8.cmd('route add -net 10.0.0.0/24 gw 10.0.0.8')
+    # sta1.cmd('route add -net 10.0.0.0/24 gw 10.0.0.2')
+    # sta2.cmd('route add -net 10.0.0.0/24 gw 10.0.0.3')
+    # sta3.cmd('route add -net 10.0.0.0/24 gw 10.0.0.4')
+    # sta4.cmd('route add -net 10.0.0.0/24 gw 10.0.0.5')
+    # sta5.cmd('route add -net 10.0.0.0/24 gw 10.0.0.6')
+    # sta6.cmd('route add -net 10.0.0.0/24 gw 10.0.0.7')
+    # sta7.cmd('route add -net 10.0.0.0/24 gw 10.0.0.8')
+    # sta8.cmd('route add -net 10.0.0.0/24 gw 10.0.0.9')
 
 
     info("*** Starting network\n")
