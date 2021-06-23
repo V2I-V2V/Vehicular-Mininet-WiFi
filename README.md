@@ -51,7 +51,7 @@ Several options:
 
 ## Run experiments over the emulated network
 
-Prepare dataset. Download the dataset from google drive and unzip it to the parent directory. 
+Prepare dataset. Download the dataset from [google drive](https://drive.google.com/file/d/10gjaHto7ZVGs4A2EEVmoLhfUxTDAF3Kw/view?usp=sharing) and unzip it to the parent directory. 
 
 ```
 unzip DeepGTAV-data.zip && mv DeepGTAV-data ..
