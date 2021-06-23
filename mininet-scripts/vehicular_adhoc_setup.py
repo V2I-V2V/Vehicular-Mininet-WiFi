@@ -38,6 +38,13 @@ def replay_trace_thread_on_sta(sta, ifname, trace_file):
 def topology(args):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     info("*** Creating nodes\n")
+    
+    if '-f' in args:
+        info("*** Run in fixed location and fix assignment mode")
+        loc_file = args[args.index('-f')+1]
+
+
+
     server = net.addHost('server', mac='00:00:00:00:00:01', ip='192.168.0.1/24',
                         position='288, 881, 0')
     sta1 = net.addStation('sta1', mac='00:00:00:00:00:02', ip6='fe80::1',
@@ -180,12 +187,9 @@ def topology(args):
         replay_trace_thread_on_sta(sta8, "sta8-eth1", "input/traces/8.txt")
 
     info("*** Running vehicuar server\n")
-    # server_cmd = "python3 server.py > server.log &"
-    # server.cmd(server_cmd)
-    # server_proc = server.popen(server_cmd, stdout=subprocess.PIPE,
-    #                             stderr=subprocess.STDOUT)
-    # server_done = server_proc.poll()
-    # server_stdout, server_stderr = server_proc.communicate()
+    server_cmd = "python3 server.py > server.log &"
+    server.cmd(server_cmd)
+
     v1_cmd = 'python3 vehicle.py 0 > node0.log 2>&1 &'
     v2_cmd = 'python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
                     > node1.log 2>&1 &'

@@ -7,6 +7,7 @@ import threading
 import time
 import pcd_merge
 import numpy as np
+import argparse
 
 MAX_VEHICLES = 8
 MAX_FRAMES = 80
@@ -162,7 +163,7 @@ def merge_data_when_ready():
                                 dtype='float32').reshape([-1, 4])
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
             merged_pcl = pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
-            with open('merged_%d.bin'%curr_processed_frame, 'w') as f:
+            with open('output/merged_%d.bin'%curr_processed_frame, 'w') as f:
                 merged_pcl.tofile(f)
             curr_processed_frame += 1
 

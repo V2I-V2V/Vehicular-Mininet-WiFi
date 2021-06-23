@@ -65,7 +65,7 @@ xterm server sta1 sta2 sta3 sta4 sta5 sta6
 
 Then at the server terminal, run
 ```
-python3 server 
+python3 server.py 
 ```
 
 In each station terminal, run 
