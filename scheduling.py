@@ -28,6 +28,8 @@ def is_in_range(tx_position, rx_position, tx_coverage):
     else:
         return False
 
+def get_assignment_tuple(assignment_list):
+    return tuple(assignment_list)
 
 def get_assignment_from_id(assignment_id):
     '''
