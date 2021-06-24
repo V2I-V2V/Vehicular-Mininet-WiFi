@@ -13,20 +13,34 @@ MAX_VEHICLES = 8
 MAX_FRAMES = 80
 TYPE_PCD = 0
 TYPE_OXTS = 1
+HELPEE = 0
+HELPER = 1
 
-print("running server", flush=True)
-curr_vehicles = 6
+
 location_map = {}
 client_sockets = {}
-client_data_sockets = {}
 vehicle_types = {} # 0 for helpee, 1 for helper
-vehicle_pcds = {}
 pcds = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
 oxts = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
 curr_processed_frame = 0
 data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES))
 helper_helpee_socket_map = {}
 current_assignment = {}
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-n', '--num_vehicles', default=6, type=int,
+                        help='number of vehicles (default: 6)')
+parser.add_argument('-f', '--fixed_assignment', nargs='+', type=int, 
+                        help='use fixed assignment instead of dynamic shceduling, provide \
+                        assignment with spaces (e.g. -f 3 2)')
+args = parser.parse_args()
+mode = "dynamic"
+fixed_assignment = ()
+if args.fixed_assignment is not None:
+    mode = "fixed"
+    fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
+num_vehicles = args.num_vehicles
+ 
 
 
 class SchedThread(threading.Thread):
@@ -38,9 +52,8 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
-            # print(time.time())
             print(location_map, flush=True)
-            if len(location_map) == 6:
+            if len(location_map) == num_vehicles:
                 positions = []
                 for k, v in sorted(location_map.items()):
                     positions.append(v)
@@ -51,15 +64,16 @@ class SchedThread(threading.Thread):
                         helpee_count += 1
                     else:
                         helper_count += 1
-
-                assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
+                if mode == 'dynamic':
+                    assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
+                elif mode == 'fixed':
+                    assignment = fixed_assignment
                 print(assignment)
                 # for node_num in range(len(positions)):
                 #     if node_num in assignment:
                 for cnt, node in enumerate(assignment):
                     current_assignment[node] = cnt
                     print("send %d to node %d" % (cnt, node))
-                    # print(cnt, node, client_sockets[node])
                     msg = cnt.to_bytes(2, 'big')
                     client_sockets[node].send(msg)
                 for node_num in range(0, helpee_count+helper_count):
@@ -100,10 +114,7 @@ def server_recv_data(client_socket, client_addr):
     print("Connect data channel from: ", client_addr)
     data = client_socket.recv(2)
     vehicle_id = int.from_bytes(data, "big")
-    # if vehicle_id not in client_data_sockets.keys():
-    #     client_data_sockets[vehicle_id] = [client_socket]
-    # else:
-    #     client_data_sockets[vehicle_id].append(client_socket)
+
     while True:
         data = client_socket.recv(10)
         if len(data) <= 0:
@@ -148,7 +159,7 @@ def merge_data_when_ready():
     global curr_processed_frame
     while curr_processed_frame < MAX_FRAMES:
         ready = True
-        for n in range(curr_vehicles):
+        for n in range(num_vehicles):
             if not data_ready_matrix[n][curr_processed_frame]:
                 ready = False
                 break
@@ -158,7 +169,7 @@ def merge_data_when_ready():
                                     dtype='float32').reshape([-1, 4]), 
                                     oxts[0][curr_processed_frame])
             points_oxts_secondary = []
-            for i in range(1,curr_vehicles):
+            for i in range(1, num_vehicles):
                 pcl = np.frombuffer(pcds[i][curr_processed_frame], 
                                 dtype='float32').reshape([-1, 4])
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
