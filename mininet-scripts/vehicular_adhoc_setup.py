@@ -18,7 +18,9 @@ import utils
 default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0',\
                 '320.134, 854.744, 0', '296.692, 832.28, 0', '290.943, 881.713, 0', \
                 '313.943, 891.713, 0', '312.943, 875.713, 0']
+default_v2i_bw = [100, 100, 100, 100, 100, 100, 100, 100]
 default_loc_file="input/object-0227-loc.txt"
+v2i_bw_traces = {}
 
 def read_v2i_traces(trace_file):
     trace = np.loadtxt(trace_file)
@@ -36,8 +38,8 @@ def replay_trace(node, ifname, trace):
         time.sleep(sleep_t)
 
 
-def replay_trace_thread_on_sta(sta, ifname, trace_file):
-    thrpt_trace = read_v2i_traces(trace_file)
+def replay_trace_thread_on_sta(sta, ifname, thrpt_trace):
+    # thrpt_trace = read_v2i_traces(trace_file)
     replay_thread = thread(target=replay_trace, args=(sta, ifname, thrpt_trace))
     replay_thread.daemon = True
     replay_thread.start()
@@ -77,7 +79,8 @@ def replay_fixed_assignment(server, stations, assignment):
     stations[5].cmd(tcpdump_cmd6)
 
 
-def topology(args, locations=default_loc, loc_file=default_loc_file, assignment_str=None):
+def topology(args, locations=default_loc, loc_file=default_loc_file, \
+                assignment_str=None, v2i_bw=default_v2i_bw):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     info("*** Creating nodes\n")
     
@@ -145,14 +148,14 @@ def topology(args, locations=default_loc, loc_file=default_loc_file, assignment_
         net.plotGraph(max_x=400, max_y=1100)
 
     net.addLink(server, s1, cls=TCLink)
-    net.addLink(sta1, s1, cls=TCLink, bw=100, delay='10ms')
-    net.addLink(sta2, s1, cls=TCLink, bw=100, delay='10ms')
-    net.addLink(sta3, s1, cls=TCLink, bw=100, delay='10ms')
-    net.addLink(sta4, s1, cls=TCLink, bw=100, delay='10ms')
-    net.addLink(sta5, s1, cls=TCLink, bw=100, delay='10ms')
-    net.addLink(sta6, s1, cls=TCLink, bw=100, delay='10ms')
-    net.addLink(sta7, s1, cls=TCLink, bw=100, delay='10ms')
-    net.addLink(sta8, s1, cls=TCLink, bw=100, delay='10ms')
+    net.addLink(sta1, s1, cls=TCLink, bw=v2i_bw[0], delay='10ms')
+    net.addLink(sta2, s1, cls=TCLink, bw=v2i_bw[1], delay='10ms')
+    net.addLink(sta3, s1, cls=TCLink, bw=v2i_bw[2], delay='10ms')
+    net.addLink(sta4, s1, cls=TCLink, bw=v2i_bw[3], delay='10ms')
+    net.addLink(sta5, s1, cls=TCLink, bw=v2i_bw[4], delay='10ms')
+    net.addLink(sta6, s1, cls=TCLink, bw=v2i_bw[5], delay='10ms')
+    net.addLink(sta7, s1, cls=TCLink, bw=v2i_bw[6], delay='10ms')
+    net.addLink(sta8, s1, cls=TCLink, bw=v2i_bw[7], delay='10ms')
 
     # configure mobility
     if '-m' in args:
@@ -197,15 +200,15 @@ def topology(args, locations=default_loc, loc_file=default_loc_file, assignment_
     s1.start([c1])
 
     # trace replaying, use '-t' for replaying traces
-    if '-t' in args:
-        replay_trace_thread_on_sta(sta1, "sta1-eth1", "input/traces/1.txt")
-        replay_trace_thread_on_sta(sta2, "sta2-eth1", "input/traces/2.txt")
-        replay_trace_thread_on_sta(sta3, "sta3-eth1", "input/traces/3.txt")
-        replay_trace_thread_on_sta(sta4, "sta4-eth1", "input/traces/4.txt")
-        replay_trace_thread_on_sta(sta5, "sta5-eth1", "input/traces/5.txt")
-        replay_trace_thread_on_sta(sta6, "sta6-eth1", "input/traces/6.txt")
-        replay_trace_thread_on_sta(sta7, "sta7-eth1", "input/traces/7.txt")
-        replay_trace_thread_on_sta(sta8, "sta8-eth1", "input/traces/8.txt")
+    if '-r' in args:
+        replay_trace_thread_on_sta(sta1, "sta1-eth1", v2i_bw_traces[0])
+        replay_trace_thread_on_sta(sta2, "sta2-eth1", v2i_bw_traces[1])
+        replay_trace_thread_on_sta(sta3, "sta3-eth1", v2i_bw_traces[2])
+        replay_trace_thread_on_sta(sta4, "sta4-eth1", v2i_bw_traces[3])
+        replay_trace_thread_on_sta(sta5, "sta5-eth1", v2i_bw_traces[4])
+        replay_trace_thread_on_sta(sta6, "sta6-eth1", v2i_bw_traces[5])
+        replay_trace_thread_on_sta(sta7, "sta7-eth1", v2i_bw_traces[6])
+        replay_trace_thread_on_sta(sta8, "sta8-eth1", v2i_bw_traces[7])
 
     if '--run_app' in args:
         info("\n*** Running vehicuar server\n")
@@ -262,6 +265,7 @@ if __name__ == '__main__':
     sta_locs=default_loc
     loc_file=default_loc_file
     assignment_str = None
+    start_bandwidth = default_v2i_bw
 
     if '-f' in sys.argv:
         print("Run in fixed assignment mode")
@@ -277,5 +281,14 @@ if __name__ == '__main__':
         locs = np.loadtxt(loc_filename)
         sta_locs = utils.produce_3d_location_arr(locs)
         print(sta_locs)
+    
+    if '--trace' in sys.argv:
+        trace_filename = sys.argv[sys.argv.index('--trace')+1]
+        all_bandwidth = np.loadtxt(trace_filename)
+        start_bandwidth = all_bandwidth[0]
+        for i in range(all_bandwidth.shape[1]):
+            v2i_bw_traces[i] = all_bandwidth[:, i]
 
-    topology(sys.argv, locations=sta_locs, loc_file=loc_file, assignment_str=assignment_str)  
+
+    topology(sys.argv, locations=sta_locs, loc_file=loc_file, \
+            assignment_str=assignment_str, v2i_bw=start_bandwidth)  

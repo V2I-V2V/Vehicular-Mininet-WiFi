@@ -18,6 +18,7 @@ TYPE_OXTS = 1
 PCD_DATA_PATH = '../DeepGTAV-data/object-0227-1/velodyne_2/'
 OXTS_DATA_PATH = '../DeepGTAV-data/object-0227-1/oxts/'
 LOCATION_FILE = "input/object-0227-loc.txt"
+FRAMERATE = 0.5
 
 
 vehicle_id = int(sys.argv[1])
@@ -34,9 +35,9 @@ vehicle_locs = mobility.read_locations(LOCATION_FILE)
 self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
 pcd_data_buffer = []
-pcd_data_buffer = pointcloud.read_all_pointclouds(PCD_DATA_PATH)
+# pcd_data_buffer = pointcloud.read_all_pointclouds(PCD_DATA_PATH)
 oxts_data_buffer = []
-oxts_data_buffer = pointcloud.read_all_oxts(OXTS_DATA_PATH)
+# oxts_data_buffer = pointcloud.read_all_oxts(OXTS_DATA_PATH)
 
 frame_lock = threading.Lock()
 # oxts_data_buffer.append(pointcloud.read_oxts('input/sample-oxts.txt'))
@@ -51,6 +52,17 @@ helper_control_recv_port = 8888
 self_ip = "10.0.0." + str(vehicle_id+2)
 
 
+def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
+    for i in range(config.MAX_FRAMES):
+        t_s = time.time()
+        pcd_f_name = pcd_data_path + "%06d.bin"%i
+        pcd_data_buffer.append(pointcloud.read_pointcloud(pcd_f_name))
+        oxts_f_name = oxts_data_path + "%06d.txt"%i
+        oxts_data_buffer.append(pointcloud.read_oxts(oxts_f_name))
+        t_elasped = time.time() - t_s
+        if 1.0/fps-t_elasped > 0:
+            time.sleep(1.0/fps-t_elasped)
+
 def send(socket, data, id, type):
     msg_len = len(data)
     header = msg_len.to_bytes(4, "big") + id.to_bytes(2, "big") \
@@ -64,9 +76,9 @@ def send(socket, data, id, type):
             if bytes_sent == 0:
                 raise RuntimeError("socket connection broken")
         except:
-            print('[Socket conn closed] remote has close the socket')
-            socket.close()
-            return
+            print('[Send error] remote has close the socket')
+            # socket.close()
+            # return
         total_sent += bytes_sent
 
 
@@ -74,20 +86,24 @@ def v2i_data_send_thread():
     global curr_frame_id
     while connection_state == "Connected":
         frame_lock.acquire()
-        if curr_frame_id < config.MAX_FRAMES:
+        if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
+            and curr_frame_id < len(oxts_data_buffer):
             curr_f_id = curr_frame_id
             pcd = pcd_data_buffer[curr_f_id]
             oxts = oxts_data_buffer[curr_f_id]
             curr_frame_id += 1
             frame_lock.release()
+            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()))
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
-            print("[V2I send pcd data] From original vehicle " + str(time.time()))
-            # time.sleep(0.1)
-        else:
-            print('[Max frame reached] finished')
+        elif curr_frame_id >= config.MAX_FRAMES:
+            print('[Max frame reached] finished ' + str(time.time()))
             frame_lock.release()
             return
+        else:
+            # print("not ready to sent %f, %d, %d, %d" % (time.time(), 
+            #         curr_frame_id, len(pcd_data_buffer), len(oxts_data_buffer)))
+            frame_lock.release()
 
 
 def self_loc_update_thread():
@@ -128,7 +144,7 @@ def setup_data_recv_thread():
 
 
 def notify_helpee_node(helpee_id):
-    print("notifying the helpee node to send data")
+    # print("notifying the helpee node to send data")
     send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     msg = vehicle_id.to_bytes(2, 'big')
     helpee_addr = "10.0.0." + str(helpee_id+2)
@@ -139,7 +155,7 @@ class ServerControlThread(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        print("Setup V2I socket connection")
+        # print("Setup V2I socket connection")
 
     
     def run(self):
@@ -151,12 +167,13 @@ class ServerControlThread(threading.Thread):
             helpee_id = wwan.recv_assignment(v2i_control_socket)
             if is_helper_recv():
                 if if_recv_nothing_from_server(helpee_id):
-                    print("Recv nothing from server")
+                    print("Recv nothing from server " + str(time.time()))
                 elif if_not_assigned_as_helper(helpee_id):
-                    print("Not assigned as helper..")
+                    print("Not assigned as helper.. " + str(time.time()))
                 else:
                     if current_helpee_id == helpee_id:
-                        print("already helping node " + str(current_helpee_id))
+                        # print("already helping node " + str(current_helpee_id))
+                        pass
                     else:
                         print("[Get assignment] " + str(helpee_id) + ' ' + str(time.time()))
                         print(self_loc)
@@ -239,15 +256,21 @@ class VehicleDataRecvThread(threading.Thread):
         helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
                                                             config.server_data_port)
         while True and not self._is_closed:
-            data = self.client_socket.recv(10)
+            header_len = 10
+            data = b''
+            header_to_recv = header_len
+            while len(data) < header_len:
+                data_recv = self.client_socket.recv(header_to_recv)
+                data += data_recv
+                if len(data_recv) <= 0:
+                    print("[Helpee closed]")
+                    self._is_closed = True
+                    helper_relay_server_sock.close()
+                    return
+                header_to_recv -= len(data_recv)
             msg_len = int.from_bytes(data[0:4], "big")
             frame_id = int.from_bytes(data[4:6], "big")
             v_id = int.from_bytes(data[6:8], "big")
-            if len(data) <= 0:
-                print("[Helpee closed]")
-                self._is_closed = True
-                helper_relay_server_sock.close()
-                break
             assert len(data) == 10
             helper_relay_server_sock.send(data)
             to_recv = msg_len
@@ -268,7 +291,7 @@ class VehicleDataRecvThread(threading.Thread):
             if self._is_closed:
                 return
             print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
-                    % (est_v2v_thrpt, frame_id, v_id, time.time()))
+                    % (est_v2v_thrpt, frame_id, v_id, time.time()), flush=True)
 
 
 class VehicleDataSendThread(threading.Thread):
@@ -284,23 +307,26 @@ class VehicleDataSendThread(threading.Thread):
         global curr_frame_id
         while self.is_helper_alive:
             frame_lock.acquire()
-            if curr_frame_id < config.MAX_FRAMES:
+            if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
+                and curr_frame_id < len(oxts_data_buffer):
                 curr_f_id = curr_frame_id
                 pcd = pcd_data_buffer[curr_frame_id]
                 oxts = oxts_data_buffer[curr_frame_id]
                 curr_frame_id += 1
                 frame_lock.release()
-                print("[Sending data] Start sending frame " + str(curr_f_id) \
+                print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) \
                             + " to helper " + str(current_helper_id) + ' ' + str(time.time()), flush=True)
                 t_start = time.time()
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
                 t_elasped = time.time() - t_start
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
+            elif curr_frame_id >= config.MAX_FRAMES:
+                frame_lock.release()
+                print('[Max frame reached] finished ' + str(time.time()))
+                break
             else:
                 frame_lock.release()
-                print('[Max frame reached] finished')
-                break
-        print("[Change helper] close the prev conn thread")
+        print("[Change helper] close the prev conn thread " + str(time.time()))
         self.v2v_data_send_sock.close()
 
 
@@ -322,6 +348,7 @@ def check_if_disconnected(disconnect_timestamps):
 def check_connection_state(disconnect_timestamps):
     global connection_state
     while True:
+        t_start = time.time()
         if connection_state == "Connected":
             # print("Connected to server...")
             if vehicle_id not in disconnect_timestamps.keys():
@@ -333,7 +360,9 @@ def check_connection_state(disconnect_timestamps):
             mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket)
         if check_if_disconnected(disconnect_timestamps):
             connection_state = "Disconnected"
-        time.sleep(0.2)
+        t_elasped = time.time() - t_start
+        if 0.2-t_elasped > 0:
+            time.sleep(0.2-t_elasped)
 
 
 # TODO: add a pcd data capture thread to read point cloud data in to pcd_data_buffer periodically
@@ -355,6 +384,10 @@ def main():
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
     loction_update_thread.daemon = True
     loction_update_thread.start()
+
+    senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
+             args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
+    senser_data_capture_thread.start()
 
     check_connection_state(disconnect_timestamps)
 

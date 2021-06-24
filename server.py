@@ -116,11 +116,17 @@ def server_recv_data(client_socket, client_addr):
     vehicle_id = int.from_bytes(data, "big")
 
     while True:
-        data = client_socket.recv(10)
-        if len(data) <= 0:
-            print("[Helper relay closed]")
-            client_socket.close()
-            return
+        header_len = 10
+        data = b''
+        header_to_recv = header_len
+        while len(data) < header_len:
+            data_recv = client_socket.recv(header_to_recv)
+            data += data_recv
+            if len(data_recv) <= 0:
+                print("[Helper relay closed]")
+                client_socket.close()
+                return
+            header_to_recv -= len(data_recv)
         msg_size = int.from_bytes(data[0:4], "big")
         frame_id = int.from_bytes(data[4:6], "big")
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
@@ -143,8 +149,8 @@ def server_recv_data(client_socket, client_addr):
         if frame_id >= MAX_FRAMES:
             continue
         if data_type == TYPE_PCD:
-            print("[Full frame recved] from %d, id %d throughput: %f MB/s" % 
-                        (v_id, frame_id, msg_size/1000000.0/t_elasped))
+            print("[Full frame recved] from %d, id %d throughput: %f MB/s time: %f" % 
+                        (v_id, frame_id, msg_size/1000000.0/t_elasped, time.time()))
             pcds[v_id][frame_id] = msg
         elif data_type == TYPE_OXTS:
             print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
