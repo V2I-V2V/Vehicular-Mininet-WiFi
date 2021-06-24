@@ -43,7 +43,23 @@ def replay_trace_thread_on_sta(sta, ifname, trace_file):
     replay_thread.start()
 
 
+def capture_pcap(stations):
+    tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
+    tcpdump_cmd2 = 'tcpdump -nni any -s96 -w node2.pcap &'
+    tcpdump_cmd3 = 'tcpdump -nni any -s96 -w node3.pcap &'
+    tcpdump_cmd4 = 'tcpdump -nni any -s96 -w node4.pcap &'
+    tcpdump_cmd5 = 'tcpdump -nni any -s96 -w node5.pcap &'
+    tcpdump_cmd6 = 'tcpdump -nni any -s96 -w node6.pcap &'
+    stations[0].cmd(tcpdump_cmd1)
+    stations[1].cmd(tcpdump_cmd2)
+    stations[2].cmd(tcpdump_cmd3)
+    stations[3].cmd(tcpdump_cmd4)
+    stations[4].cmd(tcpdump_cmd5)
+    stations[5].cmd(tcpdump_cmd6)
+
+
 def replay_fixed_assignment(server, stations, assignment):
+    capture_pcap(stations)
     server_cmd = "python3 server.py -f " + assignment + "> logs/server.log 2>&1 &"
     server.cmd(server_cmd)
     v1_cmd = 'sleep 6 && python3 vehicle.py 0 > logs/node0.log 2>&1 &'
@@ -57,24 +73,12 @@ def replay_fixed_assignment(server, stations, assignment):
                     > logs/node4.log 2>&1 &'
     v6_cmd = 'sleep 6 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
                     > logs/node5.log 2>&1 &'
-    tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
-    tcpdump_cmd2 = 'tcpdump -nni any -s96 -w node2.pcap &'
-    tcpdump_cmd3 = 'tcpdump -nni any -s96 -w node3.pcap &'
-    tcpdump_cmd4 = 'tcpdump -nni any -s96 -w node4.pcap &'
-    tcpdump_cmd5 = 'tcpdump -nni any -s96 -w node5.pcap &'
-    tcpdump_cmd6 = 'tcpdump -nni any -s96 -w node6.pcap &'
     stations[0].cmd(v1_cmd)
     stations[1].cmd(v2_cmd)
     stations[2].cmd(v3_cmd)
     stations[3].cmd(v4_cmd)
     stations[4].cmd(v5_cmd)
     stations[5].cmd(v6_cmd)
-    stations[0].cmd(tcpdump_cmd1)
-    stations[1].cmd(tcpdump_cmd2)
-    stations[2].cmd(tcpdump_cmd3)
-    stations[3].cmd(tcpdump_cmd4)
-    stations[4].cmd(tcpdump_cmd5)
-    stations[5].cmd(tcpdump_cmd6)
 
 
 def topology(args, locations=default_loc, loc_file=default_loc_file, assignment_str=None):
@@ -196,55 +200,56 @@ def topology(args, locations=default_loc, loc_file=default_loc_file, assignment_
     c1.start()
     s1.start([c1])
 
-    # trace replaying, use '-t' for replaying traces
-    if '-t' in args:
-        replay_trace_thread_on_sta(sta1, "sta1-eth1", "input/traces/1.txt")
-        replay_trace_thread_on_sta(sta2, "sta2-eth1", "input/traces/2.txt")
-        replay_trace_thread_on_sta(sta3, "sta3-eth1", "input/traces/3.txt")
-        replay_trace_thread_on_sta(sta4, "sta4-eth1", "input/traces/4.txt")
-        replay_trace_thread_on_sta(sta5, "sta5-eth1", "input/traces/5.txt")
-        replay_trace_thread_on_sta(sta6, "sta6-eth1", "input/traces/6.txt")
-        replay_trace_thread_on_sta(sta7, "sta7-eth1", "input/traces/7.txt")
-        replay_trace_thread_on_sta(sta8, "sta8-eth1", "input/traces/8.txt")
+    # # trace replaying, use '-t' for replaying traces
+    # if '-t' in args:
+    #     replay_trace_thread_on_sta(sta1, "sta1-eth1", "input/traces/1.txt")
+    #     replay_trace_thread_on_sta(sta2, "sta2-eth1", "input/traces/2.txt")
+    #     replay_trace_thread_on_sta(sta3, "sta3-eth1", "input/traces/3.txt")
+    #     replay_trace_thread_on_sta(sta4, "sta4-eth1", "input/traces/4.txt")
+    #     replay_trace_thread_on_sta(sta5, "sta5-eth1", "input/traces/5.txt")
+    #     replay_trace_thread_on_sta(sta6, "sta6-eth1", "input/traces/6.txt")
+    #     replay_trace_thread_on_sta(sta7, "sta7-eth1", "input/traces/7.txt")
+    #     replay_trace_thread_on_sta(sta8, "sta8-eth1", "input/traces/8.txt")
 
-    if '--run_app' in args:
-        info("\n*** Running vehicuar server\n")
-        server_cmd = "python3 server.py > logs/server.log 2>&1 &"
-        server.cmd(server_cmd)
+    # if '--run_app' in args:
+    #     info("\n*** Running vehicuar server\n")
+    #     server_cmd = "python3 server.py > logs/server.log 2>&1 &"
+    #     server.cmd(server_cmd)
 
-        v1_cmd = 'sleep 6 && python3 vehicle.py 0 ../DeepGTAV-data/object-0227-1/ \
-                        %s > logs/node0.log 2>&1 &'%loc_file
-        v2_cmd = 'sleep 6 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
-                        %s > logs/node1.log 2>&1 &'%loc_file
-        v3_cmd = 'sleep 6 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
-                        %s > logs/node2.log 2>&1 &'%loc_file
-        v4_cmd = 'sleep 6 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
-                        %s > logs/node3.log 2>&1 &'%loc_file
-        v5_cmd = 'sleep 6 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
-                        %s > logs/node4.log 2>&1 &'%loc_file
-        v6_cmd = 'sleep 6 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
-                        %s > logs/node5.log 2>&1 &'%loc_file
-        tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
-        tcpdump_cmd2 = 'tcpdump -nni any -s96 -w node2.pcap &'
-        tcpdump_cmd3 = 'tcpdump -nni any -s96 -w node3.pcap &'
-        tcpdump_cmd4 = 'tcpdump -nni any -s96 -w node4.pcap &'
-        tcpdump_cmd5 = 'tcpdump -nni any -s96 -w node5.pcap &'
-        tcpdump_cmd6 = 'tcpdump -nni any -s96 -w node6.pcap &'
-        sta1.cmd(v1_cmd)
-        sta2.cmd(v2_cmd)
-        sta3.cmd(v3_cmd)
-        sta4.cmd(v4_cmd)
-        sta5.cmd(v5_cmd)
-        sta6.cmd(v6_cmd)
-        sta1.cmd(tcpdump_cmd1)
-        sta2.cmd(tcpdump_cmd2)
-        sta3.cmd(tcpdump_cmd3)
-        sta4.cmd(tcpdump_cmd4)
-        sta5.cmd(tcpdump_cmd5)
-        sta6.cmd(tcpdump_cmd6)
+    #     v1_cmd = 'sleep 6 && python3 vehicle.py 0 ../DeepGTAV-data/object-0227-1/ \
+    #                     %s > logs/node0.log 2>&1 &'%loc_file
+    #     v2_cmd = 'sleep 6 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
+    #                     %s > logs/node1.log 2>&1 &'%loc_file
+    #     v3_cmd = 'sleep 6 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
+    #                     %s > logs/node2.log 2>&1 &'%loc_file
+    #     v4_cmd = 'sleep 6 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
+    #                     %s > logs/node3.log 2>&1 &'%loc_file
+    #     v5_cmd = 'sleep 6 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
+    #                     %s > logs/node4.log 2>&1 &'%loc_file
+    #     v6_cmd = 'sleep 6 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
+    #                     %s > logs/node5.log 2>&1 &'%loc_file
+    #     tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
+    #     tcpdump_cmd2 = 'tcpdump -nni any -s96 -w node2.pcap &'
+    #     tcpdump_cmd3 = 'tcpdump -nni any -s96 -w node3.pcap &'
+    #     tcpdump_cmd4 = 'tcpdump -nni any -s96 -w node4.pcap &'
+    #     tcpdump_cmd5 = 'tcpdump -nni any -s96 -w node5.pcap &'
+    #     tcpdump_cmd6 = 'tcpdump -nni any -s96 -w node6.pcap &'
+    #     sta1.cmd(v1_cmd)
+    #     sta2.cmd(v2_cmd)
+    #     sta3.cmd(v3_cmd)
+    #     sta4.cmd(v4_cmd)
+    #     sta5.cmd(v5_cmd)
+    #     sta6.cmd(v6_cmd)
+    #     sta1.cmd(tcpdump_cmd1)
+    #     sta2.cmd(tcpdump_cmd2)
+    #     sta3.cmd(tcpdump_cmd3)
+    #     sta4.cmd(tcpdump_cmd4)
+    #     sta5.cmd(tcpdump_cmd5)
+    #     sta6.cmd(tcpdump_cmd6)
     
-    elif '-f' in args:
-        replay_fixed_assignment(server, stations, assignment_str)
+    # elif '-f' in args:
+    #     replay_fixed_assignment(server, stations, assignment_str)
+    capture_pcap(stations)
         
 
     info("*** Running CLI\n")
