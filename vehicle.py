@@ -264,7 +264,7 @@ class VehicleDataRecvThread(threading.Thread):
                     helper_relay_server_sock.close()
                     break
             t_elasped = time.time() - t_start
-            est_v2v_thrpt = msg_len/t_elasped/1000000
+            est_v2v_thrpt = msg_len/t_elasped/1000000.0
             if self._is_closed:
                 return
             print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
@@ -291,8 +291,10 @@ class VehicleDataSendThread(threading.Thread):
                 curr_frame_id += 1
                 frame_lock.release()
                 print("[Sending data] Start sending frame " + str(curr_f_id) \
-                            + " to helper " + str(current_helper_id) + ' ' + str(time.time()))
+                            + " to helper " + str(current_helper_id) + ' ' + str(time.time()), flush=True)
+                t_start = time.time()
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
+                t_elasped = time.time() - t_start
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             else:
                 frame_lock.release()
@@ -322,6 +324,8 @@ def check_connection_state(disconnect_timestamps):
     while True:
         if connection_state == "Connected":
             # print("Connected to server...")
+            if vehicle_id not in disconnect_timestamps.keys():
+                wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket) 
             pass
         elif connection_state == "Disconnected":
             # TODO: setup a timer to resend location information every x ms

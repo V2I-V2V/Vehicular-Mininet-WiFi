@@ -57,12 +57,24 @@ def replay_fixed_assignment(server, stations, assignment):
                     > logs/node4.log 2>&1 &'
     v6_cmd = 'sleep 6 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
                     > logs/node5.log 2>&1 &'
+    tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
+    tcpdump_cmd2 = 'tcpdump -nni any -s96 -w node2.pcap &'
+    tcpdump_cmd3 = 'tcpdump -nni any -s96 -w node3.pcap &'
+    tcpdump_cmd4 = 'tcpdump -nni any -s96 -w node4.pcap &'
+    tcpdump_cmd5 = 'tcpdump -nni any -s96 -w node5.pcap &'
+    tcpdump_cmd6 = 'tcpdump -nni any -s96 -w node6.pcap &'
     stations[0].cmd(v1_cmd)
     stations[1].cmd(v2_cmd)
     stations[2].cmd(v3_cmd)
     stations[3].cmd(v4_cmd)
     stations[4].cmd(v5_cmd)
     stations[5].cmd(v6_cmd)
+    stations[0].cmd(tcpdump_cmd1)
+    stations[1].cmd(tcpdump_cmd2)
+    stations[2].cmd(tcpdump_cmd3)
+    stations[3].cmd(tcpdump_cmd4)
+    stations[4].cmd(tcpdump_cmd5)
+    stations[5].cmd(tcpdump_cmd6)
 
 
 def topology(args, locations=default_loc, loc_file=default_loc_file, assignment_str=None):
@@ -212,12 +224,24 @@ def topology(args, locations=default_loc, loc_file=default_loc_file, assignment_
                         %s > logs/node4.log 2>&1 &'%loc_file
         v6_cmd = 'sleep 6 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
                         %s > logs/node5.log 2>&1 &'%loc_file
+        tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
+        tcpdump_cmd2 = 'tcpdump -nni any -s96 -w node2.pcap &'
+        tcpdump_cmd3 = 'tcpdump -nni any -s96 -w node3.pcap &'
+        tcpdump_cmd4 = 'tcpdump -nni any -s96 -w node4.pcap &'
+        tcpdump_cmd5 = 'tcpdump -nni any -s96 -w node5.pcap &'
+        tcpdump_cmd6 = 'tcpdump -nni any -s96 -w node6.pcap &'
         sta1.cmd(v1_cmd)
         sta2.cmd(v2_cmd)
         sta3.cmd(v3_cmd)
         sta4.cmd(v4_cmd)
         sta5.cmd(v5_cmd)
         sta6.cmd(v6_cmd)
+        sta1.cmd(tcpdump_cmd1)
+        sta2.cmd(tcpdump_cmd2)
+        sta3.cmd(tcpdump_cmd3)
+        sta4.cmd(tcpdump_cmd4)
+        sta5.cmd(tcpdump_cmd5)
+        sta6.cmd(tcpdump_cmd6)
     
     elif '-f' in args:
         replay_fixed_assignment(server, stations, assignment_str)
