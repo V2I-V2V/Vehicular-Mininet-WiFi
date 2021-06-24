@@ -22,6 +22,14 @@ sudo util/install.sh -B
 sudo util/install.sh -O
 ```
 
+**Important:** After installing olsr, please open `/etc/olsrd/olsrd.conf` and comment out the line `LoadPlugin "/usr/lib/olsrd_jsoninfo.so.1.1"` if it exists.
+
+As a quick fix, you can copy my config to your olsrd configuration directory by
+
+```
+sudo cp config/olsrd.conf /etc/olsrd/
+```
+
 
 ## Try a simple exmaple
 ```
@@ -33,14 +41,19 @@ This script setup 2 APs and 2STAs (each one associated with one ap). A wired con
 
 ## Use the `vehicular_adhoc_setup.py` script
 
+Only setup the network:
+
 ```
-sudo python mininet-scripts/vehicular_adhoc_setup.py
+sudo python mininet-scripts/vehicular_adhoc_setup.py <optional options>
 ```
+
 
 Several options:
 
-* Enable mobility: `sudo python vehicular_adhoc_setup.py -m`
-* Replay V2I throughput traces: `sudo python vehicular_adhoc_setup.py -t`
+* Start the vehicular application: `--run_app`
+* Enable mobility: `-m`
+* Replay V2I throughput traces: `-t`
+* Plot nodes: `-p`
 
 ## Run experiments over the emulated network
 
@@ -50,7 +63,15 @@ Prepare dataset. Download the dataset from [google drive](https://drive.google.c
 unzip DeepGTAV-data.zip && mv DeepGTAV-data ..
 ```
 
-After starting the `vehicular_adhoc_setup.py` script, run the follwing commands in the mininet CLI.
+### Start the application automatically with the script
+
+```
+sudo python mininet-scripts/vehicular_adhoc_setup.py --run_app
+```
+
+### Start the application manually
+
+After starting the `python mininet-scripts/vehicular_adhoc_setup.py` script, run the follwing commands in the mininet CLI.
 
 ```
 xterm server sta1 sta2 sta3 sta4 sta5 sta6
