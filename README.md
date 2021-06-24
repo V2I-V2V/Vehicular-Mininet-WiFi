@@ -50,7 +50,8 @@ sudo python mininet-scripts/vehicular_adhoc_setup.py <optional options>
 
 Several options:
 
-* Read a location file: `-l <location_file>`. File format [sta1_x sta1_y sta2_x, sta2_y ...]. 
+* Read a location file: `-l <location_file>`. File format [sta1_x sta1_y sta2_x, sta2_y ...].
+* Fix assignment: `-f <assignment_file> <assignment_index>`. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`.
 * Start the vehicular application: `--run_app`
 * Enable mobility: `-m`
 * Replay V2I throughput traces: `-t`
