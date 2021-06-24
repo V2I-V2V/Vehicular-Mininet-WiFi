@@ -2,7 +2,7 @@
 import os, sys
 import numpy as np
 import config
-import TrakoDracoPy
+# import TrakoDracoPy
 import struct
 
 def read_all_pointclouds(pointcloud_dir):
@@ -39,17 +39,17 @@ def read_oxts(oxts_filename):
     return oxts_data
 
 
-def dracoEncode(points, cl, qb):
-    encode_buf = TrakoDracoPy.encode_point_cloud_to_buffer(points[:,:3].flatten(), position=True, 
-        sequential=False, remove_duplicates=False, quantization_bits=qb, compression_level=cl,
-        quantization_range=-1, quantization_origin=None, create_metadata=False)
-    ratio = len(encode_buf) / (12.0 * points.shape[0])
-    return encode_buf, ratio
+# def dracoEncode(points, cl, qb):
+#     encode_buf = TrakoDracoPy.encode_point_cloud_to_buffer(points[:,:3].flatten(), position=True, 
+#         sequential=False, remove_duplicates=False, quantization_bits=qb, compression_level=cl,
+#         quantization_range=-1, quantization_origin=None, create_metadata=False)
+#     ratio = len(encode_buf) / (12.0 * points.shape[0])
+#     return encode_buf, ratio
 
-def dracoDecode(pc_encoded):
-    decode_buf = TrakoDracoPy.decode_point_cloud_buffer(pc_encoded)
-    pc = np.asarray(decode_buf.points).astype(np.float32).reshape([-1,3])
-    return pc
+# def dracoDecode(pc_encoded):
+#     decode_buf = TrakoDracoPy.decode_point_cloud_buffer(pc_encoded)
+#     pc = np.asarray(decode_buf.points).astype(np.float32).reshape([-1,3])
+#     return pc
     
 
 def compress_pointcloud(compression_level, pointcloud):
