@@ -24,8 +24,9 @@ if len(sys.argv) > 2:
     OXTS_DATA_PATH = sys.argv[2] + '/oxts/'
 connection_state = "Connected"
 current_helpee_id = 65535
+current_helper_id = 65535
 curr_timestamp = 0.0
-vehicle_locs = mobility.read_locations("input/object-0227.txt")
+vehicle_locs = mobility.read_locations("input/object-0227-loc.txt")
 self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
 pcd_data_buffer = []
@@ -190,6 +191,7 @@ class VehicleControlThread(threading.Thread):
         
 
     def run(self):
+        global current_helper_id
         while True:
             data, addr = v2v_control_socket.recvfrom(1024) 
             assert len(data) == 6 or len(data) == 2
@@ -205,7 +207,8 @@ class VehicleControlThread(threading.Thread):
                 if is_packet_assignment(data):
                     helper_id = int.from_bytes(data, 'big')
                     print("[helper assignment] " + str(helper_id) + ' ' + str(time.time()))
-                    helper_ip = "10.0.0." + str(helper_id+2)                    
+                    helper_ip = "10.0.0." + str(helper_id+2)   
+                    current_helper_id = helper_id
                     new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port)
                     new_send_thread.daemon = True
                     new_send_thread.start()
@@ -235,11 +238,14 @@ class VehicleDataRecvThread(threading.Thread):
         while True and not self._is_closed:
             data = self.client_socket.recv(10)
             msg_len = int.from_bytes(data[0:4], "big")
+            frame_id = int.from_bytes(data[4:6], "big")
+            v_id = int.from_bytes(data[6:8], "big")
             if len(data) <= 0:
                 print("[Helpee closed]")
                 self._is_closed = True
                 helper_relay_server_sock.close()
                 break
+            assert len(data) == 10
             helper_relay_server_sock.send(data)
             to_recv = msg_len
             curr_recv_bytes = 0
@@ -250,7 +256,7 @@ class VehicleDataRecvThread(threading.Thread):
                 to_recv -= len(data)
                 helper_relay_server_sock.send(data)
                 if len(data) <= 0:
-                    print("[Helpee closed]")
+                    print("[Server connection closed]")
                     self._is_closed = True
                     helper_relay_server_sock.close()
                     break
@@ -258,7 +264,8 @@ class VehicleDataRecvThread(threading.Thread):
             est_v2v_thrpt = msg_len/t_elasped/1000000
             if self._is_closed:
                 return
-            print("[Received a full frame] %f %f" % (est_v2v_thrpt, time.time()))
+            print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
+                    % (est_v2v_thrpt, frame_id, v_id, time.time()))
 
 
 class VehicleDataSendThread(threading.Thread):
@@ -280,7 +287,8 @@ class VehicleDataSendThread(threading.Thread):
                 oxts = oxts_data_buffer[curr_frame_id]
                 curr_frame_id += 1
                 frame_lock.release()
-                print("[Sending data] Start sending a frame to helper " + str(time.time()))
+                print("[Sending data] Start sending frame " + str(curr_f_id) \
+                            + " to helper " + str(current_helper_id) + ' ' + str(time.time()))
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             else:
