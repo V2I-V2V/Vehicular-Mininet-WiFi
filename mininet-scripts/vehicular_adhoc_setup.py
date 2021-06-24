@@ -1,4 +1,6 @@
-import sys
+import sys, os
+
+from numpy.lib import utils
 
 from mininet.log import setLogLevel, info
 from mininet.link import TCLink
@@ -9,8 +11,13 @@ from mn_wifi.wmediumdConnector import interference
 from threading import Thread as thread
 import numpy as np
 import time
-import subprocess
+import math
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import utils
 
+default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0',\
+                '320.134, 854.744, 0', '296.692, 832.28, 0', '290.943, 881.713, 0', \
+                '313.943, 891.713, 0', '312.943, 875.713, 0']
 
 def read_v2i_traces(trace_file):
     trace = np.loadtxt(trace_file)
@@ -19,7 +26,7 @@ def read_v2i_traces(trace_file):
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
-    time.sleep(20)
+    time.sleep(2)
     for throughput in trace:
         start_t = time.time()
         intf.config(bw=(throughput+0.001))
@@ -28,46 +35,104 @@ def replay_trace(node, ifname, trace):
         time.sleep(sleep_t)
 
 
+def parse_offline_settings(settings):
+    """Parse the setting file
+    Args:
+        settings ([str]): [setting file name]
+    Returns:
+        total locations
+        total node number
+        helpee node number
+        helper node number
+        locations, size (total locations, 2*total node number)
+        assignments, with each index containing all assignment of one location
+    """
+    with open(settings, 'r') as f:
+        parse = next(f).split()
+        total_loc, num_nodes = int(parse[0]), int(parse[1])
+        locations = []
+        assignments = []
+        for i in range(total_loc):
+            location = np.array(next(f).split(), dtype=float)
+            # print(location)
+            node_info = next(f).split()
+            num_helpee, num_helper = int(node_info[0]), int(node_info[1])
+            num_assignment_schemes = int(math.factorial(num_helper)/math.factorial(num_helpee-1))
+            assignment = np.array([next(f).split() for x in range(num_assignment_schemes)])
+            locations.append(location)
+            assignments.append(assignment)
+            # print(assignment)
+    return total_loc, num_nodes, num_helpee, num_helper, locations, assignments
+
+
 def replay_trace_thread_on_sta(sta, ifname, trace_file):
     thrpt_trace = read_v2i_traces(trace_file)
     replay_thread = thread(target=replay_trace, args=(sta, ifname, thrpt_trace))
     replay_thread.daemon = True
     replay_thread.start()
 
+def replay_fixed_assignments(server, stations, assignments, locations):
+    for cnt, location in enumerate(locations):
+        sta_locs = utils.produce_3d_location_arr(location)
+        for sta_idx in range(len(stations)):
+            stations[sta_idx].setPosition(sta_locs[sta_idx])
+        print(cnt)
+        # print(assignments[cnt])
+        # ap_exp(num_helpee, num_helper, location, assignments[cnt][0])
+        for assignment in assignments[cnt]:
+            assignment_str = utils.produce_assignment_str(assignment[:3])
+            server_cmd = "python3 server.py " + assignment_str + "> server.log 2>&1 &"
+            server.cmd(server_cmd)
+            v1_cmd = 'sleep 6 && python3 vehicle.py 0 > node0.log 2>&1 &'
+            v2_cmd = 'sleep 6 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
+                            > node1.log 2>&1 &'
+            v3_cmd = 'sleep 6 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
+                            > node2.log 2>&1 &'
+            v4_cmd = 'sleep 6 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
+                            > node3.log 2>&1 &'
+            v5_cmd = 'sleep 6 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
+                            > node4.log 2>&1 &'
+            v6_cmd = 'sleep 6 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
+                            > node5.log 2>&1 &'
+            stations[0].cmd(v1_cmd)
+            stations[1].cmd(v2_cmd)
+            stations[2].cmd(v3_cmd)
+            stations[3].cmd(v4_cmd)
+            stations[4].cmd(v5_cmd)
+            stations[5].cmd(v6_cmd)
 
-def topology(args):
+def topology(args, locations=default_loc, assignments=None, all_locations=None):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     info("*** Creating nodes\n")
     
-    if '-f' in args:
-        info("*** Run in fixed location and fix assignment mode")
-        loc_file = args[args.index('-f')+1]
 
-
-
-    server = net.addHost('server', mac='00:00:00:00:00:01', ip='192.168.0.1/24',
-                        position='288, 881, 0')
-    sta1 = net.addStation('sta1', mac='00:00:00:00:00:02', ip6='fe80::1',
-                        position='280.225, 891.726, 0')
-    sta2 = net.addStation('sta2', mac='00:00:00:00:00:03', ip6='fe80::2',
-                        position='233.58, 855.46,0') 
-
-    sta3 = net.addStation('sta3', mac='00:00:00:00:00:04', ip6='fe80::3',
-                    position='286.116, 832.733,0')
-    sta4 = net.addStation('sta4', mac='00:00:00:00:00:05', ip6='fe80::4',
-                    position='320.134, 854.744,0')
-
-    sta5 = net.addStation('sta5', mac='00:00:00:00:00:06', ip6='fe80::5',
-                    position='296.692, 832.28, 0')
-    sta6 = net.addStation('sta6', mac='00:00:00:00:00:07', ip6='fe80::6',
-                    position='290.943, 881.713, 0')
-
-    sta7 = net.addStation('sta7', mac='00:00:00:00:00:08', ip6='fe80::7',
-                    position='313.943, 891.713, 0')
-
-    sta8 = net.addStation('sta8', mac='00:00:00:00:00:09', ip6='fe80::8',
-                    position='312.943, 875.713, 0')
+    server = net.addHost('server', mac='00:00:00:00:00:01', ip='192.168.0.1/24')
     
+    stations = []
+    sta1 = net.addStation('sta1', mac='00:00:00:00:00:02', ip6='fe80::1',
+                    position=locations[0])
+    stations.append(sta1)
+    sta2 = net.addStation('sta2', mac='00:00:00:00:00:03', ip6='fe80::2',
+                    position=locations[1]) 
+    stations.append(sta2)
+    sta3 = net.addStation('sta3', mac='00:00:00:00:00:04', ip6='fe80::3',
+                    position=locations[2])
+    stations.append(sta3)
+    sta4 = net.addStation('sta4', mac='00:00:00:00:00:05', ip6='fe80::4',
+                    position=locations[3])
+    stations.append(sta4)
+    sta5 = net.addStation('sta5', mac='00:00:00:00:00:06', ip6='fe80::5',
+                    position=locations[4])
+    stations.append(sta5)
+    sta6 = net.addStation('sta6', mac='00:00:00:00:00:07', ip6='fe80::6',
+                    position=locations[5])
+    stations.append(sta6)
+    sta7 = net.addStation('sta7', mac='00:00:00:00:00:08', ip6='fe80::7',
+                    position=locations[6])
+    stations.append(sta7)
+    sta8 = net.addStation('sta8', mac='00:00:00:00:00:09', ip6='fe80::8',
+                    position=locations[7])
+    stations.append(sta8)
     s1 = net.addSwitch('s1')
     c1 = net.addController('c1')
     
@@ -101,7 +166,7 @@ def topology(args):
     # net.addNAT(name='nat0', linkTo='s1', ip='192.168.100.1').configDefault()
 
     # plot
-    if '-p' not in args:
+    if '-p' in args:
         net.plotGraph(max_x=400, max_y=1100)
 
     net.addLink(server, s1, cls=TCLink)
@@ -160,16 +225,6 @@ def topology(args):
     sta8.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     server.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
-    # sta1.cmd('route add -net 10.0.0.0/24 gw 10.0.0.2')
-    # sta2.cmd('route add -net 10.0.0.0/24 gw 10.0.0.3')
-    # sta3.cmd('route add -net 10.0.0.0/24 gw 10.0.0.4')
-    # sta4.cmd('route add -net 10.0.0.0/24 gw 10.0.0.5')
-    # sta5.cmd('route add -net 10.0.0.0/24 gw 10.0.0.6')
-    # sta6.cmd('route add -net 10.0.0.0/24 gw 10.0.0.7')
-    # sta7.cmd('route add -net 10.0.0.0/24 gw 10.0.0.8')
-    # sta8.cmd('route add -net 10.0.0.0/24 gw 10.0.0.9')
-
-
     info("*** Starting network\n")
     net.build()
     c1.start()
@@ -186,37 +241,57 @@ def topology(args):
         replay_trace_thread_on_sta(sta7, "sta7-eth1", "input/traces/7.txt")
         replay_trace_thread_on_sta(sta8, "sta8-eth1", "input/traces/8.txt")
 
-    info("*** Running vehicuar server\n")
-    server_cmd = "python3 server.py > server.log &"
-    server.cmd(server_cmd)
+    if '--run_app' in args:
+        info("\n*** Running vehicuar server\n")
+        server_cmd = "python3 server.py > server.log 2>&1 &"
+        server.cmd(server_cmd)
 
-    v1_cmd = 'sleep 4 && python3 vehicle.py 0 > node0.log 2>&1 &'
-    v2_cmd = 'sleep 4 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
-                    > node1.log 2>&1 &'
-    v3_cmd = 'sleep 4 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
-                    > node2.log 2>&1 &'
-    v4_cmd = 'sleep 4 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
-                    > node3.log 2>&1 &'
-    v5_cmd = 'sleep 4 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
-                    > node4.log 2>&1 &'
-    v6_cmd = 'sleep 4 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
-                    > node5.log 2>&1 &'
-    # time.sleep(1)
-    sta1.cmd(v1_cmd)
-    sta2.cmd(v2_cmd)
-    sta3.cmd(v3_cmd)
-    sta4.cmd(v4_cmd)
-    sta5.cmd(v5_cmd)
-    sta6.cmd(v6_cmd)
+        v1_cmd = 'sleep 6 && python3 vehicle.py 0 > node0.log 2>&1 &'
+        v2_cmd = 'sleep 6 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
+                        > node1.log 2>&1 &'
+        v3_cmd = 'sleep 6 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
+                        > node2.log 2>&1 &'
+        v4_cmd = 'sleep 6 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
+                        > node3.log 2>&1 &'
+        v5_cmd = 'sleep 6 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
+                        > node4.log 2>&1 &'
+        v6_cmd = 'sleep 6 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
+                        > node5.log 2>&1 &'
+        sta1.cmd(v1_cmd)
+        sta2.cmd(v2_cmd)
+        sta3.cmd(v3_cmd)
+        sta4.cmd(v4_cmd)
+        sta5.cmd(v5_cmd)
+        sta6.cmd(v6_cmd)
+    
+    elif '-f' in args:
+        
+        pass
+        
 
     info("*** Running CLI\n")
+    # if '-f' not in args:
     CLI(net)
+    # else:
+    #     time.sleep(20)
 
     info("*** Stopping network\n")
     net.stop()
-    # server_proc.kill()
 
 
 if __name__ == '__main__':
     setLogLevel('info')
-    topology(sys.argv)  
+    if '-f' in sys.argv:
+        print("Run in fixed assignment mode")
+        filename = sys.argv[sys.argv.index('-f')+1]
+        total_loc, num_nodes, num_helpee, num_helper, locations, assignments  \
+            = parse_offline_settings(filename)
+        topology(sys.argv, assignments=assignments, all_locations=locations)
+    elif '-l' in sys.argv:
+        loc_filename = sys.argv[sys.argv.index('-l')+1]
+        locs = np.loadtxt(loc_filename)
+        sta_locs = utils.produce_3d_location_arr(locs)
+        print(sta_locs)
+        topology(sys.argv, locations=sta_locs)
+    else:  
+        topology(sys.argv)  
