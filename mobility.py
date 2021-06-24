@@ -9,6 +9,8 @@ def read_locations(location_filename):
     # m is 2 * number of vehicles (x1, y1, x2, y2 ...)
     # n is total number of locations that need to update at 100ms granularity
     trace = np.loadtxt(location_filename)
+    if trace.ndim == 1:
+        trace = trace.reshape(1, -1)
     trace_dict = {}
     total_node_num = int(trace.shape[1]/2)
     for i in range(total_node_num):
