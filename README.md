@@ -50,6 +50,7 @@ sudo python mininet-scripts/vehicular_adhoc_setup.py <optional options>
 
 Several options:
 
+* Read a location file: `-l <location_file>`. File format [sta1_x sta1_y sta2_x, sta2_y ...]. 
 * Start the vehicular application: `--run_app`
 * Enable mobility: `-m`
 * Replay V2I throughput traces: `-t`
