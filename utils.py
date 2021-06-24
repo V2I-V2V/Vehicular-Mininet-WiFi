@@ -1,6 +1,6 @@
 # this file handles throughput calculation, signal strength info related calculation
 import numpy as np
-# import config
+import math
 import os
 import random
 
@@ -35,3 +35,33 @@ def produce_assignment_str(assignment):
     for i in assignment:
         assignment_str = assignment_str + str(i) + ' '
     return assignment_str
+
+
+def parse_offline_settings(settings):
+    """Parse the setting file
+    Args:
+        settings ([str]): [setting file name]
+    Returns:
+        total locations
+        total node number
+        helpee node number
+        helper node number
+        locations, size (total locations, 2*total node number)
+        assignments, with each index containing all assignment of one location
+    """
+    with open(settings, 'r') as f:
+        parse = next(f).split()
+        total_loc, num_nodes = int(parse[0]), int(parse[1])
+        locations = []
+        assignments = []
+        for i in range(total_loc):
+            location = np.array(next(f).split(), dtype=float)
+            # print(location)
+            node_info = next(f).split()
+            num_helpee, num_helper = int(node_info[0]), int(node_info[1])
+            num_assignment_schemes = int(math.factorial(num_helper)/math.factorial(num_helpee-1))
+            assignment = np.array([next(f).split() for x in range(num_assignment_schemes)])
+            locations.append(location)
+            assignments.append(assignment)
+            # print(assignment)
+    return total_loc, num_nodes, num_helpee, num_helper, locations, assignments

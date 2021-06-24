@@ -17,21 +17,24 @@ TYPE_PCD = 0
 TYPE_OXTS = 1
 PCD_DATA_PATH = '../DeepGTAV-data/object-0227-1/velodyne_2/'
 OXTS_DATA_PATH = '../DeepGTAV-data/object-0227-1/oxts/'
+LOCATION_FILE = "input/object-0227-loc.txt"
+
 
 vehicle_id = int(sys.argv[1])
 if len(sys.argv) > 2:
     PCD_DATA_PATH = sys.argv[2] + '/velodyne_2/'
     OXTS_DATA_PATH = sys.argv[2] + '/oxts/'
+if len(sys.argv) > 3:    
+    LOCATION_FILE = sys.argv[3]
 connection_state = "Connected"
 current_helpee_id = 65535
 current_helper_id = 65535
 curr_timestamp = 0.0
-vehicle_locs = mobility.read_locations("input/object-0227-loc.txt")
+vehicle_locs = mobility.read_locations(LOCATION_FILE)
 self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
 pcd_data_buffer = []
 pcd_data_buffer = pointcloud.read_all_pointclouds(PCD_DATA_PATH)
-# pcd_data_buffer.append(pointcloud.read_pointcloud('input/single-pointcloud-frame.bin'))
 oxts_data_buffer = []
 oxts_data_buffer = pointcloud.read_all_oxts(OXTS_DATA_PATH)
 
@@ -65,7 +68,6 @@ def send(socket, data, id, type):
             socket.close()
             return
         total_sent += bytes_sent
-
 
 
 def v2i_data_send_thread():
@@ -206,7 +208,8 @@ class VehicleControlThread(threading.Thread):
             else:
                 if is_packet_assignment(data):
                     helper_id = int.from_bytes(data, 'big')
-                    print("[helper assignment] " + str(helper_id) + ' ' + str(time.time()))
+                    print("[helper assignment] " + str(helper_id) + ' ' + str(time.time()), \
+                            flush=True)
                     helper_ip = "10.0.0." + str(helper_id+2)   
                     current_helper_id = helper_id
                     new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port)
@@ -322,7 +325,7 @@ def check_connection_state(disconnect_timestamps):
             pass
         elif connection_state == "Disconnected":
             # TODO: setup a timer to resend location information every x ms
-            print("Disconnected to server... broadcast " + str(time.time()))
+            # print("Disconnected to server... broadcast " + str(time.time()))
             mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket)
         if check_if_disconnected(disconnect_timestamps):
             connection_state = "Disconnected"
