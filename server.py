@@ -8,6 +8,7 @@ import time
 import pcd_merge
 import numpy as np
 import argparse
+import pointcloud
 
 MAX_VEHICLES = 8
 MAX_FRAMES = 80
@@ -52,7 +53,7 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
-            print(location_map, flush=True)
+            # print(location_map, flush=True)
             if len(location_map) == num_vehicles:
                 positions = []
                 for k, v in sorted(location_map.items()):
@@ -73,12 +74,12 @@ class SchedThread(threading.Thread):
                 #     if node_num in assignment:
                 for cnt, node in enumerate(assignment):
                     current_assignment[node] = cnt
-                    print("send %d to node %d" % (cnt, node))
+                    # print("send %d to node %d" % (cnt, node))
                     msg = cnt.to_bytes(2, 'big')
                     client_sockets[node].send(msg)
                 for node_num in range(0, helpee_count+helper_count):
                     if node_num not in assignment:
-                        print("send %d to node %d" % (65535, node_num))
+                        # print("send %d to node %d" % (65535, node_num))
                         msg = int(65535).to_bytes(2, 'big')
                         client_sockets[node_num].send(msg)
             time.sleep(0.2)
@@ -149,8 +150,8 @@ def server_recv_data(client_socket, client_addr):
         if frame_id >= MAX_FRAMES:
             continue
         if data_type == TYPE_PCD:
-            print("[Full frame recved] from %d, id %d throughput: %f MB/s time: %f" % 
-                        (v_id, frame_id, msg_size/1000000.0/t_elasped, time.time()))
+            print("[Full frame recved] from %d, id %d throughput: %f MB/s %d time: %f" % 
+                        (v_id, frame_id, msg_size/1000000.0/t_elasped, msg_size, time.time()))
             pcds[v_id][frame_id] = msg
         elif data_type == TYPE_OXTS:
             print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
@@ -171,13 +172,15 @@ def merge_data_when_ready():
                 break
         if ready:
             print("[merge data] merge frame %d ar %f" % (curr_processed_frame, time.time()))
-            points_oxts_primary = (np.frombuffer(pcds[0][curr_processed_frame], 
-                                    dtype='float32').reshape([-1, 4]), 
-                                    oxts[0][curr_processed_frame])
+            decoded_pcl = pointcloud.dracoDecode(pcds[0][curr_processed_frame])
+            decoded_pcl = np.append(decoded_pcl, np.zeros((decoded_pcl.shape[0],1),dtype='float32'), axis=1)
+            points_oxts_primary = (decoded_pcl, oxts[0][curr_processed_frame])
             points_oxts_secondary = []
             for i in range(1, num_vehicles):
-                pcl = np.frombuffer(pcds[i][curr_processed_frame], 
-                                dtype='float32').reshape([-1, 4])
+                # pcl = np.frombuffer(pcds[i][curr_processed_frame], 
+                #                 dtype='float32').reshape([-1, 4])
+                pcl = pointcloud.dracoDecode(pcds[i][curr_processed_frame])
+                pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
             merged_pcl = pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
             with open('output/merged_%d.bin'%curr_processed_frame, 'w') as f:

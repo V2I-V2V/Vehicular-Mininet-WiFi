@@ -10,6 +10,7 @@ import wlan
 import config
 import utils
 import mobility
+import numpy as np
 
 HELPEE = 0
 HELPER = 1
@@ -71,15 +72,15 @@ def send(socket, data, id, type):
     socket.send(header)
     total_sent = 0
     while total_sent < msg_len:
-        try:
-            bytes_sent = socket.send(data[total_sent:])
-            if bytes_sent == 0:
-                raise RuntimeError("socket connection broken")
-        except:
-            print('[Send error] remote has close the socket')
+        # try:
+        bytes_sent = socket.send(data[total_sent:])
+        if bytes_sent == 0:
+            raise RuntimeError("socket connection broken")
+        total_sent += bytes_sent
+        # except:
+        #     print('[Send error] remote has close the socket')
             # socket.close()
             # return
-        total_sent += bytes_sent
 
 
 def v2i_data_send_thread():
@@ -93,7 +94,8 @@ def v2i_data_send_thread():
             oxts = oxts_data_buffer[curr_f_id]
             curr_frame_id += 1
             frame_lock.release()
-            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()))
+            pcd, _ = pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 10, 12)
+            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
         elif curr_frame_id >= config.MAX_FRAMES:
@@ -314,6 +316,7 @@ class VehicleDataSendThread(threading.Thread):
                 oxts = oxts_data_buffer[curr_frame_id]
                 curr_frame_id += 1
                 frame_lock.release()
+                pcd, _ = pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 10, 12)
                 print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) \
                             + " to helper " + str(current_helper_id) + ' ' + str(time.time()), flush=True)
                 t_start = time.time()

@@ -215,17 +215,17 @@ def topology(args, locations=default_loc, loc_file=default_loc_file, \
         server_cmd = "python3 server.py > logs/server.log 2>&1 &"
         server.cmd(server_cmd)
 
-        v1_cmd = 'sleep 6 && python3 vehicle.py 0 ../DeepGTAV-data/object-0227-1/ \
+        v1_cmd = 'sleep 8 && python3 vehicle.py 0 ../DeepGTAV-data/object-0227-1/ \
                         %s > logs/node0.log 2>&1 &'%loc_file
-        v2_cmd = 'sleep 6 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
+        v2_cmd = 'sleep 8 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
                         %s > logs/node1.log 2>&1 &'%loc_file
-        v3_cmd = 'sleep 6 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
+        v3_cmd = 'sleep 8 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
                         %s > logs/node2.log 2>&1 &'%loc_file
-        v4_cmd = 'sleep 6 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
+        v4_cmd = 'sleep 8 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
                         %s > logs/node3.log 2>&1 &'%loc_file
-        v5_cmd = 'sleep 6 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
+        v5_cmd = 'sleep 8 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
                         %s > logs/node4.log 2>&1 &'%loc_file
-        v6_cmd = 'sleep 6 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
+        v6_cmd = 'sleep 8 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
                         %s > logs/node5.log 2>&1 &'%loc_file
         tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
         tcpdump_cmd2 = 'tcpdump -nni any -s96 -w node2.pcap &'
