@@ -20,6 +20,8 @@ PCD_DATA_PATH = '../DeepGTAV-data/object-0227-1/velodyne_2/'
 OXTS_DATA_PATH = '../DeepGTAV-data/object-0227-1/oxts/'
 LOCATION_FILE = "input/object-0227-loc.txt"
 FRAMERATE = 0.5
+PCD_ENCODE_LEVEL = 10 # point cloud encode level
+PCD_QB = 12 # point cloud quantization bits
 
 
 vehicle_id = int(sys.argv[1])
@@ -36,12 +38,9 @@ vehicle_locs = mobility.read_locations(LOCATION_FILE)
 self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
 pcd_data_buffer = []
-# pcd_data_buffer = pointcloud.read_all_pointclouds(PCD_DATA_PATH)
 oxts_data_buffer = []
-# oxts_data_buffer = pointcloud.read_all_oxts(OXTS_DATA_PATH)
 
 frame_lock = threading.Lock()
-# oxts_data_buffer.append(pointcloud.read_oxts('input/sample-oxts.txt'))
 v2i_control_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_ctrl_port)
 v2i_data_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -95,7 +94,8 @@ def v2i_data_send_thread():
             oxts = oxts_data_buffer[curr_f_id]
             curr_frame_id += 1
             frame_lock.release()
-            pcd, _ = pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 10, 12)
+            pcd, _ = pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
+                                            PCD_ENCODE_LEVEL, PCD_QB)
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
@@ -104,8 +104,6 @@ def v2i_data_send_thread():
             frame_lock.release()
             return
         else:
-            # print("not ready to sent %f, %d, %d, %d" % (time.time(), 
-            #         curr_frame_id, len(pcd_data_buffer), len(oxts_data_buffer)))
             frame_lock.release()
 
 
@@ -132,7 +130,7 @@ def if_not_assigned_as_helper(recv_id):
 def setup_data_recv_thread():
     # a seperate thread to recv point cloud and forward it to the server
     host_ip = ''
-    host_port = 8080
+    host_port = helper_data_recv_port
     v2v_data_recv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     v2v_data_recv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     v2v_data_recv_sock.bind((host_ip, host_port))
@@ -204,7 +202,7 @@ class VehicleControlThread(threading.Thread):
         print("Setup V2V socket to recv broadcast message")
         global v2v_control_socket
         host_ip = ''
-        host_port = 8888
+        host_port = helper_control_recv_port
         # Use UDP socket for broadcasting
         v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, \
                                                      socket.IPPROTO_UDP)
@@ -243,7 +241,7 @@ class VehicleControlThread(threading.Thread):
                     if helpee_id != vehicle_id:
                         # helpee only rebroadcast loc not equal to themselves
                         # print("helpee recv broadcast loc from others, do flooding")                    
-                        v2v_control_socket.sendto(data, ("10.255.255.255", 8888))
+                        v2v_control_socket.sendto(data, ("10.255.255.255", helper_control_recv_port))
 
 
 class VehicleDataRecvThread(threading.Thread):
@@ -317,12 +315,11 @@ class VehicleDataSendThread(threading.Thread):
                 oxts = oxts_data_buffer[curr_frame_id]
                 curr_frame_id += 1
                 frame_lock.release()
-                pcd, _ = pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 10, 12)
-                print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) \
-                            + " to helper " + str(current_helper_id) + ' ' + str(time.time()), flush=True)
-                t_start = time.time()
+                pcd, _ = pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]),
+                                                PCD_ENCODE_LEVEL, PCD_QB)
+                print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
+                         + str(current_helper_id) + ' ' + str(time.time()), flush=True)
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
-                t_elasped = time.time() - t_start
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             elif curr_frame_id >= config.MAX_FRAMES:
                 frame_lock.release()

@@ -15,11 +15,22 @@ import math
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils
 
+NUM_NODES = 8
+PATICIPATE_NODES = 6 
+
+# point cloud data dir for different partipate vehicle
+vehicle_data_dir = ['../DeepGTAV-data/object-0227-1/', 
+                    '../DeepGTAV-data/object-0227-1/alt_perspective/0022786/',
+                    '../DeepGTAV-data/object-0227-1/alt_perspective/0037122/',
+                    '../DeepGTAV-data/object-0227-1/alt_perspective/0191023/',
+                    '../DeepGTAV-data/object-0227-1/alt_perspective/0399881/',
+                    '../DeepGTAV-data/object-0227-1/alt_perspective/0735239/']
+# default start location for different vehicle
 default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0',\
                 '320.134, 854.744, 0', '296.692, 832.28, 0', '290.943, 881.713, 0', \
                 '313.943, 891.713, 0', '312.943, 875.713, 0']
-default_v2i_bw = [100, 100, 100, 100, 100, 100, 100, 100]
 default_loc_file="input/object-0227-loc.txt"
+default_v2i_bw = [100 for _ in range(NUM_NODES)]
 v2i_bw_traces = {}
 
 def read_v2i_traces(trace_file):
@@ -34,7 +45,7 @@ def replay_trace(node, ifname, trace):
         start_t = time.time()
         intf.config(bw=(throughput+0.001))
         elapsed_t = time.time() - start_t
-        sleep_t = 1 - elapsed_t
+        sleep_t = 1.0 - elapsed_t
         time.sleep(sleep_t)
 
 
@@ -125,39 +136,25 @@ def topology(args, locations=default_loc, loc_file=default_loc_file, \
     kwargs['proto'] = 'olsrd'
     # add adhoc interfaces
     channel_num = 5
-    net.addLink(sta1, cls=adhoc, intf='sta1-wlan0',
-                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
-    net.addLink(sta2, cls=adhoc, intf='sta2-wlan0',
-                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
-    net.addLink(sta3, cls=adhoc, intf='sta3-wlan0',
-                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
-    net.addLink(sta4, cls=adhoc, intf='sta4-wlan0',
-                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
-    net.addLink(sta5, cls=adhoc, intf='sta5-wlan0',
-                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
-    net.addLink(sta6, cls=adhoc, intf='sta6-wlan0',
-                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
-    net.addLink(sta7, cls=adhoc, intf='sta7-wlan0',
-                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
-    net.addLink(sta8, cls=adhoc, intf='sta8-wlan0',
-                ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
+    for sta_idx in range(len(stations)):
+        net.addLink(stations[sta_idx], cls=adhoc, intf='sta%d-wlan0'%(sta_idx+1),
+                    ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
+        # net.addLink(sta1, cls=adhoc, intf='sta1-wlan0',
+        #             ssid='adhocNet', mode='g', channel=channel_num, **kwargs)
     # net.addNAT(name='nat0', linkTo='s1', ip='192.168.100.1').configDefault()
+
+    # add wired interfaces
+    net.addLink(server, s1, cls=TCLink)
+    for sta_idx in range(len(stations)):
+        net.addLink(stations[sta_idx], s1, cls=TCLink, bw=v2i_bw[sta_idx], delay='10ms')
+        # net.addLink(sta1, s1, cls=TCLink, bw=v2i_bw[0], delay='10ms')
 
     # plot
     if '-p' in args:
         net.plotGraph(max_x=400, max_y=1100)
 
-    net.addLink(server, s1, cls=TCLink)
-    net.addLink(sta1, s1, cls=TCLink, bw=v2i_bw[0], delay='10ms')
-    net.addLink(sta2, s1, cls=TCLink, bw=v2i_bw[1], delay='10ms')
-    net.addLink(sta3, s1, cls=TCLink, bw=v2i_bw[2], delay='10ms')
-    net.addLink(sta4, s1, cls=TCLink, bw=v2i_bw[3], delay='10ms')
-    net.addLink(sta5, s1, cls=TCLink, bw=v2i_bw[4], delay='10ms')
-    net.addLink(sta6, s1, cls=TCLink, bw=v2i_bw[5], delay='10ms')
-    net.addLink(sta7, s1, cls=TCLink, bw=v2i_bw[6], delay='10ms')
-    net.addLink(sta8, s1, cls=TCLink, bw=v2i_bw[7], delay='10ms')
-
     # configure mobility
+    # TODO: make this configurable, different mobility model, etc.
     if '-m' in args:
         net.startMobility(time=0, mob_rep=1, reverse=False)
         p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
@@ -175,23 +172,12 @@ def topology(args, locations=default_loc, loc_file=default_loc_file, \
 
     info("*** Addressing...\n")
     # serup wired intf
-    sta1.setIP('192.168.0.3/24', intf="sta1-eth1")
-    sta2.setIP('192.168.0.4/24', intf="sta2-eth1")
-    sta3.setIP('192.168.0.5/24', intf="sta3-eth1")
-    sta4.setIP('192.168.0.6/24', intf="sta4-eth1")
-    sta5.setIP('192.168.0.7/24', intf="sta5-eth1")
-    sta6.setIP('192.168.0.8/24', intf="sta6-eth1")
-    sta7.setIP('192.168.0.9/24', intf="sta7-eth1")
-    sta8.setIP('192.168.0.10/24', intf="sta8-eth1")
+    for sta_idx in range(len(stations)):
+        stations[sta_idx].setIP('192.168.0.%d/24'%(sta_idx+2), intf='sta%d-eth1'%(sta_idx+1))
+        # enable ip forwarding on each sta
+        stations[sta_idx].cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
+    # sta1.setIP('192.168.0.3/24', intf="sta1-eth1")
 
-    sta1.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    sta2.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    sta3.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    sta4.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    sta5.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    sta6.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    sta7.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    sta8.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     server.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
     info("*** Starting network\n")
@@ -201,60 +187,53 @@ def topology(args, locations=default_loc, loc_file=default_loc_file, \
 
     # trace replaying, use '-t' for replaying traces
     if '-r' in args:
-        replay_trace_thread_on_sta(sta1, "sta1-eth1", v2i_bw_traces[0])
-        replay_trace_thread_on_sta(sta2, "sta2-eth1", v2i_bw_traces[1])
-        replay_trace_thread_on_sta(sta3, "sta3-eth1", v2i_bw_traces[2])
-        replay_trace_thread_on_sta(sta4, "sta4-eth1", v2i_bw_traces[3])
-        replay_trace_thread_on_sta(sta5, "sta5-eth1", v2i_bw_traces[4])
-        replay_trace_thread_on_sta(sta6, "sta6-eth1", v2i_bw_traces[5])
-        replay_trace_thread_on_sta(sta7, "sta7-eth1", v2i_bw_traces[6])
-        replay_trace_thread_on_sta(sta8, "sta8-eth1", v2i_bw_traces[7])
+        for i in range(len(stations)):
+            replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%(i+1), v2i_bw_traces[i])
+            # replay_trace_thread_on_sta(sta1, "sta1-eth1", v2i_bw_traces[0])
+
 
     if '--run_app' in args:
         info("\n*** Running vehicuar server\n")
-        server_cmd = "python3 server.py > logs/server.log 2>&1 &"
+        if '-f' in args:
+            # run server in fix assignemnt mode
+            server_cmd = "python3 server.py -f " + assignment_str + "> logs/server.log 2>&1 &"
+        else:
+            # run server in nomal mode
+            server_cmd = "python3 server.py > logs/server.log 2>&1 &"
         server.cmd(server_cmd)
+        vehicle_app_commands = []
+        tcpdump_cmds = []
+        for node_num in range(PATICIPATE_NODES):
+            vehicle_app_cmd = 'sleep 8 && python3 vehicle.py %d %s %s > logs/node%d.log 2>&1 &'% \
+                                (node_num, vehicle_data_dir[node_num], loc_file, node_num)
+            print(vehicle_app_cmd)
+            vehicle_app_commands.append(vehicle_app_cmd)
+            tcpdump_cmds.append('tcpdump -nni any -s96 -w node%d.pcap &'%node_num)
+        # v1_cmd = 'sleep 8 && python3 vehicle.py 0 ../DeepGTAV-data/object-0227-1/ \
+        #                 %s > logs/node0.log 2>&1 &'%loc_file
+        # v2_cmd = 'sleep 8 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
+        #                 %s > logs/node1.log 2>&1 &'%loc_file
+        # v3_cmd = 'sleep 8 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
+        #                 %s > logs/node2.log 2>&1 &'%loc_file
+        # v4_cmd = 'sleep 8 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
+        #                 %s > logs/node3.log 2>&1 &'%loc_file
+        # v5_cmd = 'sleep 8 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
+        #                 %s > logs/node4.log 2>&1 &'%loc_file
+        # v6_cmd = 'sleep 8 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
+        #                 %s > logs/node5.log 2>&1 &'%loc_file
+        # tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
+        # execute application and tcpdump commands
+        for node_num in range(PATICIPATE_NODES):
+            stations[node_num].cmd(vehicle_app_commands[node_num])
+            stations[node_num].cmd(tcpdump_cmds[node_num])
 
-        v1_cmd = 'sleep 8 && python3 vehicle.py 0 ../DeepGTAV-data/object-0227-1/ \
-                        %s > logs/node0.log 2>&1 &'%loc_file
-        v2_cmd = 'sleep 8 && python3 vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/ \
-                        %s > logs/node1.log 2>&1 &'%loc_file
-        v3_cmd = 'sleep 8 && python3 vehicle.py 2 ../DeepGTAV-data/object-0227-1/alt_perspective/0037122/ \
-                        %s > logs/node2.log 2>&1 &'%loc_file
-        v4_cmd = 'sleep 8 && python3 vehicle.py 3 ../DeepGTAV-data/object-0227-1/alt_perspective/0191023/ \
-                        %s > logs/node3.log 2>&1 &'%loc_file
-        v5_cmd = 'sleep 8 && python3 vehicle.py 4 ../DeepGTAV-data/object-0227-1/alt_perspective/0399881/ \
-                        %s > logs/node4.log 2>&1 &'%loc_file
-        v6_cmd = 'sleep 8 && python3 vehicle.py 5 ../DeepGTAV-data/object-0227-1/alt_perspective/0735239/ \
-                        %s > logs/node5.log 2>&1 &'%loc_file
-        tcpdump_cmd1 = 'tcpdump -nni any -s96 -w node1.pcap &'
-        tcpdump_cmd2 = 'tcpdump -nni any -s96 -w node2.pcap &'
-        tcpdump_cmd3 = 'tcpdump -nni any -s96 -w node3.pcap &'
-        tcpdump_cmd4 = 'tcpdump -nni any -s96 -w node4.pcap &'
-        tcpdump_cmd5 = 'tcpdump -nni any -s96 -w node5.pcap &'
-        tcpdump_cmd6 = 'tcpdump -nni any -s96 -w node6.pcap &'
-        sta1.cmd(v1_cmd)
-        sta2.cmd(v2_cmd)
-        sta3.cmd(v3_cmd)
-        sta4.cmd(v4_cmd)
-        sta5.cmd(v5_cmd)
-        sta6.cmd(v6_cmd)
-        sta1.cmd(tcpdump_cmd1)
-        sta2.cmd(tcpdump_cmd2)
-        sta3.cmd(tcpdump_cmd3)
-        sta4.cmd(tcpdump_cmd4)
-        sta5.cmd(tcpdump_cmd5)
-        sta6.cmd(tcpdump_cmd6)
     
-    elif '-f' in args:
-        replay_fixed_assignment(server, stations, assignment_str)
+    # elif '-f' in args:
+    #     replay_fixed_assignment(server, stations, assignment_str)
         
 
     info("*** Running CLI\n")
-    # if '-f' not in args:
     CLI(net)
-    # else:
-    #     time.sleep(25)
 
     info("*** Stopping network\n")
     net.stop()

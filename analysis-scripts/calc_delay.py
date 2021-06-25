@@ -1,5 +1,14 @@
 import sys, os
 import numpy as np
+import seaborn as sns
+import matplotlib
+matplotlib.use('AGG')
+import matplotlib.pyplot as plt
+
+font = {'family' : 'DejaVu Sans',
+        'size'   : 15}
+matplotlib.rc('font', **font)
+
 
 np.set_printoptions(precision=3)
 
@@ -35,13 +44,30 @@ def main():
     get_receiver_ts('../logs/server.log')
     # print(len(receiver_ts_dict[0]))
     for i in range(6):
-        try:
-            delay_dict[i] = np.array(receiver_ts_dict[i]) \
-                            - np.array(sender_ts_dict[i])
-            print(delay_dict[i])
-        except:
-            pass
+        delay_dict[i] = np.array(receiver_ts_dict[i]) \
+                        - np.array(sender_ts_dict[i])
+        print(delay_dict[i])
 
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_axisbelow(True)
+    for i in range(6):
+        # ax.plot(np.arange(0, len(delay_dict[i])), delay_dict[i], '--o', label='node%d'%i)
+        sns.distplot(delay_dict[i], kde_kws={'cumulative': True, "lw": 2.5}, hist=False, label='node%d'%i)
+    plt.xlabel("Latency (s)")
+    plt.ylabel("CDF")
+    plt.legend()
+    plt.savefig('latency-cdf.pdf')
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_axisbelow(True)
+    for i in range(6):
+        ax.plot(np.arange(0, len(delay_dict[i])), delay_dict[i], '--o', label='node%d'%i)
+    plt.xlabel("Frame Number")
+    plt.ylabel("Latency (s)")
+    plt.legend()
+    plt.savefig('latency-frame.pdf')
 if __name__ == '__main__':
     
     main()

@@ -40,6 +40,8 @@ fixed_assignment = ()
 if args.fixed_assignment is not None:
     mode = "fixed"
     fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
+    print("Run in fix mode")
+    print(fixed_assignment)
 num_vehicles = args.num_vehicles
  
 
@@ -151,7 +153,7 @@ def server_recv_data(client_socket, client_addr):
             continue
         if data_type == TYPE_PCD:
             print("[Full frame recved] from %d, id %d throughput: %f MB/s %d time: %f" % 
-                        (v_id, frame_id, msg_size/1000000.0/t_elasped, msg_size, time.time()))
+                        (v_id, frame_id, msg_size/1000000.0/t_elasped, msg_size, time.time()), flush=True)
             pcds[v_id][frame_id] = msg
         elif data_type == TYPE_OXTS:
             print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
