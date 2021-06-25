@@ -61,7 +61,8 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(pointcloud.read_oxts(oxts_f_name))
         t_elasped = time.time() - t_s
-        if 1.0/fps-t_elasped > 0:
+        print("sleep %f before get the next frame" % (1.0/fps-t_elasped), flush=True)
+        if (1.0/fps-t_elasped) > 0:
             time.sleep(1.0/fps-t_elasped)
 
 def send(socket, data, id, type):
@@ -72,13 +73,13 @@ def send(socket, data, id, type):
     socket.send(header)
     total_sent = 0
     while total_sent < msg_len:
-        # try:
-        bytes_sent = socket.send(data[total_sent:])
-        if bytes_sent == 0:
-            raise RuntimeError("socket connection broken")
-        total_sent += bytes_sent
-        # except:
-        #     print('[Send error] remote has close the socket')
+        try:
+            bytes_sent = socket.send(data[total_sent:])
+            if bytes_sent == 0:
+                raise RuntimeError("socket connection broken")
+            total_sent += bytes_sent
+        except:
+            print('[Send error]')
             # socket.close()
             # return
 
