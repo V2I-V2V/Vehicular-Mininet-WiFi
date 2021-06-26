@@ -68,8 +68,11 @@ def send(socket, data, id, type):
     msg_len = len(data)
     header = msg_len.to_bytes(4, "big") + id.to_bytes(2, "big") \
                 + vehicle_id.to_bytes(2, "big") + type.to_bytes(2, 'big')
-
-    socket.send(header)
+    hender_sent = 0
+    while hender_sent < len(header):
+        bytes_sent = socket.send(header[hender_sent:])
+        hender_sent += bytes_sent
+    assert hender_sent == len(header)
     total_sent = 0
     while total_sent < msg_len:
         try:
