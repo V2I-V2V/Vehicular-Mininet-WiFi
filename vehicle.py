@@ -6,7 +6,6 @@ import socket
 import time
 import pointcloud
 import wwan
-import wlan
 import config
 import utils
 import mobility
@@ -19,7 +18,7 @@ TYPE_OXTS = 1
 PCD_DATA_PATH = '../DeepGTAV-data/object-0227-1/velodyne_2/'
 OXTS_DATA_PATH = '../DeepGTAV-data/object-0227-1/oxts/'
 LOCATION_FILE = "input/object-0227-loc.txt"
-FRAMERATE = 0.5
+FRAMERATE = 0.5 # TODO: make this an argument later
 PCD_ENCODE_LEVEL = 10 # point cloud encode level
 PCD_QB = 12 # point cloud quantization bits
 
@@ -130,7 +129,7 @@ def if_not_assigned_as_helper(recv_id):
     return recv_id == 65535
 
 
-def setup_data_recv_thread():
+def v2v_data_recv_thread():
     # a seperate thread to recv point cloud and forward it to the server
     host_ip = ''
     host_port = helper_data_recv_port
@@ -197,6 +196,7 @@ def parse_location_packet_data(data):
 def is_packet_assignment(data):
     return len(data) == 2
 
+# def is_packet_broadcas
 
 class VehicleControlThread(threading.Thread):
 
@@ -217,7 +217,8 @@ class VehicleControlThread(threading.Thread):
         global current_helper_id
         while True:
             data, addr = v2v_control_socket.recvfrom(1024) 
-            assert len(data) == 6 or len(data) == 2
+            # assert len(data) == 6 or len(data) == 2
+            ## TODO: add type in message header to classify msg type
             if connection_state == "Connected":
                 # helper
                 # print("helper recv broadcast loc at " + str(time.time()))
@@ -377,11 +378,11 @@ def main():
     lte_traces = utils.read_traces(trace_files)
     disconnect_timestamps = utils.process_traces(lte_traces)
     curr_timestamp = time.time()
-    v2i_thread = ServerControlThread()
-    v2i_thread.start()
+    v2i_control_thread = ServerControlThread()
+    v2i_control_thread.start()
     v2v_control_thread = VehicleControlThread()
     v2v_control_thread.start()
-    v2v_data_thread = threading.Thread(target=setup_data_recv_thread, args=())
+    v2v_data_thread = threading.Thread(target=v2v_data_recv_thread, args=())
     v2v_data_thread.start()
     v2i_data_thread = threading.Thread(target=v2i_data_send_thread, args=())
     v2i_data_thread.start()

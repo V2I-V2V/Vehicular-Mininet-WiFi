@@ -6,3 +6,6 @@ __pycache__/*
 *.txt
 .vscode
 *.bin
+compression.py
+*.pcap
+*.png

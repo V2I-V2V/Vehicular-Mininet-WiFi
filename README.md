@@ -44,18 +44,30 @@ This script setup 2 APs and 2STAs (each one associated with one ap). A wired con
 Only setup the network:
 
 ```
-sudo python mininet-scripts/vehicular_adhoc_setup.py <optional options>
+sudo python mininet-scripts/vehicular_adhoc_setup.py -n <num_nodes> -p <pcd_data_location_file> <optional options>
+```
+
+For example, to start a emulated network without running `vehicle.py`, try
+
+```
+sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcd-data-config.txt -l input/location-multihop.txt --trace input/traces/trace-all-nodes.txt
+```
+
+To start the emulated network with `vehicle.py` running, try
+
+```
+sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcd-data-config.txt -l input/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app
 ```
 
 
 Several options:
 
-* Read a location file: `-l <location_file>`. File format [sta1_x sta1_y sta2_x, sta2_y ...].
-* Fix assignment: `-f <assignment_file> <assignment_index>`. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`.
+* Enable pcap trace: `--collect-traffic`
+* Plot nodes: `--plot`
 * Start the vehicular application: `--run_app`
-* Enable mobility: `-m`
-* Replay V2I throughput traces: `-t`
-* Plot nodes: `-p`
+* Read point cloud data from custom directory: `-p <pcd_config_file>`
+* Read a location file: `-l <location_file>`. File format [sta1_x sta1_y sta2_x, sta2_y ...]
+* Fix assignment: `-s fixed <assignment_file> <assignment_index>`. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`
 
 ## Run experiments over the emulated network
 
