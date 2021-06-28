@@ -44,7 +44,7 @@ This script setup 2 APs and 2STAs (each one associated with one ap). A wired con
 Only setup the network:
 
 ```
-sudo python mininet-scripts/vehicular_adhoc_setup.py -n <num_nodes> -p <pcd_data_location_file> <optional options>
+sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n <num_nodes> -p <pcd_data_location_file> <optional options>
 ```
 
 For example, to start a emulated network without running `vehicle.py`, try
