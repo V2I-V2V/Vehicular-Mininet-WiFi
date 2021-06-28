@@ -115,7 +115,7 @@ def run_application(server, stations, scheduler, assignment_str):
 def collect_tcpdump(nodes):
     tcpdump_cmds = []
     for node_num in range(len(nodes)):
-        tcpdump_cmds.append('sleep 8 && tcpdump -nni any -s96 -w node%d.pcap &'%node_num)
+        tcpdump_cmds.append('tcpdump -nni any -s96 -w node%d.pcap >/dev/null 2>&1 &'%node_num)
         nodes[node_num].cmd(tcpdump_cmds[node_num])
 
 

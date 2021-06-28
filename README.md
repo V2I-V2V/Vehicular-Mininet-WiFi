@@ -50,13 +50,13 @@ sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n <num_nodes> -p <pcd_dat
 For example, to start a emulated network without running `vehicle.py`, try
 
 ```
-sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcd-data-config.txt -l input/location-multihop.txt --trace input/traces/trace-all-nodes.txt
+sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt
 ```
 
 To start the emulated network with `vehicle.py` running, try
 
 ```
-sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcd-data-config.txt -l input/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app
+sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app
 ```
 
 

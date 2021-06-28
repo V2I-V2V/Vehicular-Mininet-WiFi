@@ -39,9 +39,9 @@ def get_receiver_ts(filename):
 
 def main():
     for i in range(6):
-        sender_ts_dict[i] = get_sender_ts('../logs/node%d.log'%i)
+        sender_ts_dict[i] = get_sender_ts('./logs/node%d.log'%i)
     # print(sender_ts_dict)
-    get_receiver_ts('../logs/server.log')
+    get_receiver_ts('./logs/server.log')
     # print(len(receiver_ts_dict[0]))
     for i in range(6):
         delay_dict[i] = np.array(receiver_ts_dict[i]) \

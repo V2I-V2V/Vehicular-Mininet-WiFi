@@ -1,6 +1,0 @@
-../DeepGTAV-data/object-0227-1/
-../DeepGTAV-data/object-0227-1/alt_perspective/0022786/
-../DeepGTAV-data/object-0227-1/alt_perspective/0037122/
-../DeepGTAV-data/object-0227-1/alt_perspective/0191023/
-../DeepGTAV-data/object-0227-1/alt_perspective/0399881/
-../DeepGTAV-data/object-0227-1/alt_perspective/0735239/
