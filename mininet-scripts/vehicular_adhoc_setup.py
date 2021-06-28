@@ -30,7 +30,7 @@ v2i_bw_traces = {}
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
-    time.sleep(2)
+    time.sleep(8)
     for throughput in trace:
         start_t = time.time()
         if throughput == 0:
@@ -115,7 +115,7 @@ def run_application(server, stations, scheduler, assignment_str):
 def collect_tcpdump(nodes):
     tcpdump_cmds = []
     for node_num in range(len(nodes)):
-        tcpdump_cmds.append('tcpdump -nni any -s96 -w node%d.pcap &'%node_num)
+        tcpdump_cmds.append('sleep 8 && tcpdump -nni any -s96 -w node%d.pcap &'%node_num)
         nodes[node_num].cmd(tcpdump_cmds[node_num])
 
 

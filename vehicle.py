@@ -52,6 +52,13 @@ self_ip = "10.0.0." + str(vehicle_id+2)
 
 
 def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
+    """Thread to capture (read) point cloud file at a certain FPS setting
+
+    Args:
+        pcd_data_path (str): path to pcd data
+        oxts_data_path (str): path to oxts data
+        fps (float): Frame rate to load data to buffer
+    """
     for i in range(config.MAX_FRAMES):
         t_s = time.time()
         pcd_f_name = pcd_data_path + "%06d.bin"%i
@@ -86,6 +93,8 @@ def send(socket, data, id, type):
 
 
 def v2i_data_send_thread():
+    """Thread to handle V2I data sending
+    """
     global curr_frame_id
     while connection_state == "Connected":
         frame_lock.acquire()
@@ -110,6 +119,8 @@ def v2i_data_send_thread():
 
 
 def self_loc_update_thread():
+    """Thread to update self location every 100ms
+    """
     global self_loc
     for loc in self_loc_trace:
         self_loc = loc
@@ -117,20 +128,42 @@ def self_loc_update_thread():
 
 
 def is_helper_recv():
+    """Check whether current node is helper
+
+    Returns:
+        Bool: True for helper, False for helpee
+    """
     global connection_state
     return connection_state == "Connected"
 
 
 def if_recv_nothing_from_server(recv_id):
+    """Check if nothing is received from the server (receive id to be a large number)
+
+    Args:
+        recv_id (int): receive id of helpee
+
+    Returns:
+        Bool: True for nothing received, False else
+    """
     return recv_id == 65534
 
 
 def if_not_assigned_as_helper(recv_id):
+    """Check if the response from server is that I'm not assigned as helper
+
+    Args:
+        recv_id (int): helpee id to help, if 65535, help no one
+
+    Returns:
+        Bool: True for not assigned as helper, False else
+    """
     return recv_id == 65535
 
 
 def v2v_data_recv_thread():
-    # a seperate thread to recv point cloud and forward it to the server
+    """ a seperate thread to recv point cloud from helpee node and forward it to the server
+    """
     host_ip = ''
     host_port = helper_data_recv_port
     v2v_data_recv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -147,6 +180,12 @@ def v2v_data_recv_thread():
 
 
 def notify_helpee_node(helpee_id):
+    """Notify helpee node that I'm the helper assigned to help relay data. Must be sent from a 
+    helper
+
+    Args:
+        helpee_id (int): helpee id to notify
+    """
     # print("notifying the helpee node to send data")
     send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     msg = vehicle_id.to_bytes(2, 'big')
@@ -155,6 +194,8 @@ def notify_helpee_node(helpee_id):
 
 
 class ServerControlThread(threading.Thread):
+    """Thread that handle control messages between node and server
+    """
 
     def __init__(self):
         threading.Thread.__init__(self)
@@ -186,6 +227,15 @@ class ServerControlThread(threading.Thread):
 
 
 def parse_location_packet_data(data):
+    """Parse location packet, packet should be of length 6
+
+    Args:
+        data (bytes): raw network packet data to parse
+
+    Returns:
+        helpee_id: helpee node id that sends the packet
+        [x, y]: location of the helpee node
+    """
     # return helpee id, location
     helpee_id = int.from_bytes(data[0:2], "big")
     x = int.from_bytes(data[2:4], "big")
@@ -194,11 +244,20 @@ def parse_location_packet_data(data):
 
 
 def is_packet_assignment(data):
+    """Check packet to be an assignment packet (sent from server to assign helpee node)
+
+    Args:
+        data (bytes): raw network packet data to parse
+
+    Returns:
+        Bool: True for assignment packets, False else
+    """
     return len(data) == 2
 
-# def is_packet_broadcas
 
 class VehicleControlThread(threading.Thread):
+    """Thread that handle control messages between nodes (vehicles)
+    """
 
     def __init__(self):
         threading.Thread.__init__(self)
@@ -249,6 +308,9 @@ class VehicleControlThread(threading.Thread):
 
 
 class VehicleDataRecvThread(threading.Thread):
+    """Thread that handle data receiving between nodes (vehicles)
+        Recv using tcp socket from helpee nodes
+    """
 
     def __init__(self, helpee_socket, helpee_addr):
         threading.Thread.__init__(self)
@@ -300,6 +362,9 @@ class VehicleDataRecvThread(threading.Thread):
 
 
 class VehicleDataSendThread(threading.Thread):
+    """ Thread that handle data sending between nodes (vehicles)
+        Used when helpee get assignment and connect to the helper node
+    """
 
     def __init__(self, helper_ip, helper_port):
         threading.Thread.__init__(self)
@@ -340,6 +405,15 @@ class VehicleDataSendThread(threading.Thread):
 
 
 def check_if_disconnected(disconnect_timestamps):
+    """ Check whether the vehicle is disconnected to the server
+
+    Args:
+        disconnect_timestamps (dictionary): the disconnected timestamp dictionary read from
+        LTE trace e.g. dict = {1: [2.1]} means node 1 disconnects at 2.1 sec
+
+    Returns:
+        Bool: True for disconnected, False else
+    """
     # print("check if V2I conn is disconnected")
     if vehicle_id in disconnect_timestamps.keys():
         if time.time() - curr_timestamp > disconnect_timestamps[vehicle_id][0]:
@@ -351,6 +425,13 @@ def check_if_disconnected(disconnect_timestamps):
 
 
 def check_connection_state(disconnect_timestamps):
+    """Main thread function to constantly check connection to the server, and broadcast its 
+    location if disconnect
+
+    Args:
+        disconnect_timestamps (dictionary): the disconnected timestamp dictionary read from
+        LTE trace e.g. dict = {1: [2.1]} means node 1 disconnects at 2.1 sec
+    """
     global connection_state
     while True:
         t_start = time.time()
@@ -360,7 +441,6 @@ def check_connection_state(disconnect_timestamps):
                 wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket) 
             pass
         elif connection_state == "Disconnected":
-            # TODO: setup a timer to resend location information every x ms
             # print("Disconnected to server... broadcast " + str(time.time()))
             mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket)
         if check_if_disconnected(disconnect_timestamps):
@@ -370,7 +450,6 @@ def check_connection_state(disconnect_timestamps):
             time.sleep(0.2-t_elasped)
 
 
-# TODO: add a pcd data capture thread to read point cloud data in to pcd_data_buffer periodically
 
 def main():
     global curr_timestamp
