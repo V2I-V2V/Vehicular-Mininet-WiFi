@@ -33,7 +33,7 @@ sudo cp config/olsrd.conf /etc/olsrd/
 
 ## Try a simple exmaple
 ```
-sudo python sta_ap_mode.py
+sudo python3 sta_ap_mode.py
 ```
 
 This script setup 2 APs and 2STAs (each one associated with one ap). A wired connection is created between the 2APs.
@@ -80,12 +80,12 @@ unzip DeepGTAV-data.zip && mv DeepGTAV-data ..
 ### Start the application automatically with the script
 
 ```
-sudo python mininet-scripts/vehicular_adhoc_setup.py --run_app
+sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcd-data-config.txt -l input/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app
 ```
 
 ### Start the application manually
 
-After starting the `python mininet-scripts/vehicular_adhoc_setup.py` script, run the follwing commands in the mininet CLI.
+After starting the `python3 mininet-scripts/vehicular_adhoc_setup.py` script, run the follwing commands in the mininet CLI.
 
 ```
 xterm server sta1 sta2 sta3 sta4 sta5 sta6
