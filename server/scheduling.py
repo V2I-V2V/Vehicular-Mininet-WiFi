@@ -105,6 +105,19 @@ def coverage_aware_sched(num_of_helpees, num_of_helpers, positions, coverages):
     return get_assignment_from_id(max_assignment_id)
 
 
+def wwan_bw_distance_sched(num_of_helpees, num_of_helpers, bws, positions):
+    print("Using the bw-distance sched")
+    scores = {}
+    coverage = 60
+    for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
+        distance = 0
+        for cnt, node in enumerate(assignment):
+            distance += get_distance(positions[cnt], positions[node])
+        scores[get_id_from_assignment(assignment)] = distance / coverage 
+    sorted_distances = sorted(scores.items(), key=lambda item: item[1])
+    return get_assignment_from_id(sorted_distances[0][0])
+
+
 def bipartite():
     print("Solving bipartite matching")
 

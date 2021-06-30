@@ -95,14 +95,14 @@ def setup_ip(node, ip, ifname):
 def run_application(server, stations, scheduler, assignment_str):
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 server.py -f " + assignment_str + "> logs/server.log 2>&1 &"
+        server_cmd = "python3 server/server.py -f " + assignment_str + "> logs/server.log 2>&1 &"
     else:
         # run server in nomal mode
-        server_cmd = "python3 server.py > logs/server.log 2>&1 &"
+        server_cmd = "python3 server/server.py > logs/server.log 2>&1 &"
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 vehicle.py %d %s %s > logs/node%d.log 2>&1 &'% \
+        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py %d %s %s > logs/node%d.log 2>&1 &'% \
                             (node_num, vehicle_data_dir[node_num], loc_file, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
@@ -115,7 +115,7 @@ def run_application(server, stations, scheduler, assignment_str):
 def collect_tcpdump(nodes):
     tcpdump_cmds = []
     for node_num in range(len(nodes)):
-        tcpdump_cmds.append('tcpdump -nni any -s96 -w node%d.pcap >/dev/null 2>&1 &'%node_num)
+        tcpdump_cmds.append('tcpdump -nni any -s96 -w pcaps/node%d.pcap >/dev/null 2>&1 &'%node_num)
         nodes[node_num].cmd(tcpdump_cmds[node_num])
 
 

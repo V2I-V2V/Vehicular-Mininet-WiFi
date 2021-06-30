@@ -1,10 +1,11 @@
 # this file handles the main process run by each vehicle node
  # -*- coding: utf-8 -*-
-import os, sys
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import threading
 import socket
 import time
-import pointcloud
+import ptcl.pointcloud
 import wwan
 import config
 import utils
@@ -62,9 +63,9 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     for i in range(config.MAX_FRAMES):
         t_s = time.time()
         pcd_f_name = pcd_data_path + "%06d.bin"%i
-        pcd_data_buffer.append(pointcloud.read_pointcloud(pcd_f_name))
+        pcd_data_buffer.append(ptcl.pointcloud.read_pointcloud(pcd_f_name))
         oxts_f_name = oxts_data_path + "%06d.txt"%i
-        oxts_data_buffer.append(pointcloud.read_oxts(oxts_f_name))
+        oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         t_elasped = time.time() - t_s
         print("sleep %f before get the next frame" % (1.0/fps-t_elasped), flush=True)
         if (1.0/fps-t_elasped) > 0:
@@ -105,7 +106,7 @@ def v2i_data_send_thread():
             oxts = oxts_data_buffer[curr_f_id]
             curr_frame_id += 1
             frame_lock.release()
-            pcd, _ = pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
+            pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
                                             PCD_ENCODE_LEVEL, PCD_QB)
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
@@ -384,7 +385,7 @@ class VehicleDataSendThread(threading.Thread):
                 oxts = oxts_data_buffer[curr_frame_id]
                 curr_frame_id += 1
                 frame_lock.release()
-                pcd, _ = pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]),
+                pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]),
                                                 PCD_ENCODE_LEVEL, PCD_QB)
                 print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
                          + str(current_helper_id) + ' ' + str(time.time()), flush=True)

@@ -1,14 +1,15 @@
 #!/usr/bin/python3
 # Vehicular perception server
-
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import scheduling
 import socket
 import threading
 import time
-import pcd_merge
+import ptcl.pcd_merge
 import numpy as np
 import argparse
-import pointcloud
+import ptcl.pointcloud
 
 MAX_VEHICLES = 8
 MAX_FRAMES = 80
@@ -68,8 +69,10 @@ class SchedThread(threading.Thread):
                     else:
                         helper_count += 1
                 if mode == 'dynamic':
+                    # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
                 elif mode == 'fixed':
+                    # TODO: if fixed assignment, don't need to get vehicles' locations
                     assignment = fixed_assignment
                 print(assignment)
                 # for node_num in range(len(positions)):
@@ -174,17 +177,17 @@ def merge_data_when_ready():
                 break
         if ready:
             print("[merge data] merge frame %d ar %f" % (curr_processed_frame, time.time()))
-            decoded_pcl = pointcloud.dracoDecode(pcds[0][curr_processed_frame])
+            decoded_pcl = ptcl.pointcloud.dracoDecode(pcds[0][curr_processed_frame])
             decoded_pcl = np.append(decoded_pcl, np.zeros((decoded_pcl.shape[0],1),dtype='float32'), axis=1)
             points_oxts_primary = (decoded_pcl, oxts[0][curr_processed_frame])
             points_oxts_secondary = []
             for i in range(1, num_vehicles):
                 # pcl = np.frombuffer(pcds[i][curr_processed_frame], 
                 #                 dtype='float32').reshape([-1, 4])
-                pcl = pointcloud.dracoDecode(pcds[i][curr_processed_frame])
+                pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
                 pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
-            merged_pcl = pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
+            merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
             with open('output/merged_%d.bin'%curr_processed_frame, 'w') as f:
                 merged_pcl.tofile(f)
             curr_processed_frame += 1
