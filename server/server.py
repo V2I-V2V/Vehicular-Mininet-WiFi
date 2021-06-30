@@ -74,7 +74,7 @@ class SchedThread(threading.Thread):
                 elif mode == 'fixed':
                     # TODO: if fixed assignment, don't need to get vehicles' locations
                     assignment = fixed_assignment
-                print(assignment)
+                print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 # for node_num in range(len(positions)):
                 #     if node_num in assignment:
                 for cnt, node in enumerate(assignment):
@@ -188,8 +188,8 @@ def merge_data_when_ready():
                 pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
             merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
-            with open('output/merged_%d.bin'%curr_processed_frame, 'w') as f:
-                merged_pcl.tofile(f)
+            # with open('output/merged_%d.bin'%curr_processed_frame, 'w') as f:
+            #     merged_pcl.tofile(f)
             curr_processed_frame += 1
 
 
