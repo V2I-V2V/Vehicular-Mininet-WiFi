@@ -15,8 +15,8 @@ def setup_p2p_links(vehicle_id, ip, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((ip, port))
     # fcntl.fcntl(client_socket, fcntl.F_SETFL, os.O_NONBLOCK)
-    client_socket.setblocking(0)
-    client_socket.settimeout(1)
+    # client_socket.setblocking(0)
+    # client_socket.settimeout(1)
     msg = vehicle_id.to_bytes(2, 'big')
     client_socket.send(msg)
     return client_socket

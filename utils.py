@@ -18,7 +18,7 @@ def read_traces(num_nodes):
 
 
 def process_traces(traces):
-    disconnect_dict = {0: [2.1], 1: [2.12]}
+    disconnect_dict = {0: [2.1], 1: [2.1]}
     print("Process traces and get the disconneted timestamps of each node")
     return disconnect_dict
 
