@@ -125,3 +125,11 @@ py net.addLink(s1, net.get('h3'))
 py s1.attach('s1-eth3')
 py net.get('h3').cmd('ifconfig h3-eth0 10.3')
 ```
+
+
+### Add hosts in adhoc mode
+
+```
+py net.addStation('sta4', ip6='fe80::3', position='120,10,0')
+py sta4.setAdhocMode(intf='sta4-wlan0')
+```
