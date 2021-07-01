@@ -97,8 +97,9 @@ def run_application(server, stations, scheduler, assignment_str):
         # run server in fix assignemnt mode
         server_cmd = "python3 server/server.py -f " + assignment_str + "> logs/server.log 2>&1 &"
     else:
-        # run server in nomal mode
-        server_cmd = "python3 server/server.py > logs/server.log 2>&1 &"
+        # run server in other scheduler mode (minDist, fixed)
+        server_cmd = "python3 server/server.py -s %s > logs/server.log 2>&1 &"%scheduler
+        print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
@@ -176,6 +177,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
 
     info("*** Running CLI\n")
     CLI(net)
+    # time.sleep(200)
 
     info("*** Stopping network\n")
     net.stop()
