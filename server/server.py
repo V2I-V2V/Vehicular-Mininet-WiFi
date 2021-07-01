@@ -35,14 +35,18 @@ parser.add_argument('-n', '--num_vehicles', default=6, type=int,
 parser.add_argument('-f', '--fixed_assignment', nargs='+', type=int, 
                         help='use fixed assignment instead of dynamic shceduling, provide \
                         assignment with spaces (e.g. -f 3 2)')
+parser.add_argument('-s', '--scheduler', default='minDist', type=str,
+                        help='scheduler to use')
 args = parser.parse_args()
-mode = "dynamic"
+scheduler_mode = args.scheduler
 fixed_assignment = ()
 if args.fixed_assignment is not None:
-    mode = "fixed"
+    scheduler_mode = "fixed"
     fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
     print("Run in fix mode")
     print(fixed_assignment)
+else:
+    print("Run in %s mode" % scheduler_mode)
 num_vehicles = args.num_vehicles
  
 
@@ -68,12 +72,16 @@ class SchedThread(threading.Thread):
                         helpee_count += 1
                     else:
                         helper_count += 1
-                if mode == 'dynamic':
+                if scheduler_mode == 'minDist':
                     # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
-                elif mode == 'fixed':
+                elif scheduler_mode == 'fixed':
                     # TODO: if fixed assignment, don't need to get vehicles' locations
                     assignment = fixed_assignment
+                elif scheduler_mode == 'random':
+                    # TODO: add random assignment impl here
+                    print("run in random mode")
+                    pass
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 # for node_num in range(len(positions)):
                 #     if node_num in assignment:
