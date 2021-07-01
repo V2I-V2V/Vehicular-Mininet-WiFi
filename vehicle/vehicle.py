@@ -19,7 +19,7 @@ TYPE_OXTS = 1
 PCD_DATA_PATH = '../DeepGTAV-data/object-0227-1/velodyne_2/'
 OXTS_DATA_PATH = '../DeepGTAV-data/object-0227-1/oxts/'
 LOCATION_FILE = "input/object-0227-loc.txt"
-FRAMERATE = 10 # TODO: make this an argument later
+FRAMERATE = 5 # TODO: make this an argument later
 PCD_ENCODE_LEVEL = 10 # point cloud encode level
 PCD_QB = 12 # point cloud quantization bits
 
@@ -45,12 +45,19 @@ v2i_control_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.s
 v2i_data_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 curr_frame_id = 0
+v2v_recved_bytes = 0
 
 helper_data_send_thread = []
 helper_data_recv_port = 8080
 helper_control_recv_port = 8888
 self_ip = "10.0.0." + str(vehicle_id+2)
 
+def throughput_calc_thread(granularity):
+    global v2v_recved_bytes
+    while True:
+        print("[relay throughput] %d %f"%(v2v_recved_bytes*8/1000000., time.time()), flush=True)
+        v2v_recved_bytes = 0
+        time.sleep(granularity)
 
 def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     """Thread to capture (read) point cloud file at a certain FPS setting
@@ -324,6 +331,7 @@ class VehicleDataRecvThread(threading.Thread):
     
 
     def run(self):
+        global v2v_recved_bytes
         helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
                                                             config.server_data_port)
         while True and not self._is_closed:
@@ -339,6 +347,7 @@ class VehicleDataRecvThread(threading.Thread):
                     helper_relay_server_sock.close()
                     return
                 header_to_recv -= len(data_recv)
+                v2v_recved_bytes += len(data_recv)
             msg_len = int.from_bytes(data[0:4], "big")
             frame_id = int.from_bytes(data[4:6], "big")
             v_id = int.from_bytes(data[6:8], "big")
@@ -361,6 +370,7 @@ class VehicleDataRecvThread(threading.Thread):
                     break
                 curr_recv_bytes += len(data)
                 to_recv -= len(data)
+                v2v_recved_bytes += len(data)
                 helper_relay_server_sock.send(data)
             t_elasped = time.time() - t_start
             est_v2v_thrpt = msg_len/t_elasped/1000000.0
@@ -482,6 +492,9 @@ def main():
     senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
              args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
     senser_data_capture_thread.start()
+
+    throughput_thread = threading.Thread(target=throughput_calc_thread, args=(0.5))
+    throughput_thread.start()
 
     check_connection_state(disconnect_timestamps)
 
