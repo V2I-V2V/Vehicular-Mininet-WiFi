@@ -94,12 +94,15 @@ def setup_ip(node, ip, ifname):
 
 
 def run_application(server, stations, scheduler, assignment_str):
+    num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 server/server.py -f " + assignment_str + " -t " + trace_filename + " > logs/server.log 2>&1 &"
+        server_cmd = "python3 server/server.py -f %s -n %d -t %s > logs/server.log 2>&1 &"\
+                        %(assignment_str, num_nodes, trace_filename)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 server/server.py -s " + scheduler + " -t " + trace_filename + " > logs/server.log 2>&1 &"
+        server_cmd = "python3 server/server.py -s %s -n %d -t %s > logs/server.log 2>&1 &"\
+                        %(scheduler, num_nodes, trace_filename)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
@@ -175,6 +178,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     if enable_tcpdump is True:
         info("*** Tcpdump trace enabled\n")
         collect_tcpdump(stations)
+        server.cmd('tcpdump -nni any -s96 -w pcaps/server.pcap >/dev/null 2>&1 &')
 
     info("*** Running CLI\n")
     # CLI(net)
@@ -190,7 +194,7 @@ if __name__ == '__main__':
     # take argument number of nodes:
     if '-n' in sys.argv:
         num_nodes = int(sys.argv[sys.argv.index('-n')+1])
-        if num_nodes != 6:
+        if num_nodes > 6:
             print("Not supported node num, plz use 6 nodes for now!")
             sys.exit()
 

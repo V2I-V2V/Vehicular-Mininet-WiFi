@@ -18,6 +18,7 @@ TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
 
+conn_lock = threading.Lock()
 init_time = 0
 bws = {}
 
@@ -32,6 +33,7 @@ def update_bw(trace_filename):
         j = (cur_time - init_time) // 1
         for i in range(all_bandwidth.shape[1]):
             bws[i] = v2i_bw_traces[i][j]
+        print(bws)
 
 
 def bw_update_thread(trace_filename):
@@ -129,15 +131,17 @@ class ConnectionThread(threading.Thread):
         threading.Thread.__init__(self)
         self.client_socket = client_socket
         self.client_address = client_address
-        print("New connection added: ", client_address)
+        print("New control channel added: ", client_address)
 
 
     def run(self):
-        print("Connection from : ", self.client_address)
+        # print("Connection from : ", self.client_address)
         data = self.client_socket.recv(2)
         vehicle_id = int.from_bytes(data, "big")
         client_sockets[vehicle_id] = self.client_socket
         data = self.client_socket.recv(8)
+        if len(data) != 8:
+            print('location packet corrupted')
         while data:
             v_type = int.from_bytes(data[0:2], "big")
             v_id = int.from_bytes(data[2:4], "big")
@@ -146,13 +150,19 @@ class ConnectionThread(threading.Thread):
             location_map[v_id] = (x, y)
             vehicle_types[v_id] = v_type
             data = self.client_socket.recv(8)
+            if len(data) != 8:
+                print('location packet corrupted')
         self.client_socket.close()
 
 
 def server_recv_data(client_socket, client_addr):
+    conn_lock.acquire()
     print("Connect data channel from: ", client_addr)
     data = client_socket.recv(2)
+    assert len(data) == 2
     vehicle_id = int.from_bytes(data, "big")
+    print("Get sender id %d" % vehicle_id, flush=True)
+    conn_lock.release()
 
     while True:
         header_len = 10
@@ -170,7 +180,9 @@ def server_recv_data(client_socket, client_addr):
         frame_id = int.from_bytes(data[4:6], "big")
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
         v_id = int.from_bytes(data[6:8], "big") 
-        data_type = int.from_bytes(data[8:10], "big") 
+        data_type = int.from_bytes(data[8:10], "big")
+        print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
+                (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
         # print('recv size ' + str(pcd_size))
         msg = b''
         to_recv = msg_size
@@ -239,11 +251,11 @@ class DataConnectionThread(threading.Thread):
     
     def run(self):
         while True:
-            self.data_channel_sock.listen(1)
+            self.data_channel_sock.listen()
             client_socket, client_address = self.data_channel_sock.accept()
             new_data_recv_thread = threading.Thread(target=server_recv_data, \
                                                     args=(client_socket,client_address))
-            new_data_recv_thread.daemon = True
+            # new_data_recv_thread.daemon = True
             new_data_recv_thread.start()
 
 
@@ -266,7 +278,7 @@ def main():
     data_process_thread = threading.Thread(target=merge_data_when_ready)
     data_process_thread.start()
     while True:
-        server.listen(1)
+        server.listen()
         client_socket, client_address = server.accept()
         newthread = ConnectionThread(client_address, client_socket)
         newthread.daemon = True
