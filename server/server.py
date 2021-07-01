@@ -28,6 +28,7 @@ curr_processed_frame = 0
 data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES))
 helper_helpee_socket_map = {}
 current_assignment = {}
+init_time = 0
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-n', '--num_vehicles', default=6, type=int,
@@ -79,9 +80,8 @@ class SchedThread(threading.Thread):
                     # TODO: if fixed assignment, don't need to get vehicles' locations
                     assignment = fixed_assignment
                 elif scheduler_mode == 'random':
-                    # TODO: add random assignment impl here
-                    print("run in random mode")
-                    pass
+                    random_seed = (time.time() - init_time) // 5
+                    assignment = scheduling.random_sched(helpee_count, helper_count, random_seed)
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 # for node_num in range(len(positions)):
                 #     if node_num in assignment:
@@ -223,6 +223,8 @@ class DataConnectionThread(threading.Thread):
 
 
 def main():
+    global init_time
+    init_time = time.time()
     HOST = ''
     PORT = 6666
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
