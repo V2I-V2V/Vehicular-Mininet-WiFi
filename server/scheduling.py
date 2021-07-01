@@ -2,6 +2,7 @@
 
 import itertools
 import math
+import random
 
 def find_all_one_to_one(num_of_helpees, num_of_helpers):
     '''
@@ -50,6 +51,12 @@ def get_id_from_assignment(assignment):
         assignment_id += str(node) + "-"
     assignment_id = assignment_id[:-1]
     return assignment_id
+
+
+def random_sched(num_of_helpees, num_of_helpers, random_seed):
+    random.seed(random_seed)
+    assignments = find_all_one_to_one(num_of_helpees, num_of_helpers)
+    return assignments[random.randint(0, len(assignments) - 1)]
 
 
 def min_total_distance_sched(num_of_helpees, num_of_helpers, positions):
@@ -105,17 +112,30 @@ def coverage_aware_sched(num_of_helpees, num_of_helpers, positions, coverages):
     return get_assignment_from_id(max_assignment_id)
 
 
-def wwan_bw_distance_sched(num_of_helpees, num_of_helpers, bws, positions):
+def wwan_bw_sched(num_of_helpees, num_of_helpers, bws):
+    print("Using the bw sched")
+    scores = {}
+    for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
+        bw = 0
+        for cnt, node in enumerate(assignment):
+            bw += bws[node]
+        scores[get_id_from_assignment(assignment)] = bw
+    sorted_scores = sorted(scores.items(), key=lambda item: -item[1]) # decreasing order
+    return get_assignment_from_id(sorted_scores[0][0])
+
+
+def wwan_bw_distance_sched(num_of_helpees, num_of_helpers, bws, positions, p):
     print("Using the bw-distance sched")
     scores = {}
-    coverage = 60
     for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
         distance = 0
+        bw = 0
         for cnt, node in enumerate(assignment):
             distance += get_distance(positions[cnt], positions[node])
-        scores[get_id_from_assignment(assignment)] = distance / coverage 
-    sorted_distances = sorted(scores.items(), key=lambda item: item[1])
-    return get_assignment_from_id(sorted_distances[0][0])
+            bw += bws[node]
+        scores[get_id_from_assignment(assignment)] = bw - p * distance
+    sorted_scores = sorted(scores.items(), key=lambda item: -item[1]) # decreasing order
+    return get_assignment_from_id(sorted_scores[0][0])
 
 
 def bipartite():
