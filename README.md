@@ -39,7 +39,7 @@ sudo python3 sta_ap_mode.py
 This script setup 2 APs and 2STAs (each one associated with one ap). A wired connection is created between the 2APs.
 
 
-## Use the `vehicular_adhoc_setup.py` script
+## Use the `vehicular_perception.py` script
 
 Only setup the network:
 
@@ -50,13 +50,19 @@ sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n <num_nodes> -p <pcd_dat
 For example, to start a emulated network without running `vehicle.py`, try
 
 ```
-sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt
+sudo python3 vehicular_perception.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt
 ```
 
 To start the emulated network with `vehicle.py` running, try
 
 ```
-sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app
+sudo python3 vehicular_perception.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app -s minDist --collect-traffic
+```
+
+To use fixed scheduler, 
+
+```
+sudo python3 vehicular_perception.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app -s fixed ./input/assignments/assignments-sample.txt <index>
 ```
 
 
@@ -99,11 +105,11 @@ python3 server.py
 In each station terminal, run 
 
 ```
-python3 vehicle.py <node_num> <dir_to_pointcloud_data> # the last argument is optional
+python3 vehicle/vehicle.py <node_num> <dir_to_pointcloud_data> # the last argument is optional
 ```
-where node_num = station number - 1 (e.g. `python3 vehicle 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/` at sta2).
+where node_num = station number - 1 (e.g. `python3 vehicle/vehicle.py 1 ../DeepGTAV-data/object-0227-1/alt_perspective/0022786/` at sta2).
 
-Note: for the main vehicle (refered as vehicle 0 here), you only need to run `python3 vehicle 0` because the the default point cloud dir is set to vehicle 0. For others, you can find the point cloud dirs at `../DeepGTAV-data/object-0227-1/alt_perspective/` (e.g. `0022786/`, `0037122/`, etc).
+Note: for the main vehicle (refered as vehicle 0 here), you only need to run `python3 vehicle/vehicle 0` because the the default point cloud dir is set to vehicle 0. For others, you can find the point cloud dirs at `../DeepGTAV-data/object-0227-1/alt_perspective/` (e.g. `0022786/`, `0037122/`, etc).
 
 ## Useful utilities/Troubleshooting
 

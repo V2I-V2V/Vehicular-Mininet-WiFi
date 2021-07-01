@@ -220,7 +220,8 @@ class ServerControlThread(threading.Thread):
                         # print("already helping node " + str(current_helpee_id))
                         pass
                     else:
-                        print("[Get assignment] " + str(helpee_id) + ' ' + str(time.time()))
+                        print("[Helper get assignment from server] helpee_id: " +\
+                                 str(helpee_id) + ' ' + str(time.time()))
                         print(self_loc)
                         current_helpee_id = helpee_id
                         notify_helpee_node(helpee_id)
@@ -290,8 +291,8 @@ class VehicleControlThread(threading.Thread):
             else:
                 if is_packet_assignment(data):
                     helper_id = int.from_bytes(data, 'big')
-                    print("[helper assignment] " + str(helper_id) + ' ' + str(time.time()), \
-                            flush=True)
+                    print("[Helpee get helper assignment] helper_id: "\
+                         + str(helper_id) + ' ' + str(time.time()), flush=True)
                     helper_ip = "10.0.0." + str(helper_id+2)   
                     current_helper_id = helper_id
                     new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port)
