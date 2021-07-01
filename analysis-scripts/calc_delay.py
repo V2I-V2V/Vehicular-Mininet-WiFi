@@ -58,11 +58,7 @@ def main():
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
     plt.legend()
-<<<<<<< HEAD
     plt.savefig(sys.argv[1] + '/latency-cdf.png')
-=======
-    plt.savefig('latency-cdf.png')
->>>>>>> master
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -72,14 +68,8 @@ def main():
     plt.xlabel("Frame Number")
     plt.ylabel("Latency (s)")
     plt.legend()
-<<<<<<< HEAD
     plt.savefig(sys.argv[1] + '/latency-frame.png')
 
 
 if __name__ == '__main__':    
-=======
-    plt.savefig('latency-frame.png')
-if __name__ == '__main__':
-    
->>>>>>> master
     main()
