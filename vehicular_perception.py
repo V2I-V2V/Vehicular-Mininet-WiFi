@@ -93,12 +93,15 @@ def setup_ip(node, ip, ifname):
 
 
 def run_application(server, stations, scheduler, assignment_str):
+    num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 server/server.py -f " + assignment_str + "> logs/server.log 2>&1 &"
+        server_cmd = "python3 server/server.py -f %s -n %d > logs/server.log 2>&1 &"\
+                        %(assignment_str, num_nodes)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 server/server.py -s %s > logs/server.log 2>&1 &"%scheduler
+        server_cmd = "python3 server/server.py -s %s -n %d > logs/server.log 2>&1 &"\
+                        %(scheduler, num_nodes)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
