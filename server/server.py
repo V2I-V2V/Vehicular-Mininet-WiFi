@@ -33,11 +33,11 @@ def update_bw(trace_filename):
         j = (cur_time - init_time) // 1
         for i in range(all_bandwidth.shape[1]):
             bws[i] = v2i_bw_traces[i][j]
-        print(bws)
+            print(bws)
 
 
 def bw_update_thread(trace_filename):
-    update_thread = threading.Thread(target=update_bw, args=(trace_filename))
+    update_thread = threading.Thread(target=update_bw, args=(trace_filename,))
     update_thread.daemon = True
     update_thread.start()
 
