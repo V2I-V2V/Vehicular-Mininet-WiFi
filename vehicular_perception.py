@@ -177,10 +177,13 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     if enable_tcpdump is True:
         info("*** Tcpdump trace enabled\n")
         collect_tcpdump(stations)
+        server.cmd('tcpdump -nni any -s96 -w pcaps/server.pcap >/dev/null 2>&1 &')
 
     info("*** Running CLI\n")
-    # CLI(net)
-    time.sleep(200)
+    if run_app:
+        time.sleep(200)
+    else:
+        CLI(net)
 
     info("*** Stopping network\n")
     net.stop()

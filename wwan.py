@@ -28,7 +28,11 @@ def send_location(vehicle_type, vehicle_id, position, client_socket):
     x = int(position[0]).to_bytes(2, 'big')
     y = int(position[1]).to_bytes(2, 'big')
     msg = v_type + v_id + x + y
-    client_socket.send(msg)
+    to_send = len(msg)
+    bytes_sent = 0
+    while bytes_sent < to_send:
+        sent = client_socket.send(msg[bytes_sent:])
+        bytes_sent += sent
 
 def recv_assignment(client_socket):
     try:

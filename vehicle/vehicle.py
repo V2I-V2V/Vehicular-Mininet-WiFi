@@ -75,6 +75,7 @@ def send(socket, data, id, type):
     msg_len = len(data)
     header = msg_len.to_bytes(4, "big") + id.to_bytes(2, "big") \
                 + vehicle_id.to_bytes(2, "big") + type.to_bytes(2, 'big')
+    print("[send header] vehicle %d, frame %d, data len: %d" % (vehicle_id, id, msg_len))
     hender_sent = 0
     while hender_sent < len(header):
         bytes_sent = socket.send(header[hender_sent:])
@@ -188,7 +189,7 @@ def notify_helpee_node(helpee_id):
     Args:
         helpee_id (int): helpee id to notify
     """
-    # print("notifying the helpee node to send data")
+    # print("[notifying the helpee]")
     send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     msg = vehicle_id.to_bytes(2, 'big')
     helpee_addr = "10.0.0." + str(helpee_id+2)
@@ -283,9 +284,10 @@ class VehicleControlThread(threading.Thread):
             ## TODO: add type in message header to classify msg type
             if connection_state == "Connected":
                 # helper
-                # print("helper recv broadcast loc at " + str(time.time()))
+                print("[helper recv broadcast] " + str(time.time()))
                 helpee_id, helpee_loc = parse_location_packet_data(data)
                 # send helpee location
+                print((helpee_id, helpee_loc))
                 wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket)
                 # send self location
                 wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket) 
