@@ -26,6 +26,7 @@ default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0'
 default_loc_file="input/object-0227-loc.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {}
+trace_filename = ''
 
 
 def replay_trace(node, ifname, trace):
@@ -95,10 +96,10 @@ def setup_ip(node, ip, ifname):
 def run_application(server, stations, scheduler, assignment_str):
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 server/server.py -f " + assignment_str + "> logs/server.log 2>&1 &"
+        server_cmd = "python3 server/server.py -f " + assignment_str + " -t " + trace_filename + " > logs/server.log 2>&1 &"
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 server/server.py -s %s > logs/server.log 2>&1 &"%scheduler
+        server_cmd = "python3 server/server.py -s " + scheduler + " -t " + trace_filename + " > logs/server.log 2>&1 &"
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
@@ -176,8 +177,8 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
         collect_tcpdump(stations)
 
     info("*** Running CLI\n")
-    CLI(net)
-    # time.sleep(200)
+    # CLI(net)
+    time.sleep(30)
 
     info("*** Stopping network\n")
     net.stop()
