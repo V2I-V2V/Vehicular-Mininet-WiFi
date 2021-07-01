@@ -10,5 +10,5 @@ do
     cp -r logs ~/v2x/data-$tag/
     cp -r output ~/v2x/data-$tag/
     cp -r pcaps ~/v2x/data-$tag/
-    python3 analysis-scripts/calc_delay.py ~/v2x/data-$tag/
+    python3 analysis-scripts/calc_delay.py ~/v2x/data-$tag/ 6
 done
