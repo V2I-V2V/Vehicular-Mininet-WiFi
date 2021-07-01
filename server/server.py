@@ -128,6 +128,7 @@ def server_recv_data(client_socket, client_addr):
     print("Connect data channel from: ", client_addr)
     data = client_socket.recv(2)
     vehicle_id = int.from_bytes(data, "big")
+    print("Get sender id %d" % vehicle_id, flush=True)
 
     while True:
         header_len = 10
@@ -145,7 +146,9 @@ def server_recv_data(client_socket, client_addr):
         frame_id = int.from_bytes(data[4:6], "big")
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
         v_id = int.from_bytes(data[6:8], "big") 
-        data_type = int.from_bytes(data[8:10], "big") 
+        data_type = int.from_bytes(data[8:10], "big")
+        print("[receive header] data size: %d, frame %d, vehicle id: %d, type: %s" % \
+                (msg_size, frame_id, v_id, 'pcd' if data_type == 0 else 'oxts')) 
         # print('recv size ' + str(pcd_size))
         msg = b''
         to_recv = msg_size

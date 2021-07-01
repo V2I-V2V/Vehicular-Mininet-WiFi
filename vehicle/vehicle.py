@@ -84,9 +84,9 @@ def send(socket, data, id, type):
     while total_sent < msg_len:
         try:
             bytes_sent = socket.send(data[total_sent:])
+            total_sent += bytes_sent
             if bytes_sent == 0:
                 raise RuntimeError("socket connection broken")
-            total_sent += bytes_sent
         except:
             print('[Send error]')
             # socket.close()
@@ -111,6 +111,7 @@ def v2i_data_send_thread():
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
+            print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
         elif curr_frame_id >= config.MAX_FRAMES:
             print('[Max frame reached] finished ' + str(time.time()))
             frame_lock.release()
@@ -341,7 +342,11 @@ class VehicleDataRecvThread(threading.Thread):
             frame_id = int.from_bytes(data[4:6], "big")
             v_id = int.from_bytes(data[6:8], "big")
             assert len(data) == 10
-            helper_relay_server_sock.send(data)
+            to_send = header_len
+            sent = 0
+            while sent < to_send:
+                sent_len = helper_relay_server_sock.send(data[sent:])
+                sent += sent_len
             to_recv = msg_len
             curr_recv_bytes = 0
             t_start = time.time()

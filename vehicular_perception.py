@@ -176,8 +176,8 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
         collect_tcpdump(stations)
 
     info("*** Running CLI\n")
-    CLI(net)
-    # time.sleep(200)
+    # CLI(net)
+    time.sleep(200)
 
     info("*** Stopping network\n")
     net.stop()
@@ -189,7 +189,7 @@ if __name__ == '__main__':
     # take argument number of nodes:
     if '-n' in sys.argv:
         num_nodes = int(sys.argv[sys.argv.index('-n')+1])
-        if num_nodes != 6:
+        if num_nodes > 6:
             print("Not supported node num, plz use 6 nodes for now!")
             sys.exit()
 

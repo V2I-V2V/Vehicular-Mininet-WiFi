@@ -9,6 +9,7 @@ font = {'family' : 'DejaVu Sans',
         'size'   : 15}
 matplotlib.rc('font', **font)
 
+dir=sys.argv[1]
 
 np.set_printoptions(precision=3)
 
@@ -39,9 +40,9 @@ def get_receiver_ts(filename):
 
 def main():
     for i in range(6):
-        sender_ts_dict[i] = get_sender_ts('./logs/node%d.log'%i)
+        sender_ts_dict[i] = get_sender_ts(dir + 'logs/node%d.log'%i)
     # print(sender_ts_dict)
-    get_receiver_ts('./logs/server.log')
+    get_receiver_ts(dir + 'logs/server.log')
     # print(len(receiver_ts_dict[0]))
     for i in range(6):
         delay_dict[i] = np.array(receiver_ts_dict[i]) \
@@ -57,7 +58,7 @@ def main():
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
     plt.legend()
-    plt.savefig('latency-cdf.png')
+    plt.savefig(dir+'latency-cdf.png')
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -67,7 +68,7 @@ def main():
     plt.xlabel("Frame Number")
     plt.ylabel("Latency (s)")
     plt.legend()
-    plt.savefig('latency-frame.png')
+    plt.savefig(dir+'latency-frame.png')
 if __name__ == '__main__':
     
     main()
