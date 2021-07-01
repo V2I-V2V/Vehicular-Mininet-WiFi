@@ -19,7 +19,7 @@ TYPE_OXTS = 1
 PCD_DATA_PATH = '../DeepGTAV-data/object-0227-1/velodyne_2/'
 OXTS_DATA_PATH = '../DeepGTAV-data/object-0227-1/oxts/'
 LOCATION_FILE = "input/object-0227-loc.txt"
-FRAMERATE = 0.5 # TODO: make this an argument later
+FRAMERATE = 10 # TODO: make this an argument later
 PCD_ENCODE_LEVEL = 10 # point cloud encode level
 PCD_QB = 12 # point cloud quantization bits
 
@@ -172,9 +172,8 @@ def v2v_data_recv_thread():
     v2v_data_recv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     v2v_data_recv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     v2v_data_recv_sock.bind((host_ip, host_port))
-    v2v_data_recv_sock.listen(1)
     while True:
-        v2v_data_recv_sock.listen(1)
+        v2v_data_recv_sock.listen()
         client_socket, client_address = v2v_data_recv_sock.accept()
         print("[get helpee connection] " + str(time.time()))
         new_data_recv_thread = VehicleDataRecvThread(client_socket, client_address)
@@ -343,6 +342,7 @@ class VehicleDataRecvThread(threading.Thread):
             msg_len = int.from_bytes(data[0:4], "big")
             frame_id = int.from_bytes(data[4:6], "big")
             v_id = int.from_bytes(data[6:8], "big")
+            type = int.from_bytes(data[8:10], "big")
             assert len(data) == 10
             to_send = header_len
             sent = 0
@@ -354,20 +354,21 @@ class VehicleDataRecvThread(threading.Thread):
             t_start = time.time()
             while curr_recv_bytes < msg_len:
                 data = self.client_socket.recv(65536 if to_recv > 65536 else to_recv)
-                curr_recv_bytes += len(data)
-                to_recv -= len(data)
-                helper_relay_server_sock.send(data)
                 if len(data) <= 0:
-                    print("[Server connection closed]")
+                    print("[Helpee closed]")
                     self._is_closed = True
                     helper_relay_server_sock.close()
                     break
+                curr_recv_bytes += len(data)
+                to_recv -= len(data)
+                helper_relay_server_sock.send(data)
             t_elasped = time.time() - t_start
             est_v2v_thrpt = msg_len/t_elasped/1000000.0
             if self._is_closed:
                 return
-            print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
-                    % (est_v2v_thrpt, frame_id, v_id, time.time()), flush=True)
+            if type == TYPE_PCD:
+                print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
+                        % (est_v2v_thrpt, frame_id, v_id, time.time()), flush=True)
 
 
 class VehicleDataSendThread(threading.Thread):
