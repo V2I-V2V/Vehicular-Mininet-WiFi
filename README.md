@@ -56,7 +56,13 @@ sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcds/pcd-dat
 To start the emulated network with `vehicle.py` running, try
 
 ```
-sudo python3 mininet-scripts/vehicular_adhoc_setup.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app
+sudo python3 vehicular_perception.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app -s minDist --collect-traffic
+```
+
+To use fixed scheduler, 
+
+```
+sudo python3 vehicular_perception.py -n 6 -p input/pcds/pcd-data-config.txt -l input/locations/location-multihop.txt --trace input/traces/trace-all-nodes.txt --run_app -s fixed ./input/assignments/assignments-sample.txt <index>
 ```
 
 
