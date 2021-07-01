@@ -175,7 +175,8 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
         collect_tcpdump(stations)
 
     info("*** Running CLI\n")
-    CLI(net)
+    # CLI(net)
+    time.sleep(200)
 
     info("*** Stopping network\n")
     net.stop()

@@ -3,3 +3,4 @@ open3d==0.11.2
 bitstring==3.1.7
 TrakoDracoPy==0.0.13b2.dev9
 pyroute2==0.6.4
+seaborn==0.11.1
