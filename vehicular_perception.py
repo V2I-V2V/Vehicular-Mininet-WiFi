@@ -181,7 +181,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
 
     info("*** Running CLI\n")
     if run_app:
-        time.sleep(200)
+        time.sleep(100)
     else:
         CLI(net)
 
