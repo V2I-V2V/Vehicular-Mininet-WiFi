@@ -68,10 +68,25 @@ def create_adhoc_links(net, node, ifname):
 def create_wired_links(net, node, switch, bw):
     net.addLink(node, switch, cls=TCLink, bw=bw, delay='10ms')
 
+def read_location_traces(loc_file):
+    loc_trace = np.loadtxt(loc_file)
+    if loc_trace.ndim == 1:
+        loc_trace = loc_trace.reshape(1, -1)
+    return loc_trace
 
 # TODO: think about imlementing this
-def config_mobility(net, stations, loc_file):
-    pass
+def config_mobility(net, stations, loc_file, plot=False):
+    loc_trace = read_location_traces(loc_file)
+    time.sleep(8)
+    for time_i in range(loc_trace.shape[0]):
+        # print("update location for stas")
+        for station_idx in range(len(stations)):
+            stations[station_idx].setPosition('%f,%f,0'%(loc_trace[time_i][2*station_idx], \
+                                                     loc_trace[time_i][2*station_idx+1]))
+            if enable_plot:
+                stations[station_idx].update_2d()
+        time.sleep(0.1)
+
     #     net.startMobility(time=0, mob_rep=1, reverse=False)
     #     p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
     #     if '-c' not in args:
@@ -149,10 +164,6 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     if enable_plot:
         net.plotGraph(max_x=400, max_y=1100)
 
-    ### configure mobility ###
-    # TODO: Implement the following function with different mobility model, etc.
-    config_mobility(net, stations, loc_file)
-
     ### assign ip addresses to wired interfaces ###
     info("*** Addressing...\n")
     server.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
@@ -163,6 +174,11 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     net.build()
     c1.start()
     s1.start([c1])
+
+    ### configure mobility ###
+    # TODO: Implement the following function with different mobility model, etc.
+    mobility_thread = thread(target=config_mobility, args=(net, stations, loc_file, enable_plot))
+    mobility_thread.start()
 
     ### Trace replaying ###
     for i in range(num_nodes):
@@ -227,6 +243,8 @@ if __name__ == '__main__':
         loc_filename = sys.argv[sys.argv.index('-l')+1]
         loc_file=loc_filename
         locs = np.loadtxt(loc_filename)
+        if locs.ndim > 1:
+            locs = locs[0]
         sta_locs = utils.produce_3d_location_arr(locs)
         print(sta_locs)
     
