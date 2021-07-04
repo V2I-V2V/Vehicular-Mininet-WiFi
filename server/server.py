@@ -79,6 +79,7 @@ class SchedThread(threading.Thread):
                         helper_count += 1
                 if scheduler_mode == 'minDist':
                     # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
+                    # TODO: do a transformation to make helpee nodes lower ID
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
                 elif scheduler_mode == 'fixed':
                     # TODO: if fixed assignment, don't need to get vehicles' locations
