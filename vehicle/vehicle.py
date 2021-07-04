@@ -69,12 +69,12 @@ helper_data_recv_port = 8080
 helper_control_recv_port = 8888
 self_ip = "10.0.0." + str(vehicle_id+2)
 
-def throughput_calc_thread(granularity):
+def throughput_calc_thread():
     global v2v_recved_bytes
     while True:
         print("[relay throughput] %d %f"%(v2v_recved_bytes*8/1000000., time.time()), flush=True)
         v2v_recved_bytes = 0
-        time.sleep(granularity)
+        time.sleep(0.5)
 
 def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     """Thread to capture (read) point cloud file at a certain FPS setting
@@ -493,6 +493,8 @@ def main():
     trace_files = 'trace.txt'
     lte_traces = utils.read_traces(trace_files)
     disconnect_timestamps = utils.process_traces(lte_traces, HELPEE_CONF)
+    print("disconnect timestamp")
+    print(disconnect_timestamps)
     curr_timestamp = time.time()
     v2i_control_thread = ServerControlThread()
     v2i_control_thread.start()
@@ -510,8 +512,8 @@ def main():
              args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
     senser_data_capture_thread.start()
 
-    throughput_thread = threading.Thread(target=throughput_calc_thread, args=(0.5))
-    throughput_thread.start()
+    # throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
+    # throughput_thread.start()
 
     check_connection_state(disconnect_timestamps)
 
