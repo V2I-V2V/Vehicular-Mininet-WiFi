@@ -11,25 +11,40 @@ import config
 import utils
 import mobility
 import numpy as np
+import argparse
 
 HELPEE = 0
 HELPER = 1
 TYPE_PCD = 0
 TYPE_OXTS = 1
-PCD_DATA_PATH = '../DeepGTAV-data/object-0227-1/velodyne_2/'
-OXTS_DATA_PATH = '../DeepGTAV-data/object-0227-1/oxts/'
-LOCATION_FILE = "input/object-0227-loc.txt"
-FRAMERATE = 5 # TODO: make this an argument later
+FRAMERATE = 5
 PCD_ENCODE_LEVEL = 10 # point cloud encode level
 PCD_QB = 12 # point cloud quantization bits
 
+parser = argparse.ArgumentParser()
+parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
+parser.add_argument('-d', '--data_path', default='../DeepGTAV-data/object-0227-1/',\
+                    type=str, help='point cloud and oxts data path')
+parser.add_argument('-l', '--location_file', default="input/object-0227-loc.txt", \
+                    type=str, help='location file name')
+parser.add_argument('-c', '--helpee_conf', default="input/helpee_conf/helpee-nodes.txt",\
+                    type=str, help='helpee nodes configuration file')
+parser.add_argument('-f', '--fps', default=1, type=int, help='FPS of pcd data')
+args = parser.parse_args()
 
-vehicle_id = int(sys.argv[1])
-if len(sys.argv) > 2:
-    PCD_DATA_PATH = sys.argv[2] + '/velodyne_2/'
-    OXTS_DATA_PATH = sys.argv[2] + '/oxts/'
-if len(sys.argv) > 3:    
-    LOCATION_FILE = sys.argv[3]
+
+vehicle_id = args.id
+PCD_DATA_PATH = args.data_path + '/velodyne_2/'
+OXTS_DATA_PATH = args.data_path + '/oxts/'
+LOCATION_FILE = args.location_file
+HELPEE_CONF = args.helpee_conf
+FRAMERATE = args.fps
+print('fps ' + str(FRAMERATE))
+# if len(sys.argv) > 2:
+#     PCD_DATA_PATH = sys.argv[2] + '/velodyne_2/'
+#     OXTS_DATA_PATH = sys.argv[2] + '/oxts/'
+# if len(sys.argv) > 3:    
+#     LOCATION_FILE = sys.argv[3]
 connection_state = "Connected"
 current_helpee_id = 65535
 current_helper_id = 65535
@@ -475,7 +490,7 @@ def main():
     global curr_timestamp
     trace_files = 'trace.txt'
     lte_traces = utils.read_traces(trace_files)
-    disconnect_timestamps = utils.process_traces(lte_traces)
+    disconnect_timestamps = utils.process_traces(lte_traces, HELPEE_CONF)
     curr_timestamp = time.time()
     v2i_control_thread = ServerControlThread()
     v2i_control_thread.start()

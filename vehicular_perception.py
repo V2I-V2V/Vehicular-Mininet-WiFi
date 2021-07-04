@@ -12,6 +12,7 @@ import time
 import math
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils
+import config
 
 # global default values
 vehicle_data_dir = ['../DeepGTAV-data/object-0227-1/', 
@@ -107,7 +108,7 @@ def setup_ip(node, ip, ifname):
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
 
-def run_application(server, stations, scheduler, assignment_str):
+def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
@@ -121,8 +122,10 @@ def run_application(server, stations, scheduler, assignment_str):
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py %d %s %s > logs/node%d.log 2>&1 &'% \
-                            (node_num, vehicle_data_dir[node_num], loc_file, node_num)
+        vehicle_app_cmd = '''sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s
+                            -c %s -f %d> logs/node%d.log 2>&1 &'''% \
+                            (node_num, vehicle_data_dir[node_num], loc_file,\
+                            helpee_conf, fps, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
 
@@ -140,7 +143,8 @@ def collect_tcpdump(nodes):
 
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
-                enable_tcpdump=False, run_app=False, scheduler="minDist"):
+                enable_tcpdump=False, run_app=False, scheduler="minDist",
+                helpee_conf=None, fps=1):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     
     info("*** Creating nodes\n")
@@ -187,7 +191,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### Run application ###
     if run_app is True:
         info("\n*** Running vehicuar server\n")
-        run_application(server, stations, scheduler, assignment_str)
+        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps)
     
     ### Collect tcpdump trace ###
     if enable_tcpdump is True:
@@ -224,6 +228,8 @@ if __name__ == '__main__':
     enable_tcpdump = False
     run_app = False
     scheduler = 'minDist'
+    fps = 1
+    helpee_conf_file = 'input/helpee_conf/helpee-nodes.txt'
 
     if '-p' in sys.argv:
         pcd_config_file = sys.argv[sys.argv.index('-p')+1]
@@ -263,7 +269,15 @@ if __name__ == '__main__':
 
     if '--run_app' in sys.argv:
         run_app = True
+        if '--fps' in sys.argv:
+            fps = int(sys.argv[sys.argv.index('--fps')+1])
+
+    if '--helpee_conf' in sys.argv:
+        helpee_conf_file = sys.argv[sys.argv.index('--helpee_conf')+1]
+        # print(config.num_helpee)
+    
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
-            enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler)  
+            enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
+            helpee_conf=helpee_conf_file, fps=fps)  

@@ -3,6 +3,7 @@ import numpy as np
 import math
 import os
 import random
+import config
 
 def random_number(start, end):
     return (end - start) * random.random() + start
@@ -17,9 +18,13 @@ def read_traces(num_nodes):
     return traces
 
 
-def process_traces(traces):
-    disconnect_dict = {0: [2.1], 1: [2.1]}
-    # disconnect_dict ={0: [2.1]}
+def process_traces(traces, helpee_conf_file):
+    disconnect_dict = {}
+    nodes_id = np.loadtxt(helpee_conf_file, dtype=int)
+    if nodes_id.ndim == 0:
+        nodes_id = nodes_id.reshape(1,)
+    for i in nodes_id:
+        disconnect_dict[i] = 2.1
     print("Process traces and get the disconneted timestamps of each node")
     return disconnect_dict
 
