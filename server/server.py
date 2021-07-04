@@ -2,6 +2,7 @@
 # Vehicular perception server
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.stderr = sys.stdout
 import scheduling
 import socket
 import threading
@@ -23,17 +24,18 @@ init_time = 0
 bws = {}
 
 def update_bw(trace_filename):
-    time.sleep(8)
     v2i_bw_traces = {}
     all_bandwidth = np.loadtxt(trace_filename)
     for i in range(all_bandwidth.shape[1]):
         v2i_bw_traces[i] = all_bandwidth[:, i]
+    for i in range(all_bandwidth.shape[1]):
+        bws[i] = v2i_bw_traces[i][0]
+    time.sleep(8)
     while True:
         cur_time = time.time()
-        j = (cur_time - init_time) // 1
+        j = int(cur_time - init_time)
         for i in range(all_bandwidth.shape[1]):
             bws[i] = v2i_bw_traces[i][j]
-            print(bws)
 
 
 def bw_update_thread(trace_filename):

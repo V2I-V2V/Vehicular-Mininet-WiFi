@@ -2,6 +2,7 @@
  # -*- coding: utf-8 -*-
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.stderr = sys.stdout
 import threading
 import socket
 import time
@@ -19,7 +20,7 @@ TYPE_OXTS = 1
 PCD_DATA_PATH = '../DeepGTAV-data/object-0227-1/velodyne_2/'
 OXTS_DATA_PATH = '../DeepGTAV-data/object-0227-1/oxts/'
 LOCATION_FILE = "input/object-0227-loc.txt"
-FRAMERATE = 10 # TODO: make this an argument later
+FRAMERATE = 1 # TODO: make this an argument later
 PCD_ENCODE_LEVEL = 10 # point cloud encode level
 PCD_QB = 12 # point cloud quantization bits
 
