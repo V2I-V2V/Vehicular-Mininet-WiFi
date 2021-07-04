@@ -30,15 +30,6 @@ As a quick fix, you can copy my config to your olsrd configuration directory by
 sudo cp config/olsrd.conf /etc/olsrd/
 ```
 
-
-## Try a simple exmaple
-```
-sudo python3 sta_ap_mode.py
-```
-
-This script setup 2 APs and 2STAs (each one associated with one ap). A wired connection is created between the 2APs.
-
-
 ## Use the `vehicular_perception.py` script
 
 Only setup the network:
@@ -74,6 +65,16 @@ Several options:
 * Read point cloud data from custom directory: `-p <pcd_config_file>`
 * Read a location file: `-l <location_file>`. File format [sta1_x sta1_y sta2_x, sta2_y ...]
 * Fix assignment: `-s fixed <assignment_file> <assignment_index>`. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`
+
+Default values and their default effects in the scripts:
+* `--trace`: without this argument, each node will begin with 100Mbps V2I bw and not change
+* `-l`: default location file is `input/locations/location-example.txt`
+* `-p`: default pcd data file dir is `input/pcds/pcd-data-config.txt`
+* `-s`: default scheduler scheme is `minDist`
+* `--helpee_conf`: default helpee_conf file is `input/helpee_conf/helpee-nodes.txt` (0 and 1 are helpee nodes)
+* `--fps`: default value is 1
+
+
 
 ## Run experiments over the emulated network
 
@@ -139,3 +140,11 @@ py net.get('h3').cmd('ifconfig h3-eth0 10.3')
 py net.addStation('sta4', ip6='fe80::3', position='120,10,0')
 py sta4.setAdhocMode(intf='sta4-wlan0')
 ```
+
+
+## Try a simple exmaple
+```
+sudo python3 sta_ap_mode.py
+```
+
+This script setup 2 APs and 2STAs (each one associated with one ap). A wired connection is created between the 2APs.
