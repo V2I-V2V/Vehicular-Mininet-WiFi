@@ -21,6 +21,8 @@ FRAMERATE = 5
 PCD_ENCODE_LEVEL = 10 # point cloud encode level
 PCD_QB = 12 # point cloud quantization bits
 
+sys.stderr = sys.stdout
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
 parser.add_argument('-d', '--data_path', default='../DeepGTAV-data/object-0227-1/',\

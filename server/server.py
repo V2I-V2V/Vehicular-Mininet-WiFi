@@ -18,6 +18,8 @@ TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
 
+sys.stderr = sys.stdout
+
 conn_lock = threading.Lock()
 
 
