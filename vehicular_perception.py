@@ -12,7 +12,6 @@ import time
 import math
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils
-import config
 
 # global default values
 vehicle_data_dir = ['../DeepGTAV-data/object-0227-1/', 
@@ -122,8 +121,7 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = '''sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s
-                            -c %s -f %d> logs/node%d.log 2>&1 &'''% \
+        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d > logs/node%d.log 2>&1 &'% \
                             (node_num, vehicle_data_dir[node_num], loc_file,\
                             helpee_conf, fps, node_num)
         print(vehicle_app_cmd)
