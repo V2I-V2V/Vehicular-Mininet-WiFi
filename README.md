@@ -59,6 +59,7 @@ sudo python3 vehicular_perception.py -n 6 -p input/pcds/pcd-data-config.txt -l i
 
 Required arguments:
 
+* `-n`: Number of nodes (vehicles), must be `<= 6`.
 * `--run_app`: Start the vehicular application.
 * `-l <location_file>`: Read a location file trace. File format [sta1_x sta1_y sta2_x, sta2_y ...]. If not specified, `input/locations/location-example.txt` will be used.
 * `--trace <network_trace>`: V2I network trace for each node. File format [node0_bw node1_bw ...]. If not specified, each node will begin with 100Mbps V2I bw and not change.
