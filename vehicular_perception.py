@@ -69,10 +69,25 @@ def create_adhoc_links(net, node, ifname):
 def create_wired_links(net, node, switch, bw):
     net.addLink(node, switch, cls=TCLink, bw=bw, delay='10ms')
 
+def read_location_traces(loc_file):
+    loc_trace = np.loadtxt(loc_file)
+    if loc_trace.ndim == 1:
+        loc_trace = loc_trace.reshape(1, -1)
+    return loc_trace
 
 # TODO: think about imlementing this
-def config_mobility(net, stations, loc_file):
-    pass
+def config_mobility(net, stations, loc_file, plot=False):
+    loc_trace = read_location_traces(loc_file)
+    time.sleep(8)
+    for time_i in range(loc_trace.shape[0]):
+        # print("update location for stas")
+        for station_idx in range(len(stations)):
+            stations[station_idx].setPosition('%f,%f,0'%(loc_trace[time_i][2*station_idx], \
+                                                     loc_trace[time_i][2*station_idx+1]))
+            if enable_plot:
+                stations[station_idx].update_2d()
+        time.sleep(0.1)
+
     #     net.startMobility(time=0, mob_rep=1, reverse=False)
     #     p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
     #     if '-c' not in args:
@@ -93,7 +108,7 @@ def setup_ip(node, ip, ifname):
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
 
-def run_application(server, stations, scheduler, assignment_str):
+def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
@@ -107,8 +122,9 @@ def run_application(server, stations, scheduler, assignment_str):
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py %d %s %s > logs/node%d.log 2>&1 &'% \
-                            (node_num, vehicle_data_dir[node_num], loc_file, node_num)
+        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d > logs/node%d.log 2>&1 &'% \
+                            (node_num, vehicle_data_dir[node_num], loc_file,\
+                            helpee_conf, fps, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
 
@@ -126,7 +142,8 @@ def collect_tcpdump(nodes):
 
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
-                enable_tcpdump=False, run_app=False, scheduler="minDist"):
+                enable_tcpdump=False, run_app=False, scheduler="minDist",
+                helpee_conf=None, fps=1):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     
     info("*** Creating nodes\n")
@@ -150,10 +167,6 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     if enable_plot:
         net.plotGraph(max_x=400, max_y=1100)
 
-    ### configure mobility ###
-    # TODO: Implement the following function with different mobility model, etc.
-    config_mobility(net, stations, loc_file)
-
     ### assign ip addresses to wired interfaces ###
     info("*** Addressing...\n")
     server.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
@@ -165,6 +178,11 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     c1.start()
     s1.start([c1])
 
+    ### configure mobility ###
+    # TODO: Implement the following function with different mobility model, etc.
+    mobility_thread = thread(target=config_mobility, args=(net, stations, loc_file, enable_plot))
+    mobility_thread.start()
+
     ### Trace replaying ###
     for i in range(num_nodes):
         replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i])
@@ -172,7 +190,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### Run application ###
     if run_app is True:
         info("\n*** Running vehicuar server\n")
-        run_application(server, stations, scheduler, assignment_str)
+        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps)
     
     ### Collect tcpdump trace ###
     if enable_tcpdump is True:
@@ -209,6 +227,8 @@ if __name__ == '__main__':
     enable_tcpdump = False
     run_app = False
     scheduler = 'minDist'
+    fps = 1
+    helpee_conf_file = 'input/helpee_conf/helpee-nodes.txt'
 
     if '-p' in sys.argv:
         pcd_config_file = sys.argv[sys.argv.index('-p')+1]
@@ -228,6 +248,8 @@ if __name__ == '__main__':
         loc_filename = sys.argv[sys.argv.index('-l')+1]
         loc_file=loc_filename
         locs = np.loadtxt(loc_filename)
+        if locs.ndim > 1:
+            locs = locs[0]
         sta_locs = utils.produce_3d_location_arr(locs)
         print(sta_locs)
     
@@ -246,7 +268,15 @@ if __name__ == '__main__':
 
     if '--run_app' in sys.argv:
         run_app = True
+        if '--fps' in sys.argv:
+            fps = int(sys.argv[sys.argv.index('--fps')+1])
+
+    if '--helpee_conf' in sys.argv:
+        helpee_conf_file = sys.argv[sys.argv.index('--helpee_conf')+1]
+        # print(config.num_helpee)
+    
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
-            enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler)  
+            enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
+            helpee_conf=helpee_conf_file, fps=fps)  

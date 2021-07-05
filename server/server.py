@@ -19,6 +19,8 @@ TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
 
+sys.stderr = sys.stdout
+
 conn_lock = threading.Lock()
 init_time = 0
 bws = {}
@@ -102,6 +104,7 @@ class SchedThread(threading.Thread):
                         helper_count += 1
                 if scheduler_mode == 'minDist':
                     # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
+                    # TODO: do a transformation to make helpee nodes lower ID
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
                 elif scheduler_mode == 'bwAware':
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws)

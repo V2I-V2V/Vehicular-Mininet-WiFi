@@ -1,7 +1,5 @@
 # Control the locations of vehicles
 import numpy as np
-import config
-import bitstring
 
 def read_locations(location_filename):
     # TODO
