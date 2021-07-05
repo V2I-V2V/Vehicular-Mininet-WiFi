@@ -94,7 +94,6 @@ class SchedThread(threading.Thread):
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed)
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 # for node_num in range(len(positions)):
-                #     if node_num in assignment:
                 for cnt, node in enumerate(assignment):
                     current_assignment[node] = cnt
                     # print("send %d to node %d" % (cnt, node))
@@ -161,38 +160,10 @@ def server_recv_data(client_socket, client_addr):
             print("[Helper relay closed]")
             client_socket.close()
             return
-        
-        # header_len = 10
-        # data = b''
-        # header_to_recv = header_len
-        # while len(data) < header_len:
-        #     data_recv = client_socket.recv(header_to_recv)
-        #     data += data_recv
-        #     if len(data_recv) <= 0:
-        #         print("[Helper relay closed]")
-        #         client_socket.close()
-        #         return
-        #     header_to_recv -= len(data_recv)
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
         msg_size, frame_id, v_id, data_type = message.parse_data_msg_header(header)
-        # msg_size = int.from_bytes(data[0:4], "big")
-        # frame_id = int.from_bytes(data[4:6], "big")
-        # v_id = int.from_bytes(data[6:8], "big") 
-        # data_type = int.from_bytes(data[8:10], "big")
         print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
                 (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
-        # print('recv size ' + str(pcd_size))
-        # msg = b''
-        # to_recv = msg_size
-        # t_recv_start = time.time()
-        # while len(msg) < msg_size:
-        #     data_recv = client_socket.recv(65536 if to_recv > 65536 else to_recv)
-        #     if len(data_recv) <= 0:
-        #         print("[Helper relay closed]")
-        #         client_socket.close()
-        #         return
-        #     msg += data_recv
-        #     to_recv = msg_size - len(msg)
         assert len(msg) == msg_size
         t_elasped = time.time() - t_recv_start
         if frame_id >= MAX_FRAMES:
