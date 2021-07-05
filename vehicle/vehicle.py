@@ -42,11 +42,6 @@ LOCATION_FILE = args.location_file
 HELPEE_CONF = args.helpee_conf
 FRAMERATE = args.fps
 print('fps ' + str(FRAMERATE))
-# if len(sys.argv) > 2:
-#     PCD_DATA_PATH = sys.argv[2] + '/velodyne_2/'
-#     OXTS_DATA_PATH = sys.argv[2] + '/oxts/'
-# if len(sys.argv) > 3:    
-#     LOCATION_FILE = sys.argv[3]
 connection_state = "Connected"
 current_helpee_id = 65535
 current_helper_id = 65535
@@ -72,7 +67,7 @@ self_ip = "10.0.0." + str(vehicle_id+2)
 def throughput_calc_thread():
     global v2v_recved_bytes
     while True:
-        print("[relay throughput] %d %f"%(v2v_recved_bytes*8/1000000., time.time()), flush=True)
+        print("[relay throughput] %f %f"%(v2v_recved_bytes*8.0/1000000, time.time()), flush=True)
         v2v_recved_bytes = 0
         time.sleep(0.5)
 
@@ -305,7 +300,7 @@ class VehicleControlThread(threading.Thread):
             data, addr = v2v_control_socket.recvfrom(1024) 
             # assert len(data) == 6 or len(data) == 2
             ## TODO: add type in message header to classify msg type
-            if connection_state == "Connected":
+            if connection_state == "Connected" and not is_packet_assignment(data):
                 # helper
                 print("[helper recv broadcast] " + str(time.time()))
                 helpee_id, helpee_loc = parse_location_packet_data(data)
@@ -315,7 +310,7 @@ class VehicleControlThread(threading.Thread):
                 # send self location
                 wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket) 
             else:
-                if is_packet_assignment(data):
+                if is_packet_assignment(data) and connection_state == "Disconnected":
                     helper_id = int.from_bytes(data, 'big')
                     print("[Helpee get helper assignment] helper_id: "\
                          + str(helper_id) + ' ' + str(time.time()), flush=True)
@@ -512,8 +507,8 @@ def main():
              args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
     senser_data_capture_thread.start()
 
-    # throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
-    # throughput_thread.start()
+    throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
+    throughput_thread.start()
 
     check_connection_state(disconnect_timestamps)
 

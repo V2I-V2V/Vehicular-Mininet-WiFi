@@ -23,19 +23,19 @@ vehicle_data_dir = ['../DeepGTAV-data/object-0227-1/',
 default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0', \
                 '320.134, 854.744, 0', '296.692, 832.28, 0', '290.943, 881.713, 0', \
                 '313.943, 891.713, 0', '312.943, 875.713, 0']
-default_loc_file="input/object-0227-loc.txt"
+default_loc_file="input/locations/location-example.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
-v2i_bw_traces = {}
-
+v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
+time_to_run = 100
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
     time.sleep(8)
-    for throughput in trace:
+    for throughput_idx in range(min(len(trace), time_to_run-8)):
         start_t = time.time()
-        if throughput == 0:
-            throughput += 0.001
-        intf.config(bw=throughput)
+        if trace[throughput_idx] == 0:
+            trace[throughput_idx] += 0.001
+        intf.config(bw=trace[throughput_idx])
         elapsed_t = time.time() - start_t
         sleep_t = 1.0 - elapsed_t
         time.sleep(sleep_t)
@@ -107,16 +107,17 @@ def setup_ip(node, ip, ifname):
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
 
-def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1):
+def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
+                    save=False):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 server/server.py -f %s -n %d > logs/server.log 2>&1 &"\
-                        %(assignment_str, num_nodes)
+        server_cmd = "python3 server/server.py -f %s -n %d -d %r > logs/server.log 2>&1 &"\
+                        %(assignment_str, num_nodes, save)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 server/server.py -s %s -n %d > logs/server.log 2>&1 &"\
-                        %(scheduler, num_nodes)
+        server_cmd = "python3 server/server.py -s %s -n %d -d %r > logs/server.log 2>&1 &"\
+                        %(scheduler, num_nodes, save)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
@@ -142,7 +143,7 @@ def collect_tcpdump(nodes):
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
                 enable_tcpdump=False, run_app=False, scheduler="minDist",
-                helpee_conf=None, fps=1):
+                helpee_conf=None, fps=1, save=False):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     
     info("*** Creating nodes\n")
@@ -189,7 +190,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### Run application ###
     if run_app is True:
         info("\n*** Running vehicuar server\n")
-        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps)
+        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save)
     
     ### Collect tcpdump trace ###
     if enable_tcpdump is True:
@@ -199,7 +200,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
 
     info("*** Running CLI\n")
     if run_app:
-        time.sleep(100)
+        time.sleep(time_to_run)
     else:
         CLI(net)
 
@@ -225,6 +226,7 @@ if __name__ == '__main__':
     enable_plot = False
     enable_tcpdump = False
     run_app = False
+    data_save = False
     scheduler = 'minDist'
     fps = 1
     helpee_conf_file = 'input/helpee_conf/helpee-nodes.txt'
@@ -274,8 +276,13 @@ if __name__ == '__main__':
         helpee_conf_file = sys.argv[sys.argv.index('--helpee_conf')+1]
         # print(config.num_helpee)
     
+    if '--save_data' in sys.argv:
+        data_save = True
+
+    if '-t' in sys.argv:
+        time_to_run = int(sys.argv[sys.argv.index('-t')+1])
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
             enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
-            helpee_conf=helpee_conf_file, fps=fps)  
+            helpee_conf=helpee_conf_file, fps=fps, save=data_save)  

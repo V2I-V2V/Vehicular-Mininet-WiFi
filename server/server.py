@@ -42,9 +42,12 @@ parser.add_argument('-f', '--fixed_assignment', nargs='+', type=int,
                         assignment with spaces (e.g. -f 3 2)')
 parser.add_argument('-s', '--scheduler', default='minDist', type=str,
                         help='scheduler to use')
+parser.add_argument('-d', '--data_save', default=False, type=bool,
+                        help='whether to save undecoded pcds')
 args = parser.parse_args()
 scheduler_mode = args.scheduler
 fixed_assignment = ()
+save = args.data_save
 if args.fixed_assignment is not None:
     scheduler_mode = "fixed"
     fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
@@ -210,6 +213,9 @@ def merge_data_when_ready():
                 pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
                 pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
+                if save:
+                    with open('output/node%d_%d.bin'%(i, curr_processed_frame), 'wb') as f:
+                        f.write(pcds[i][curr_processed_frame])
             merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
             # with open('output/merged_%d.bin'%curr_processed_frame, 'w') as f:
             #     merged_pcl.tofile(f)
