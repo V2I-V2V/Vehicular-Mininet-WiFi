@@ -5,6 +5,7 @@ import threading
 import time
 import utils
 import fcntl, os
+import message
 
 def setup_lte():
     # TODO
@@ -22,17 +23,15 @@ def setup_p2p_links(vehicle_id, ip, port):
     return client_socket
 
 
-def send_location(vehicle_type, vehicle_id, position, client_socket):
+def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num):
     v_type = vehicle_type.to_bytes(2, 'big')
     v_id = vehicle_id.to_bytes(2, 'big')
     x = int(position[0]).to_bytes(2, 'big')
     y = int(position[1]).to_bytes(2, 'big')
-    msg = v_type + v_id + x + y
-    to_send = len(msg)
-    bytes_sent = 0
-    while bytes_sent < to_send:
-        sent = client_socket.send(msg[bytes_sent:])
-        bytes_sent += sent
+    seq = seq_num.to_bytes(4, 'big')
+    msg = v_type + v_id + x + y + seq
+    header = message.construct_control_msg_header(msg, message.TYPE_LOCATION)
+    message.send_msg(client_socket, header, msg)
 
 def recv_assignment(client_socket):
     try:
