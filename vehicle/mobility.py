@@ -1,5 +1,6 @@
 # Control the locations of vehicles
 import numpy as np
+import message
 
 def read_locations(location_filename):
     # TODO
@@ -37,10 +38,13 @@ def update_location(node, locations):
 
 
 
-def broadcast_location(vehicle_id, self_loc, source_socket):
+def broadcast_location(vehicle_id, self_loc, source_socket, seq_num):
     msg = vehicle_id.to_bytes(2, 'big') + int(self_loc[0]).to_bytes(2, 'big') \
-        + int(self_loc[1]).to_bytes(2, 'big')
-    source_socket.sendto(msg, ("10.255.255.255", 8888))
+        + int(self_loc[1]).to_bytes(2, 'big') + seq_num.to_bytes(4, 'big')
+    header = message.construct_control_msg_header(msg, message.TYPE_LOCATION)
+    message.send_msg(source_socket, header, msg, is_udp=True,\
+                        remote_addr=("10.255.255.255", 8888))
+    # source_socket.sendto(msg, ("10.255.255.255", 8888))
 
         
 def stop_broadcast_location(node, source_socket):

@@ -10,6 +10,7 @@ import ptcl.pcd_merge
 import numpy as np
 import argparse
 import ptcl.pointcloud
+import message
 
 MAX_VEHICLES = 8
 MAX_FRAMES = 80
@@ -24,6 +25,7 @@ conn_lock = threading.Lock()
 
 
 location_map = {}
+node_seq_nums = {}
 client_sockets = {}
 vehicle_types = {} # 0 for helpee, 1 for helper
 pcds = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
@@ -106,7 +108,7 @@ class SchedThread(threading.Thread):
             time.sleep(0.2)
 
 
-class ConnectionThread(threading.Thread):
+class ControlConnectionThread(threading.Thread):
 
     def __init__(self, client_address, client_socket):
         threading.Thread.__init__(self)
@@ -120,19 +122,26 @@ class ConnectionThread(threading.Thread):
         data = self.client_socket.recv(2)
         vehicle_id = int.from_bytes(data, "big")
         client_sockets[vehicle_id] = self.client_socket
-        data = self.client_socket.recv(8)
-        if len(data) != 8:
-            print('location packet corrupted')
-        while data:
-            v_type = int.from_bytes(data[0:2], "big")
-            v_id = int.from_bytes(data[2:4], "big")
-            x = int.from_bytes(data[4:6], "big")
-            y = int.from_bytes(data[6:8], "big")
-            location_map[v_id] = (x, y)
-            vehicle_types[v_id] = v_type
-            data = self.client_socket.recv(8)
-            if len(data) != 8:
-                print('location packet corrupted')
+        header, msg = message.recv_msg(self.client_socket,\
+                                        message.TYPE_CONTROL_MSG)
+        while msg:
+            msg_size, msg_type = message.parse_control_msg_header(header)
+            if msg_type == message.TYPE_LOCATION:
+                v_type, v_id, x, y, seq_num = \
+                    message.server_parse_location_msg(msg)
+                if v_id not in node_seq_nums.keys() or \
+                node_seq_nums[v_id] < seq_num:
+                    # only update location when seq num is larger
+                    print("Recv loc msg with seq num %d from vehicle %d" % (seq_num, v_id))
+                    location_map[v_id] = (x, y)
+                    vehicle_types[v_id] = v_type
+                    node_seq_nums[v_id] = seq_num
+                header, msg = message.recv_msg(self.client_socket,\
+                                        message.TYPE_CONTROL_MSG)
+            elif msg_type == message.TYPE_ROUTE:
+                # implment logic for receiving routing messages
+                pass
+
         self.client_socket.close()
 
 
@@ -146,36 +155,44 @@ def server_recv_data(client_socket, client_addr):
     conn_lock.release()
 
     while True:
-        header_len = 10
-        data = b''
-        header_to_recv = header_len
-        while len(data) < header_len:
-            data_recv = client_socket.recv(header_to_recv)
-            data += data_recv
-            if len(data_recv) <= 0:
-                print("[Helper relay closed]")
-                client_socket.close()
-                return
-            header_to_recv -= len(data_recv)
-        msg_size = int.from_bytes(data[0:4], "big")
-        frame_id = int.from_bytes(data[4:6], "big")
+        t_recv_start = time.time()
+        header, msg = message.recv_msg(client_socket, message.TYPE_DATA_MSG)
+        if header == b'' and msg == b'':
+            print("[Helper relay closed]")
+            client_socket.close()
+            return
+        
+        # header_len = 10
+        # data = b''
+        # header_to_recv = header_len
+        # while len(data) < header_len:
+        #     data_recv = client_socket.recv(header_to_recv)
+        #     data += data_recv
+        #     if len(data_recv) <= 0:
+        #         print("[Helper relay closed]")
+        #         client_socket.close()
+        #         return
+        #     header_to_recv -= len(data_recv)
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
-        v_id = int.from_bytes(data[6:8], "big") 
-        data_type = int.from_bytes(data[8:10], "big")
+        msg_size, frame_id, v_id, data_type = message.parse_data_msg_header(header)
+        # msg_size = int.from_bytes(data[0:4], "big")
+        # frame_id = int.from_bytes(data[4:6], "big")
+        # v_id = int.from_bytes(data[6:8], "big") 
+        # data_type = int.from_bytes(data[8:10], "big")
         print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
                 (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
         # print('recv size ' + str(pcd_size))
-        msg = b''
-        to_recv = msg_size
-        t_recv_start = time.time()
-        while len(msg) < msg_size:
-            data_recv = client_socket.recv(65536 if to_recv > 65536 else to_recv)
-            if len(data_recv) <= 0:
-                print("[Helper relay closed]")
-                client_socket.close()
-                return
-            msg += data_recv
-            to_recv = msg_size - len(msg)
+        # msg = b''
+        # to_recv = msg_size
+        # t_recv_start = time.time()
+        # while len(msg) < msg_size:
+        #     data_recv = client_socket.recv(65536 if to_recv > 65536 else to_recv)
+        #     if len(data_recv) <= 0:
+        #         print("[Helper relay closed]")
+        #         client_socket.close()
+        #         return
+        #     msg += data_recv
+        #     to_recv = msg_size - len(msg)
         assert len(msg) == msg_size
         t_elasped = time.time() - t_recv_start
         if frame_id >= MAX_FRAMES:
@@ -191,7 +208,6 @@ def server_recv_data(client_socket, client_addr):
         if len(pcds[v_id][frame_id]) > 0 and len(oxts[v_id][frame_id]) > 0:
             data_ready_matrix[v_id][frame_id] = 1
         
-        # print(data_ready_matrix)
 
 def merge_data_when_ready():
     global curr_processed_frame
@@ -208,8 +224,6 @@ def merge_data_when_ready():
             points_oxts_primary = (decoded_pcl, oxts[0][curr_processed_frame])
             points_oxts_secondary = []
             for i in range(1, num_vehicles):
-                # pcl = np.frombuffer(pcds[i][curr_processed_frame], 
-                #                 dtype='float32').reshape([-1, 4])
                 pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
                 pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
@@ -239,7 +253,6 @@ class DataConnectionThread(threading.Thread):
             client_socket, client_address = self.data_channel_sock.accept()
             new_data_recv_thread = threading.Thread(target=server_recv_data, \
                                                     args=(client_socket,client_address))
-            # new_data_recv_thread.daemon = True
             new_data_recv_thread.start()
 
 
@@ -264,7 +277,7 @@ def main():
     while True:
         server.listen()
         client_socket, client_address = server.accept()
-        newthread = ConnectionThread(client_address, client_socket)
+        newthread = ControlConnectionThread(client_address, client_socket)
         newthread.daemon = True
         newthread.start()
 
