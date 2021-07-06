@@ -13,6 +13,7 @@ import utils
 import mobility
 import numpy as np
 import argparse
+import message
 
 HELPEE = 0
 HELPER = 1
@@ -43,11 +44,6 @@ LOCATION_FILE = args.location_file
 HELPEE_CONF = args.helpee_conf
 FRAMERATE = args.fps
 print('fps ' + str(FRAMERATE))
-# if len(sys.argv) > 2:
-#     PCD_DATA_PATH = sys.argv[2] + '/velodyne_2/'
-#     OXTS_DATA_PATH = sys.argv[2] + '/oxts/'
-# if len(sys.argv) > 3:    
-#     LOCATION_FILE = sys.argv[3]
 connection_state = "Connected"
 current_helpee_id = 65535
 current_helper_id = 65535
@@ -58,7 +54,12 @@ self_loc = self_loc_trace[0]
 pcd_data_buffer = []
 oxts_data_buffer = []
 
+
+vehicle_seq_dict = {}
+control_seq_num = 0
+
 frame_lock = threading.Lock()
+v2i_control_socket_lock = threading.Lock()
 v2i_control_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_ctrl_port)
 v2i_data_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -70,12 +71,16 @@ helper_data_recv_port = 8080
 helper_control_recv_port = 8888
 self_ip = "10.0.0." + str(vehicle_id+2)
 
+
 def throughput_calc_thread():
+    """ Thread to calculate V2V thrpt
+    """
     global v2v_recved_bytes
     while True:
-        print("[relay throughput] %d %f"%(v2v_recved_bytes*8/1000000., time.time()), flush=True)
+        print("[relay throughput] %f Mbps %f"%(v2v_recved_bytes*8.0/1000000, time.time()), flush=True)
         v2v_recved_bytes = 0
-        time.sleep(0.5)
+        time.sleep(1)
+
 
 def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     """Thread to capture (read) point cloud file at a certain FPS setting
@@ -96,6 +101,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         if (1.0/fps-t_elasped) > 0:
             time.sleep(1.0/fps-t_elasped)
 
+
 def send(socket, data, id, type):
     msg_len = len(data)
     header = msg_len.to_bytes(4, "big") + id.to_bytes(2, "big") \
@@ -110,6 +116,8 @@ def send(socket, data, id, type):
     while total_sent < msg_len:
         try:
             bytes_sent = socket.send(data[total_sent:])
+            # TODO: check how much bytes sent each time exactly
+            print("[Sedning Data] Sent %d bytes" % bytes_sent)
             total_sent += bytes_sent
             if bytes_sent == 0:
                 raise RuntimeError("socket connection broken")
@@ -134,6 +142,7 @@ def v2i_data_send_thread():
             frame_lock.release()
             pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
                                             PCD_ENCODE_LEVEL, PCD_QB)
+            # TODO: maybe compress the frames beforehand, change encode to another thread
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
@@ -216,8 +225,11 @@ def notify_helpee_node(helpee_id):
     # print("[notifying the helpee]")
     send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     msg = vehicle_id.to_bytes(2, 'big')
+    header = message.construct_control_msg_header(msg, message.TYPE_ASSIGNMENT)
     helpee_addr = "10.0.0." + str(helpee_id+2)
-    send_note_sock.sendto(msg, (helpee_addr, helper_control_recv_port))
+    message.send_msg(send_note_sock, header, msg, is_udp=True,\
+                        remote_addr=(helpee_addr, helper_control_recv_port))
+    # send_note_sock.sendto(msg, (helpee_addr, helper_control_recv_port))
 
 
 class ServerControlThread(threading.Thread):
@@ -268,7 +280,8 @@ def parse_location_packet_data(data):
     helpee_id = int.from_bytes(data[0:2], "big")
     x = int.from_bytes(data[2:4], "big")
     y = int.from_bytes(data[4:6], "big")
-    return helpee_id, [x, y]
+    seq_num = int.from_bytes(data[6:10], "big")
+    return helpee_id, [x, y], seq_num
 
 
 def is_packet_assignment(data):
@@ -301,23 +314,32 @@ class VehicleControlThread(threading.Thread):
         
 
     def run(self):
-        global current_helper_id
+        global current_helper_id, control_seq_num
         while True:
-            data, addr = v2v_control_socket.recvfrom(1024) 
-            # assert len(data) == 6 or len(data) == 2
-            ## TODO: add type in message header to classify msg type
-            if connection_state == "Connected":
+            data, addr = message.recv_msg(v2v_control_socket, message.TYPE_CONTROL_MSG,\
+                                            is_udp=True)
+            
+            msg_size, msg_type = message.parse_control_msg_header(data)
+            if connection_state == "Connected" and msg_type == message.TYPE_LOCATION:
                 # helper
                 print("[helper recv broadcast] " + str(time.time()))
-                helpee_id, helpee_loc = parse_location_packet_data(data)
+                helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
                 # send helpee location
                 print((helpee_id, helpee_loc))
-                wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket)
-                # send self location
-                wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket) 
+                if helpee_id not in vehicle_seq_dict.keys() \
+                    or seq_num > vehicle_seq_dict[helpee_id]:
+                    # only send location if received seq num is larger
+                    vehicle_seq_dict[helpee_id] = seq_num
+                    v2i_control_socket_lock.acquire()
+                    wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket, seq_num)
+                    # send self location
+                    wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, \
+                                         control_seq_num) 
+                    control_seq_num += 1
+                    v2i_control_socket_lock.release()
             else:
-                if is_packet_assignment(data):
-                    helper_id = int.from_bytes(data, 'big')
+                if connection_state == "Disconnected" and msg_type == message.TYPE_ASSIGNMENT:
+                    helper_id = int.from_bytes(data[-msg_size:], 'big')
                     print("[Helpee get helper assignment] helper_id: "\
                          + str(helper_id) + ' ' + str(time.time()), flush=True)
                     helper_ip = "10.0.0." + str(helper_id+2)   
@@ -328,12 +350,16 @@ class VehicleControlThread(threading.Thread):
                     if len(helper_data_send_thread) != 0:
                         helper_data_send_thread[-1].stop()
                     helper_data_send_thread.append(new_send_thread)
-                elif self_ip != addr[0]:
-                    helpee_id, helpee_loc = parse_location_packet_data(data)
-                    if helpee_id != vehicle_id:
-                        # helpee only rebroadcast loc not equal to themselves
-                        # print("helpee recv broadcast loc from others, do flooding")                    
-                        v2v_control_socket.sendto(data, ("10.255.255.255", helper_control_recv_port))
+                elif connection_state == "Disconnected" and msg_type == message.TYPE_LOCATION\
+                        and self_ip != addr[0]:
+                    helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
+                    if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
+                            seq_num > vehicle_seq_dict[helpee_id]):
+                        # helpee only rebroadcast loc not equal to themselves and with larger seq
+                        vehicle_seq_dict[helpee_id] = seq_num
+                        message.send_msg(v2v_control_socket, data[:message.CONTROL_MSG_HEADER_LEN],\
+                                        data[message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
+                                        remote_addr=("10.255.255.255", helper_control_recv_port))
 
 
 class VehicleDataRecvThread(threading.Thread):
@@ -470,17 +496,23 @@ def check_connection_state(disconnect_timestamps):
         disconnect_timestamps (dictionary): the disconnected timestamp dictionary read from
         LTE trace e.g. dict = {1: [2.1]} means node 1 disconnects at 2.1 sec
     """
-    global connection_state
+    global connection_state, control_seq_num
     while True:
         t_start = time.time()
         if connection_state == "Connected":
             # print("Connected to server...")
             if vehicle_id not in disconnect_timestamps.keys():
-                wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket) 
-            pass
+                v2i_control_socket_lock.acquire()
+                wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
+                                    control_seq_num) 
+                control_seq_num += 1
+                v2i_control_socket_lock.release()
         elif connection_state == "Disconnected":
             # print("Disconnected to server... broadcast " + str(time.time()))
-            mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket)
+            v2i_control_socket_lock.acquire()
+            mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num)
+            control_seq_num += 1
+            v2i_control_socket_lock.release()
         if check_if_disconnected(disconnect_timestamps):
             connection_state = "Disconnected"
         t_elasped = time.time() - t_start
@@ -513,8 +545,8 @@ def main():
              args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
     senser_data_capture_thread.start()
 
-    # throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
-    # throughput_thread.start()
+    throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
+    throughput_thread.start()
 
     check_connection_state(disconnect_timestamps)
 

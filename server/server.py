@@ -11,6 +11,7 @@ import ptcl.pcd_merge
 import numpy as np
 import argparse
 import ptcl.pointcloud
+import message
 
 MAX_VEHICLES = 8
 MAX_FRAMES = 80
@@ -52,13 +53,17 @@ parser.add_argument('-n', '--num_vehicles', default=6, type=int,
 parser.add_argument('-f', '--fixed_assignment', nargs='+', type=int, 
                         help='use fixed assignment instead of dynamic shceduling, provide \
                         assignment with spaces (e.g. -f 3 2)')
-parser.add_argument('-s', '--scheduler', default='minDist', type=str, help='scheduler to use')
+parser.add_argument('-s', '--scheduler', default='minDist', type=str, 
+                    help='scheduler to use: minDist|random|bwAware')
 parser.add_argument('-t', '--trace_filename', default='', type=str, help='trace file to use')
+parser.add_argument('-d', '--data_save', default=False, type=bool, 
+                    help='whether to save undecoded pcds')
 
 args = parser.parse_args()
 trace_filename = args.trace_filename
 scheduler_mode = args.scheduler
 fixed_assignment = ()
+save = args.data_save
 if args.fixed_assignment is not None:
     scheduler_mode = "fixed"
     fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
@@ -66,10 +71,13 @@ if args.fixed_assignment is not None:
     print(fixed_assignment)
 else:
     print("Run in %s mode" % scheduler_mode)
+    if scheduler_mode == "bwAware":
+        bw_update_thread(trace_filename)
 num_vehicles = args.num_vehicles
-bw_update_thread(trace_filename)
+
 
 location_map = {}
+node_seq_nums = {}
 client_sockets = {}
 vehicle_types = {} # 0 for helpee, 1 for helper
 pcds = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
@@ -93,15 +101,19 @@ class SchedThread(threading.Thread):
             if len(location_map) == num_vehicles:
                 print(scheduler_mode)
                 positions = []
+                helper_list = []
                 for k, v in sorted(location_map.items()):
                     positions.append(v)
                 helpee_count = 0
                 helper_count = 0
                 for k, v in vehicle_types.items():
-                    if v == 0:
+                    if v == HELPEE:
                         helpee_count += 1
+                        helper_list.append(HELPEE)
                     else:
                         helper_count += 1
+                        helper_list.append(HELPER)
+
                 if scheduler_mode == 'minDist':
                     # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
                     # TODO: do a transformation to make helpee nodes lower ID
@@ -116,7 +128,6 @@ class SchedThread(threading.Thread):
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed)
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 # for node_num in range(len(positions)):
-                #     if node_num in assignment:
                 for cnt, node in enumerate(assignment):
                     current_assignment[node] = cnt
                     # print("send %d to node %d" % (cnt, node))
@@ -130,7 +141,7 @@ class SchedThread(threading.Thread):
             time.sleep(0.2)
 
 
-class ConnectionThread(threading.Thread):
+class ControlConnectionThread(threading.Thread):
 
     def __init__(self, client_address, client_socket):
         threading.Thread.__init__(self)
@@ -144,19 +155,25 @@ class ConnectionThread(threading.Thread):
         data = self.client_socket.recv(2)
         vehicle_id = int.from_bytes(data, "big")
         client_sockets[vehicle_id] = self.client_socket
-        data = self.client_socket.recv(8)
-        if len(data) != 8:
-            print('location packet corrupted')
-        while data:
-            v_type = int.from_bytes(data[0:2], "big")
-            v_id = int.from_bytes(data[2:4], "big")
-            x = int.from_bytes(data[4:6], "big")
-            y = int.from_bytes(data[6:8], "big")
-            location_map[v_id] = (x, y)
-            vehicle_types[v_id] = v_type
-            data = self.client_socket.recv(8)
-            if len(data) != 8:
-                print('location packet corrupted')
+        header, payload = message.recv_msg(self.client_socket,\
+                                        message.TYPE_CONTROL_MSG)
+        while len(header) > 0 and len(payload) > 0:
+            payload_size, msg_type = message.parse_control_msg_header(header)
+            if msg_type == message.TYPE_LOCATION:
+                v_type, v_id, x, y, seq_num = \
+                    message.server_parse_location_msg(payload)
+                if v_id not in node_seq_nums.keys() or \
+                node_seq_nums[v_id] < seq_num:
+                    # only update location when seq num is larger
+                    print("Recv loc msg with seq num %d from vehicle %d" % (seq_num, v_id))
+                    location_map[v_id] = (x, y)
+                    vehicle_types[v_id] = v_type
+                    node_seq_nums[v_id] = seq_num
+            elif msg_type == message.TYPE_ROUTE:
+                # implment logic for receiving routing messages
+                pass
+            header, payload = message.recv_msg(self.client_socket,\
+                                        message.TYPE_CONTROL_MSG)
         self.client_socket.close()
 
 
@@ -170,36 +187,16 @@ def server_recv_data(client_socket, client_addr):
     conn_lock.release()
 
     while True:
-        header_len = 10
-        data = b''
-        header_to_recv = header_len
-        while len(data) < header_len:
-            data_recv = client_socket.recv(header_to_recv)
-            data += data_recv
-            if len(data_recv) <= 0:
-                print("[Helper relay closed]")
-                client_socket.close()
-                return
-            header_to_recv -= len(data_recv)
-        msg_size = int.from_bytes(data[0:4], "big")
-        frame_id = int.from_bytes(data[4:6], "big")
+        t_recv_start = time.time()
+        header, msg = message.recv_msg(client_socket, message.TYPE_DATA_MSG)
+        if header == b'' and msg == b'':
+            print("[Helper relay closed]")
+            client_socket.close()
+            return
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
-        v_id = int.from_bytes(data[6:8], "big") 
-        data_type = int.from_bytes(data[8:10], "big")
+        msg_size, frame_id, v_id, data_type = message.parse_data_msg_header(header)
         print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
                 (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
-        # print('recv size ' + str(pcd_size))
-        msg = b''
-        to_recv = msg_size
-        t_recv_start = time.time()
-        while len(msg) < msg_size:
-            data_recv = client_socket.recv(65536 if to_recv > 65536 else to_recv)
-            if len(data_recv) <= 0:
-                print("[Helper relay closed]")
-                client_socket.close()
-                return
-            msg += data_recv
-            to_recv = msg_size - len(msg)
         assert len(msg) == msg_size
         t_elasped = time.time() - t_recv_start
         if frame_id >= MAX_FRAMES:
@@ -215,7 +212,6 @@ def server_recv_data(client_socket, client_addr):
         if len(pcds[v_id][frame_id]) > 0 and len(oxts[v_id][frame_id]) > 0:
             data_ready_matrix[v_id][frame_id] = 1
         
-        # print(data_ready_matrix)
 
 def merge_data_when_ready():
     global curr_processed_frame
@@ -226,17 +222,18 @@ def merge_data_when_ready():
                 ready = False
                 break
         if ready:
-            print("[merge data] merge frame %d ar %f" % (curr_processed_frame, time.time()))
+            print("[merge data] merge frame %d at %f" % (curr_processed_frame, time.time()))
             decoded_pcl = ptcl.pointcloud.dracoDecode(pcds[0][curr_processed_frame])
             decoded_pcl = np.append(decoded_pcl, np.zeros((decoded_pcl.shape[0],1),dtype='float32'), axis=1)
             points_oxts_primary = (decoded_pcl, oxts[0][curr_processed_frame])
             points_oxts_secondary = []
             for i in range(1, num_vehicles):
-                # pcl = np.frombuffer(pcds[i][curr_processed_frame], 
-                #                 dtype='float32').reshape([-1, 4])
                 pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
                 pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
+                if save:
+                    with open('output/node%d_%d.bin'%(i, curr_processed_frame), 'wb') as f:
+                        f.write(pcds[i][curr_processed_frame])
             merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
             # with open('output/merged_%d.bin'%curr_processed_frame, 'w') as f:
             #     merged_pcl.tofile(f)
@@ -260,7 +257,6 @@ class DataConnectionThread(threading.Thread):
             client_socket, client_address = self.data_channel_sock.accept()
             new_data_recv_thread = threading.Thread(target=server_recv_data, \
                                                     args=(client_socket,client_address))
-            # new_data_recv_thread.daemon = True
             new_data_recv_thread.start()
 
 
@@ -285,7 +281,7 @@ def main():
     while True:
         server.listen()
         client_socket, client_address = server.accept()
-        newthread = ConnectionThread(client_address, client_socket)
+        newthread = ControlConnectionThread(client_address, client_socket)
         newthread.daemon = True
         newthread.start()
 
