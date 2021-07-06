@@ -58,7 +58,7 @@ vehicle_seq_dict = {}
 control_seq_num = 0
 
 frame_lock = threading.Lock()
-seq_num_lock = threading.Lock()
+v2i_control_socket_lock = threading.Lock()
 v2i_control_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_ctrl_port)
 v2i_data_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -96,9 +96,9 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         t_elasped = time.time() - t_s
-        # print("sleep %f before get the next frame" % (1.0/fps-t_elasped), flush=True)
-        # if (1.0/fps-t_elasped) > 0:
-        #     time.sleep(1.0/fps-t_elasped)
+        print("sleep %f before get the next frame" % (1.0/fps-t_elasped), flush=True)
+        if (1.0/fps-t_elasped) > 0:
+            time.sleep(1.0/fps-t_elasped)
 
 
 def send(socket, data, id, type):
@@ -329,13 +329,13 @@ class VehicleControlThread(threading.Thread):
                     or seq_num > vehicle_seq_dict[helpee_id]:
                     # only send location if received seq num is larger
                     vehicle_seq_dict[helpee_id] = seq_num
-                    seq_num_lock.acquire()
+                    v2i_control_socket_lock.acquire()
                     wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket, seq_num)
                     # send self location
                     wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, \
                                          control_seq_num) 
                     control_seq_num += 1
-                    seq_num_lock.release()
+                    v2i_control_socket_lock.release()
             else:
                 if connection_state == "Disconnected" and msg_type == message.TYPE_ASSIGNMENT:
                     helper_id = int.from_bytes(data[-msg_size:], 'big')
@@ -501,17 +501,17 @@ def check_connection_state(disconnect_timestamps):
         if connection_state == "Connected":
             # print("Connected to server...")
             if vehicle_id not in disconnect_timestamps.keys():
-                seq_num_lock.acquire()
+                v2i_control_socket_lock.acquire()
                 wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
                                     control_seq_num) 
                 control_seq_num += 1
-                seq_num_lock.release()
+                v2i_control_socket_lock.release()
         elif connection_state == "Disconnected":
             # print("Disconnected to server... broadcast " + str(time.time()))
-            seq_num_lock.acquire()
+            v2i_control_socket_lock.acquire()
             mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num)
             control_seq_num += 1
-            seq_num_lock.release()
+            v2i_control_socket_lock.release()
         if check_if_disconnected(disconnect_timestamps):
             connection_state = "Disconnected"
         t_elasped = time.time() - t_start
