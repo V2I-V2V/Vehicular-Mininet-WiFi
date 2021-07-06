@@ -7,7 +7,19 @@ CONTROL_MSG_HEADER_LEN = 6
 DATA_MSG_HEADER_LEN = 10
 
 def construct_control_msg_header(msg_payload, msg_type):
-    header = len(msg_payload).to_bytes(4, 'big') + msg_type.to_bytes(2, 'big')
+    """ Construct a control message header
+    |---- 4 bytes ----|---- 2 bytes ----|
+    | message length  |  message type   |   
+
+    Args:
+        msg_payload (bytes): message payload to send (in raw bytes)
+        msg_type (int): type of control messages, can be 0 (location), 1 (assignment), 2 (routing)
+
+    Returns:
+        headers [bytes]
+    """
+    msg_len = len(msg_payload)
+    header = msg_len.to_bytes(4, 'big') + msg_type.to_bytes(2, 'big')
     return header
 
 
@@ -64,30 +76,30 @@ def recv_msg(socket, type, is_udp=False):
                 return b'', b''
             header_to_recv -= len(data_recv)
         msg_payload_size = int.from_bytes(header[0:4], "big")
-        msg = b''
+        payload = b''
         to_recv = msg_payload_size
-        while len(msg) < msg_payload_size:
+        while len(payload) < msg_payload_size:
             data_recv = socket.recv(65536 if to_recv > 65536 else to_recv)
             if len(data_recv) <= 0:
                 print("[Socket closed]")
                 return b'', b''
-            msg += data_recv
-            to_recv = msg_payload_size - len(msg)
-        return header, msg
+            payload += data_recv
+            to_recv = msg_payload_size - len(payload)
+        return header, payload
 
 
 def parse_control_msg_header(data):
-    msg_size = int.from_bytes(data[0:4], 'big')
+    payload_size = int.from_bytes(data[0:4], 'big')
     msg_type = int.from_bytes(data[4:6], 'big')
-    return msg_size, msg_type
+    return payload_size, msg_type
 
 
 def parse_data_msg_header(data):
-    msg_len = int.from_bytes(data[0:4], "big")
+    payload_size = int.from_bytes(data[0:4], "big")
     frame_id = int.from_bytes(data[4:6], "big")
     v_id = int.from_bytes(data[6:8], "big")
     type = int.from_bytes(data[8:10], "big")
-    return msg_len, frame_id, v_id, type
+    return payload_size, frame_id, v_id, type
 
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")

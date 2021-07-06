@@ -73,15 +73,19 @@ class SchedThread(threading.Thread):
             print(location_map, flush=True)
             if len(location_map) == num_vehicles:
                 positions = []
+                helper_list = []
                 for k, v in sorted(location_map.items()):
                     positions.append(v)
                 helpee_count = 0
                 helper_count = 0
                 for k, v in vehicle_types.items():
-                    if v == 0:
+                    if v == HELPEE:
                         helpee_count += 1
+                        helper_list.append(HELPEE)
                     else:
                         helper_count += 1
+                        helper_list.append(HELPER)
+
                 if scheduler_mode == 'minDist':
                     # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
                     # TODO: do a transformation to make helpee nodes lower ID
@@ -121,13 +125,13 @@ class ControlConnectionThread(threading.Thread):
         data = self.client_socket.recv(2)
         vehicle_id = int.from_bytes(data, "big")
         client_sockets[vehicle_id] = self.client_socket
-        header, msg = message.recv_msg(self.client_socket,\
+        header, payload = message.recv_msg(self.client_socket,\
                                         message.TYPE_CONTROL_MSG)
-        while msg:
-            msg_size, msg_type = message.parse_control_msg_header(header)
+        while len(header) > 0 and len(payload) > 0:
+            payload_size, msg_type = message.parse_control_msg_header(header)
             if msg_type == message.TYPE_LOCATION:
                 v_type, v_id, x, y, seq_num = \
-                    message.server_parse_location_msg(msg)
+                    message.server_parse_location_msg(payload)
                 if v_id not in node_seq_nums.keys() or \
                 node_seq_nums[v_id] < seq_num:
                     # only update location when seq num is larger
@@ -135,12 +139,11 @@ class ControlConnectionThread(threading.Thread):
                     location_map[v_id] = (x, y)
                     vehicle_types[v_id] = v_type
                     node_seq_nums[v_id] = seq_num
-                header, msg = message.recv_msg(self.client_socket,\
-                                        message.TYPE_CONTROL_MSG)
             elif msg_type == message.TYPE_ROUTE:
                 # implment logic for receiving routing messages
                 pass
-
+            header, payload = message.recv_msg(self.client_socket,\
+                                        message.TYPE_CONTROL_MSG)
         self.client_socket.close()
 
 
@@ -189,7 +192,7 @@ def merge_data_when_ready():
                 ready = False
                 break
         if ready:
-            print("[merge data] merge frame %d ar %f" % (curr_processed_frame, time.time()))
+            print("[merge data] merge frame %d at %f" % (curr_processed_frame, time.time()))
             decoded_pcl = ptcl.pointcloud.dracoDecode(pcds[0][curr_processed_frame])
             decoded_pcl = np.append(decoded_pcl, np.zeros((decoded_pcl.shape[0],1),dtype='float32'), axis=1)
             points_oxts_primary = (decoded_pcl, oxts[0][curr_processed_frame])
