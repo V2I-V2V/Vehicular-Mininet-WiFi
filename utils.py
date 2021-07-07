@@ -20,13 +20,18 @@ def read_traces(num_nodes):
 
 def process_traces(traces, helpee_conf_file):
     disconnect_dict = {}
-    nodes_id = np.loadtxt(helpee_conf_file, dtype=int)
-    if nodes_id.ndim == 0:
-        nodes_id = nodes_id.reshape(1,)
-    elif nodes_id.shape[0] == 0:
+    disconnect_conf = np.loadtxt(helpee_conf_file, dtype=float)
+    if disconnect_conf.ndim == 0:
+        nodes_id = disconnect_conf.reshape(1,-1)
+    elif disconnect_conf.shape[0] == 0:
         return disconnect_dict
-    for i in nodes_id:
-        disconnect_dict[i] = [2.1]
+    nodes_id = np.array(disconnect_conf[0])
+    for i in range(len(nodes_id)):
+        disconnect_dict[nodes_id[i]] = disconnect_conf[1:, i].tolist()
+        # if nodes_id[i] not in disconnect_dict:
+        #     disconnect_dict[nodes_id[i]] = [disconnect_conf[]]
+        # else:
+        #     disconnect_dict[nodes_id[i]].append()
     print("Process traces and get the disconneted timestamps of each node")
     return disconnect_dict
 

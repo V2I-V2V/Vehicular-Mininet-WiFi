@@ -70,11 +70,14 @@ def main():
     get_receiver_ts(dir + 'logs/server.log')
     # print(len(receiver_ts_dict[0]))
     for i in range(num_nodes):
+        if len(sender_ts_dict[i]) > len(receiver_ts_dict[i]):
+            print(i)
+            sender_ts_dict[i] = np.array(sender_ts_dict[i][:len(receiver_ts_dict[i])])
         delay_dict[i] = np.array(receiver_ts_dict[i]) - np.array(sender_ts_dict[i])
-        if len(helper_ts_dict[i].values()) > 0:
-            for helpee, ts in helper_ts_dict[i].items():
-                v2v_delay_dict[helpee] = np.array(ts) - np.array(sender_ts_dict[helpee][-len(ts):])
-                print(np.array(v2v_delay_dict[helpee]))
+        # if len(helper_ts_dict[i].values()) > 0:
+        #     for helpee, ts in helper_ts_dict[i].items():
+        #         v2v_delay_dict[helpee] = np.array(ts) - np.array(sender_ts_dict[helpee][-len(ts):])
+        #         print(np.array(v2v_delay_dict[helpee]))
         
 
     fig = plt.figure()

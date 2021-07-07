@@ -75,10 +75,10 @@ def read_location_traces(loc_file):
         loc_trace = loc_trace.reshape(1, -1)
     return loc_trace
 
-# TODO: think about imlementing this
 def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
     time.sleep(8)
+    print("start update location at %f" % time.time())
     for time_i in range(loc_trace.shape[0]):
         # print("update location for stas")
         for station_idx in range(len(stations)):
