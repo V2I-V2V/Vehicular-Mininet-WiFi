@@ -2,6 +2,7 @@
 # Vehicular perception server
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.stderr = sys.stdout
 import scheduling
 import socket
 import threading
@@ -22,6 +23,57 @@ HELPER = 1
 sys.stderr = sys.stdout
 
 conn_lock = threading.Lock()
+init_time = 0
+bws = {}
+
+def update_bw(trace_filename):
+    v2i_bw_traces = {}
+    all_bandwidth = np.loadtxt(trace_filename)
+    for i in range(all_bandwidth.shape[1]):
+        v2i_bw_traces[i] = all_bandwidth[:, i]
+    for i in range(all_bandwidth.shape[1]):
+        bws[i] = v2i_bw_traces[i][0]
+    time.sleep(8)
+    while True:
+        cur_time = time.time()
+        j = int(cur_time - init_time)
+        for i in range(all_bandwidth.shape[1]):
+            bws[i] = v2i_bw_traces[i][j]
+
+
+def bw_update_thread(trace_filename):
+    update_thread = threading.Thread(target=update_bw, args=(trace_filename,))
+    update_thread.daemon = True
+    update_thread.start()
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-n', '--num_vehicles', default=6, type=int, 
+                        help='number of vehicles (default: 6)')
+parser.add_argument('-f', '--fixed_assignment', nargs='+', type=int, 
+                        help='use fixed assignment instead of dynamic shceduling, provide \
+                        assignment with spaces (e.g. -f 3 2)')
+parser.add_argument('-s', '--scheduler', default='minDist', type=str, 
+                    help='scheduler to use: minDist|random|bwAware')
+parser.add_argument('-t', '--trace_filename', default='', type=str, help='trace file to use')
+parser.add_argument('-d', '--data_save', default=False, type=bool, 
+                    help='whether to save undecoded pcds')
+
+args = parser.parse_args()
+trace_filename = args.trace_filename
+scheduler_mode = args.scheduler
+fixed_assignment = ()
+save = args.data_save
+if args.fixed_assignment is not None:
+    scheduler_mode = "fixed"
+    fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
+    print("Run in fix mode")
+    print(fixed_assignment)
+else:
+    print("Run in %s mode" % scheduler_mode)
+    if scheduler_mode == "bwAware":
+        bw_update_thread(trace_filename)
+num_vehicles = args.num_vehicles
 
 
 location_map = {}
@@ -34,31 +86,6 @@ curr_processed_frame = 0
 data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES))
 helper_helpee_socket_map = {}
 current_assignment = {}
-init_time = 0
-
-parser = argparse.ArgumentParser()
-parser.add_argument('-n', '--num_vehicles', default=6, type=int,
-                        help='number of vehicles (default: 6)')
-parser.add_argument('-f', '--fixed_assignment', nargs='+', type=int, 
-                        help='use fixed assignment instead of dynamic shceduling, provide \
-                        assignment with spaces (e.g. -f 3 2)')
-parser.add_argument('-s', '--scheduler', default='minDist', type=str,
-                        help='scheduler to use')
-parser.add_argument('-d', '--data_save', default=False, type=bool,
-                        help='whether to save undecoded pcds')
-args = parser.parse_args()
-scheduler_mode = args.scheduler
-fixed_assignment = ()
-save = args.data_save
-if args.fixed_assignment is not None:
-    scheduler_mode = "fixed"
-    fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
-    print("Run in fix mode")
-    print(fixed_assignment)
-else:
-    print("Run in %s mode" % scheduler_mode)
-num_vehicles = args.num_vehicles
- 
 
 
 class SchedThread(threading.Thread):
@@ -72,6 +99,7 @@ class SchedThread(threading.Thread):
         while True:
             print(location_map, flush=True)
             if len(location_map) == num_vehicles:
+                print(scheduler_mode)
                 positions = []
                 helper_list = []
                 for k, v in sorted(location_map.items()):
@@ -92,6 +120,8 @@ class SchedThread(threading.Thread):
                     # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
                     # TODO: do a transformation to make helpee nodes lower ID
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
+                elif scheduler_mode == 'bwAware':
+                    assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws)
                 elif scheduler_mode == 'fixed':
                     # TODO: if fixed assignment, don't need to get vehicles' locations
                     assignment = fixed_assignment
