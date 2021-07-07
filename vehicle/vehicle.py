@@ -90,7 +90,7 @@ def throughput_calc_thread():
     """
     global v2v_recved_bytes
     while True:
-        print("[relay throughput] %f Mbps %f"%(v2v_recved_bytes*8.0/1000000, time.time()), flush=True)
+        print("[relay throughput] %f Mbps %f"%(v2v_recved_bytes*8.0/1000000, time.time()))
         v2v_recved_bytes = 0
         time.sleep(1)
 
@@ -114,7 +114,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         t_elapsed = time.time() - t_s
-        print("sleep %f before get the next frame" % (1.0/fps-t_elapsed), flush=True)
+        print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
         if (1.0/fps-t_elapsed) > 0:
             time.sleep(1.0/fps-t_elapsed)
     capture_finished = True
@@ -162,12 +162,13 @@ def v2i_data_send_thread():
             # pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
             #                                 PCD_ENCODE_LEVEL, PCD_QB)
             # TODO: maybe compress the frames beforehand, change encode to another thread
-            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
+            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()))
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
-            print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
+            print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()))
             t_elapsed = time.time() - t_start
             if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
+                print("capture finished")
                 time.sleep(1.0/FRAMERATE-t_elapsed)
         elif curr_frame_id >= config.MAX_FRAMES:
             curr_frame_id = 0
@@ -468,7 +469,7 @@ class VehicleDataSendThread(threading.Thread):
                 # pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]),
                 #                                 PCD_ENCODE_LEVEL, PCD_QB)
                 print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
-                         + str(current_helper_id) + ' ' + str(time.time()), flush=True)
+                         + str(current_helper_id) + ' ' + str(time.time()))
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
                 t_elapsed = time.time() - t_start
