@@ -93,13 +93,16 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     for i in range(config.MAX_FRAMES):
         t_s = time.time()
         pcd_f_name = pcd_data_path + "%06d.bin"%i
-        pcd_data_buffer.append(ptcl.pointcloud.read_pointcloud(pcd_f_name))
+        raw_pcd = ptcl.pointcloud.read_pointcloud(pcd_f_name)
+        pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(raw_pcd, dtype='float32').reshape([-1,4]), 
+                                            PCD_ENCODE_LEVEL, PCD_QB)
+        pcd_data_buffer.append(pcd)
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         t_elasped = time.time() - t_s
-        print("sleep %f before get the next frame" % (1.0/fps-t_elasped), flush=True)
-        if (1.0/fps-t_elasped) > 0:
-            time.sleep(1.0/fps-t_elasped)
+        # print("sleep %f before get the next frame" % (1.0/fps-t_elasped), flush=True)
+        # if (1.0/fps-t_elasped) > 0:
+        #     time.sleep(1.0/fps-t_elasped)
 
 
 def send(socket, data, id, type):
@@ -140,17 +143,18 @@ def v2i_data_send_thread():
             oxts = oxts_data_buffer[curr_f_id]
             curr_frame_id += 1
             frame_lock.release()
-            pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
-                                            PCD_ENCODE_LEVEL, PCD_QB)
+            # pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
+            #                                 PCD_ENCODE_LEVEL, PCD_QB)
             # TODO: maybe compress the frames beforehand, change encode to another thread
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
             print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
         elif curr_frame_id >= config.MAX_FRAMES:
+            curr_frame_id = 0
             print('[Max frame reached] finished ' + str(time.time()))
             frame_lock.release()
-            return
+            # return
         else:
             frame_lock.release()
 
@@ -448,16 +452,17 @@ class VehicleDataSendThread(threading.Thread):
                 oxts = oxts_data_buffer[curr_frame_id]
                 curr_frame_id += 1
                 frame_lock.release()
-                pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]),
-                                                PCD_ENCODE_LEVEL, PCD_QB)
+                # pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]),
+                #                                 PCD_ENCODE_LEVEL, PCD_QB)
                 print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
                          + str(current_helper_id) + ' ' + str(time.time()), flush=True)
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             elif curr_frame_id >= config.MAX_FRAMES:
+                curr_frame_id = 0
                 frame_lock.release()
                 print('[Max frame reached] finished ' + str(time.time()))
-                break
+                # break
             else:
                 frame_lock.release()
         print("[Change helper] close the prev conn thread " + str(time.time()))
@@ -528,6 +533,10 @@ def main():
     disconnect_timestamps = utils.process_traces(lte_traces, HELPEE_CONF)
     print("disconnect timestamp")
     print(disconnect_timestamps)
+    t_start = time.time()
+    sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
+    t_elapsed = time.time() - t_start
+    print("read and encode takes %f" % t_elapsed)
     curr_timestamp = time.time()
     v2i_control_thread = ServerControlThread()
     v2i_control_thread.start()
@@ -541,9 +550,9 @@ def main():
     loction_update_thread.daemon = True
     loction_update_thread.start()
 
-    senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
-             args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
-    senser_data_capture_thread.start()
+    # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
+    #          args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
+    # senser_data_capture_thread.start()
 
     throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
     throughput_thread.start()

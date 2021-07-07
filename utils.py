@@ -23,6 +23,8 @@ def process_traces(traces, helpee_conf_file):
     nodes_id = np.loadtxt(helpee_conf_file, dtype=int)
     if nodes_id.ndim == 0:
         nodes_id = nodes_id.reshape(1,)
+    elif nodes_id.shape[0] == 0:
+        return disconnect_dict
     for i in nodes_id:
         disconnect_dict[i] = [2.1]
     print("Process traces and get the disconneted timestamps of each node")
