@@ -33,6 +33,16 @@ def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num):
     header = message.construct_control_msg_header(msg, message.TYPE_LOCATION)
     message.send_msg(client_socket, header, msg)
 
+
+def send_route(vehicle_type, vehicle_id, route_bytes, client_socket, seq_num):
+    v_type = vehicle_type.to_bytes(2, 'big')
+    v_id = vehicle_id.to_bytes(2, 'big')
+    seq = seq_num.to_bytes(4, 'big')
+    msg = v_type + v_id + route_bytes + seq
+    header = message.construct_control_msg_header(msg, message.TYPE_ROUTE)
+    message.send_msg(client_socket, header, msg)
+
+
 def recv_assignment(client_socket):
     try:
         msg = client_socket.recv(2)

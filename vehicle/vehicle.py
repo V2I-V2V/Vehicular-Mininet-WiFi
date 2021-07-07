@@ -11,6 +11,7 @@ import wwan
 import config
 import utils
 import mobility
+import route
 import numpy as np
 import argparse
 import message
@@ -283,7 +284,7 @@ class ServerControlThread(threading.Thread):
 
 
 def parse_location_packet_data(data):
-    """Parse location packet, packet should be of length 6
+    """Parse location packet, packet should be of length 10 = 2 + 2 + 2 + 4
 
     Args:
         data (bytes): raw network packet data to parse
@@ -298,6 +299,24 @@ def parse_location_packet_data(data):
     y = int.from_bytes(data[4:6], "big")
     seq_num = int.from_bytes(data[6:10], "big")
     return helpee_id, [x, y], seq_num
+
+
+def parse_route_packet_data(data):
+    """Parse route packet, packet should be of length (2 + (1 + 1) * (n_vechiles - 1) + 4)
+
+    Args:
+        data (bytes): raw network packet data to parse
+
+    Returns:
+        helpee_id: helpee node id that sends the packet
+        [x, y]: location of the helpee node
+    """
+    # return helpee id, route, seq
+    l = len(data)
+    helpee_id = int.from_bytes(data[0:2], "big")
+    route_bytes = data[2:-4]
+    seq_num = int.from_bytes(data[-4:], "big")
+    return helpee_id, route_bytes, seq_num
 
 
 def is_packet_assignment(data):
@@ -334,12 +353,11 @@ class VehicleControlThread(threading.Thread):
         while True:
             data, addr = message.recv_msg(v2v_control_socket, message.TYPE_CONTROL_MSG,\
                                             is_udp=True)
-            
             msg_size, msg_type = message.parse_control_msg_header(data)
             if connection_state == "Connected":
+                # This vehicle is a helper now
                 if msg_type == message.TYPE_LOCATION:
-                    # helper
-                    print("[helper recv broadcast] " + str(time.time()))
+                    print("[helper recv location broadcast] " + str(time.time()))
                     helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
                     # send helpee location
                     print((helpee_id, helpee_loc))
@@ -349,12 +367,23 @@ class VehicleControlThread(threading.Thread):
                         vehicle_seq_dict[helpee_id] = seq_num
                         v2i_control_socket_lock.acquire()
                         wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket, seq_num)
-                        # send self location
-                        # wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, \
-                        #                      control_seq_num) 
+                        control_seq_num += 1
+                        v2i_control_socket_lock.release()
+                elif msg_type == message.TYPE_ROUTE:
+                    print("[helper recv route broadcast] " + str(time.time()))
+                    helpee_id, route_bytes, seq_num = parse_route_packet_data(data[-msg_size:])
+                    # forward helpee route
+                    if helpee_id not in vehicle_seq_dict.keys() \
+                        or seq_num > vehicle_seq_dict[helpee_id]:
+                        print("[helper forwarding route broadcast] " + str(time.time()))
+                        # only send location if received seq num is larger
+                        vehicle_seq_dict[helpee_id] = seq_num
+                        v2i_control_socket_lock.acquire()
+                        wwan.send_route(HELPEE, helpee_id, route_bytes, v2i_control_socket, seq_num)
                         control_seq_num += 1
                         v2i_control_socket_lock.release()
             elif connection_state == "Disconnected":
+                # This vehicle is a helpee now
                 if msg_type == message.TYPE_ASSIGNMENT:
                     helper_id = int.from_bytes(data[-msg_size:], 'big')
                     print("[Helpee get helper assignment] helper_id: "\
@@ -367,8 +396,7 @@ class VehicleControlThread(threading.Thread):
                     if len(helper_data_send_thread) != 0:
                         helper_data_send_thread[-1].stop()
                     helper_data_send_thread.append(new_send_thread)
-                elif msg_type == message.TYPE_LOCATION\
-                        and self_ip != addr[0]:
+                elif msg_type == message.TYPE_LOCATION and self_ip != addr[0]:
                     helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
                             seq_num > vehicle_seq_dict[helpee_id]):
@@ -377,6 +405,17 @@ class VehicleControlThread(threading.Thread):
                         message.send_msg(v2v_control_socket, data[:message.CONTROL_MSG_HEADER_LEN],\
                                         data[message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
                                         remote_addr=("10.255.255.255", helper_control_recv_port))
+                elif msg_type == message.TYPE_ROUTE and self_ip != addr[0]:
+                    helpee_id, route_bytes, seq_num = parse_route_packet_data(data[-msg_size:])
+                    if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
+                            seq_num > vehicle_seq_dict[helpee_id]):
+                        # helpee only rebroadcast route not equal to themselves and with larger seq
+                        vehicle_seq_dict[helpee_id] = seq_num
+                        message.send_msg(v2v_control_socket, data[:message.CONTROL_MSG_HEADER_LEN],\
+                                        data[message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
+                                        remote_addr=("10.255.255.255", helper_control_recv_port))
+            else:
+                print("Exception: no such connection state")
 
 
 class VehicleDataRecvThread(threading.Thread):
@@ -523,16 +562,26 @@ def check_connection_state(disconnect_timestamps):
         t_start = time.time()
         if connection_state == "Connected":
             # print("Connected to server...")
-            # if vehicle_id not in disconnect_timestamps.keys():
-            v2i_control_socket_lock.acquire()
-            wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
-                                control_seq_num) 
-            control_seq_num += 1
-            v2i_control_socket_lock.release()
+            if vehicle_id not in disconnect_timestamps.keys():
+                v2i_control_socket_lock.acquire()
+                wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
+                                    control_seq_num) 
+                control_seq_num += 1
+                v2i_control_socket_lock.release()
+                v2i_control_socket_lock.acquire()
+                wwan.send_route(HELPER, vehicle_id, 
+                                route.table_to_bytes(route.get_routes(vehicle_id)), 
+                                v2i_control_socket, control_seq_num)
+                control_seq_num += 1
+                v2i_control_socket_lock.release()
         elif connection_state == "Disconnected":
             # print("Disconnected to server... broadcast " + str(time.time()))
             v2i_control_socket_lock.acquire()
             mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num)
+            control_seq_num += 1
+            v2i_control_socket_lock.release()
+            v2i_control_socket_lock.acquire()
+            route.broadcast_route(vehicle_id, route.get_routes(vehicle_id), v2v_control_socket, control_seq_num)
             control_seq_num += 1
             v2i_control_socket_lock.release()
         if check_if_disconnected(disconnect_timestamps):
