@@ -102,12 +102,9 @@ class SchedThread(threading.Thread):
                 print(scheduler_mode)
                 positions = []
                 helper_list = []
-                for k, v in sorted(location_map.items()):
-                    positions.append(v)
-                helpee_count = 0
-                helper_count = 0
-                for k, v in vehicle_types.items():
-                    if v == HELPEE:
+                helpee_count, helper_count = 0, 0
+                for i in range(num_vehicles):
+                    if vehicle_types[i] == HELPEE:
                         helpee_count += 1
                         helper_list.append(HELPEE)
                     else:
@@ -115,10 +112,12 @@ class SchedThread(threading.Thread):
                         helper_list.append(HELPER)
                 if helpee_count == 0:
                     continue
-
+                helper_list = np.array(helper_list)
+                mapped_nodes = np.argsort(helper_list)
+                print(mapped_nodes)
+                for mapped_node_id in mapped_nodes:
+                    positions.append(location_map[mapped_node_id])
                 if scheduler_mode == 'minDist':
-                    # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
-                    # TODO: do a transformation to make helpee nodes lower ID
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
                 elif scheduler_mode == 'bwAware':
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws)
@@ -129,17 +128,17 @@ class SchedThread(threading.Thread):
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed)
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
-                # for node_num in range(len(positions)):
                 for cnt, node in enumerate(assignment):
-                    current_assignment[node] = cnt
-                    # print("send %d to node %d" % (cnt, node))
-                    msg = cnt.to_bytes(2, 'big')
-                    client_sockets[node].send(msg)
-                for node_num in range(0, helpee_count+helper_count):
-                    if node_num not in assignment:
-                        # print("send %d to node %d" % (65535, node_num))
-                        msg = int(65535).to_bytes(2, 'big')
-                        client_sockets[node_num].send(msg)
+                    real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
+                    current_assignment[real_helper] = real_helpee
+                    print("send %d to node %d" % (real_helpee, real_helper))
+                    msg = int(real_helpee).to_bytes(2, 'big')
+                    client_sockets[real_helper].send(msg)
+                # for node_num in range(0, helpee_count+helper_count):
+                #     if node_num not in assignment:
+                #         # print("send %d to node %d" % (65535, node_num))
+                #         msg = int(65535).to_bytes(2, 'big')
+                #         client_sockets[node_num].send(msg)
             time.sleep(0.2)
 
 
