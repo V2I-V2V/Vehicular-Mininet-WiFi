@@ -85,6 +85,8 @@ class SchedThread(threading.Thread):
                     else:
                         helper_count += 1
                         helper_list.append(HELPER)
+                if helpee_count == 0:
+                    continue
 
                 if scheduler_mode == 'minDist':
                     # TODO: currently assume all helpees have lower IDs, need to be fixed and made more flexible
