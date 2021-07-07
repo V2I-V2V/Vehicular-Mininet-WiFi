@@ -77,6 +77,7 @@ num_vehicles = args.num_vehicles
 
 
 location_map = {}
+route_map = {} # map v_id to the vechile's routing table
 node_seq_nums = {}
 client_sockets = {}
 vehicle_types = {} # 0 for helpee, 1 for helper
@@ -172,11 +173,12 @@ class ControlConnectionThread(threading.Thread):
                     vehicle_types[v_id] = v_type
                     node_seq_nums[v_id] = seq_num
             elif msg_type == message.TYPE_ROUTE:
-                # implment logic for receiving routing messages
-                print("recv route")
-            #     v_type, v_id = message.server_parse_route_msg(payload)
-            # header, payload = message.recv_msg(self.client_socket,\
-            #                             message.TYPE_CONTROL_MSG)
+                v_type, v_id, routing_table, seq_num = message.server_parse_route_msg(payload)
+                route_map[v_id] = routing_table
+                print(route_map)
+                vehicle_types[v_id] = v_type
+                node_seq_nums[v_id] = seq_num
+            header, payload = message.recv_msg(self.client_socket, message.TYPE_CONTROL_MSG)
         self.client_socket.close()
 
 

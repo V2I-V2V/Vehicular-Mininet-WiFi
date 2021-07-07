@@ -26,11 +26,15 @@ def get_routes(vehicle_id):
     return routing_table
 
 
-def broadcast_route(vehicle_id, routing_table, source_socket, seq_num):
-    msg = vehicle_id.to_bytes(2, 'big')
+def table_to_bytes(routing_table):
+    route_bytes = b''
     for k, v in routing_table.items():
-        msg += int(k).to_bytes(1, 'big') + int(v).to_bytes(1, 'big')
-    msg += seq_num.to_bytes(4, 'big')
+        route_bytes += int(k).to_bytes(1, 'big') + int(v).to_bytes(1, 'big')
+    return route_bytes
+
+
+def broadcast_route(vehicle_id, routing_table, source_socket, seq_num):
+    msg = vehicle_id.to_bytes(2, 'big') + table_to_bytes(routing_table) + seq_num.to_bytes(4, 'big')
     header = message.construct_control_msg_header(msg, message.TYPE_ROUTE)
     message.send_msg(source_socket, header, msg, is_udp=True,\
                         remote_addr=("10.255.255.255", 8888))
@@ -38,9 +42,9 @@ def broadcast_route(vehicle_id, routing_table, source_socket, seq_num):
 
 if __name__ == "__main__":
     routing_table = get_routes(0)
-    # Use UDP socket for broadcasting
-    v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, \
-                                                    socket.IPPROTO_UDP)
-    v2v_control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    v2v_control_socket.bind(('', 8888))
-    broadcast_route(0, routing_table, v2v_control_socket)
+    # # Use UDP socket for broadcasting
+    # v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, \
+    #                                                 socket.IPPROTO_UDP)
+    # v2v_control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    # v2v_control_socket.bind(('', 8888))
+    # broadcast_route(0, routing_table, v2v_control_socket)

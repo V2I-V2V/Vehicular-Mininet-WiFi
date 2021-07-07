@@ -384,12 +384,20 @@ class VehicleControlThread(threading.Thread):
                     if len(helper_data_send_thread) != 0:
                         helper_data_send_thread[-1].stop()
                     helper_data_send_thread.append(new_send_thread)
-                elif connection_state == "Disconnected" and msg_type == message.TYPE_LOCATION\
-                        and self_ip != addr[0]:
+                elif msg_type == message.TYPE_LOCATION and self_ip != addr[0]:
                     helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
                             seq_num > vehicle_seq_dict[helpee_id]):
                         # helpee only rebroadcast loc not equal to themselves and with larger seq
+                        vehicle_seq_dict[helpee_id] = seq_num
+                        message.send_msg(v2v_control_socket, data[:message.CONTROL_MSG_HEADER_LEN],\
+                                        data[message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
+                                        remote_addr=("10.255.255.255", helper_control_recv_port))
+                elif msg_type == message.TYPE_ROUTE and self_ip != addr[0]:
+                    helpee_id, route_bytes, seq_num = parse_route_packet_data(data[-msg_size:])
+                    if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
+                            seq_num > vehicle_seq_dict[helpee_id]):
+                        # helpee only rebroadcast route not equal to themselves and with larger seq
                         vehicle_seq_dict[helpee_id] = seq_num
                         message.send_msg(v2v_control_socket, data[:message.CONTROL_MSG_HEADER_LEN],\
                                         data[message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
@@ -542,6 +550,12 @@ def check_connection_state(disconnect_timestamps):
                 v2i_control_socket_lock.acquire()
                 wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
                                     control_seq_num) 
+                control_seq_num += 1
+                v2i_control_socket_lock.release()
+                v2i_control_socket_lock.acquire()
+                wwan.send_route(HELPER, vehicle_id, 
+                                route.table_to_bytes(route.get_routes(vehicle_id)), 
+                                v2i_control_socket, control_seq_num)
                 control_seq_num += 1
                 v2i_control_socket_lock.release()
         elif connection_state == "Disconnected":

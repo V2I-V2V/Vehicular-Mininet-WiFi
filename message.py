@@ -101,6 +101,7 @@ def parse_data_msg_header(data):
     type = int.from_bytes(data[8:10], "big")
     return payload_size, frame_id, v_id, type
 
+
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")
     v_id = int.from_bytes(msg_payload[2:4], "big")
@@ -109,3 +110,14 @@ def server_parse_location_msg(msg_payload):
     seq_num = int.from_bytes(msg_payload[8:12], "big")
     return v_type, v_id, x, y, seq_num
 
+
+def server_parse_route_msg(msg_payload):
+    v_type = int.from_bytes(msg_payload[0:2], "big")
+    v_id = int.from_bytes(msg_payload[2:4], "big")
+    routing_table = {}
+    i = 4
+    while i < len(msg_payload) - 4:
+        routing_table[int.from_bytes(msg_payload[i:i+1], "big")] = int.from_bytes(msg_payload[i+1:i+2], "big")
+        i += 2
+    seq_num = int.from_bytes(msg_payload[-4:], "big")
+    return v_type, v_id, routing_table, seq_num
