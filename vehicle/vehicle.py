@@ -54,6 +54,19 @@ self_loc = self_loc_trace[0]
 pcd_data_buffer = []
 oxts_data_buffer = []
 
+def self_loc_update_thread():
+    """Thread to update self location every 100ms
+    """
+    global self_loc
+    print("start loc update at %f" % time.time())
+    for loc in self_loc_trace:
+        self_loc = loc
+        time.sleep(0.1)
+
+loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
+loction_update_thread.daemon = True
+loction_update_thread.start()
+
 
 vehicle_seq_dict = {} # store other vehicle's highest seq
 control_seq_num = 0 # self seq number
@@ -70,7 +83,7 @@ helper_data_send_thread = []
 helper_data_recv_port = 8080
 helper_control_recv_port = 8888
 self_ip = "10.0.0." + str(vehicle_id+2)
-
+capture_finished = False
 
 def throughput_calc_thread():
     """ Thread to calculate V2V thrpt
@@ -90,6 +103,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         oxts_data_path (str): path to oxts data
         fps (float): Frame rate to load data to buffer
     """
+    global capture_finished
     for i in range(config.MAX_FRAMES):
         t_s = time.time()
         pcd_f_name = pcd_data_path + "%06d.bin"%i
@@ -99,10 +113,11 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         pcd_data_buffer.append(pcd)
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
-        t_elasped = time.time() - t_s
-        # print("sleep %f before get the next frame" % (1.0/fps-t_elasped), flush=True)
-        # if (1.0/fps-t_elasped) > 0:
-        #     time.sleep(1.0/fps-t_elasped)
+        t_elapsed = time.time() - t_s
+        print("sleep %f before get the next frame" % (1.0/fps-t_elapsed), flush=True)
+        if (1.0/fps-t_elapsed) > 0:
+            time.sleep(1.0/fps-t_elapsed)
+    capture_finished = True
 
 
 def send(socket, data, id, type):
@@ -135,6 +150,7 @@ def v2i_data_send_thread():
     """
     global curr_frame_id
     while connection_state == "Connected":
+        t_start = time.time()
         frame_lock.acquire()
         if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
             and curr_frame_id < len(oxts_data_buffer):
@@ -150,6 +166,9 @@ def v2i_data_send_thread():
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
             print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
+            t_elapsed = time.time() - t_start
+            if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
+                time.sleep(1.0/FRAMERATE-t_elapsed)
         elif curr_frame_id >= config.MAX_FRAMES:
             curr_frame_id = 0
             print('[Max frame reached] finished ' + str(time.time()))
@@ -158,14 +177,6 @@ def v2i_data_send_thread():
         else:
             frame_lock.release()
 
-
-def self_loc_update_thread():
-    """Thread to update self location every 100ms
-    """
-    global self_loc
-    for loc in self_loc_trace:
-        self_loc = loc
-        time.sleep(0.1)
 
 
 def is_helper_recv():
@@ -445,6 +456,7 @@ class VehicleDataSendThread(threading.Thread):
     def run(self):
         global curr_frame_id
         while self.is_helper_alive:
+            t_start = time.time()
             frame_lock.acquire()
             if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
                 and curr_frame_id < len(oxts_data_buffer):
@@ -459,6 +471,9 @@ class VehicleDataSendThread(threading.Thread):
                          + str(current_helper_id) + ' ' + str(time.time()), flush=True)
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
+                t_elapsed = time.time() - t_start
+                if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
+                    time.sleep(1/FRAMERATE - t_elapsed)
             elif curr_frame_id >= config.MAX_FRAMES:
                 curr_frame_id = 0
                 frame_lock.release()
@@ -507,12 +522,12 @@ def check_connection_state(disconnect_timestamps):
         t_start = time.time()
         if connection_state == "Connected":
             # print("Connected to server...")
-            if vehicle_id not in disconnect_timestamps.keys():
-                v2i_control_socket_lock.acquire()
-                wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
-                                    control_seq_num) 
-                control_seq_num += 1
-                v2i_control_socket_lock.release()
+            # if vehicle_id not in disconnect_timestamps.keys():
+            v2i_control_socket_lock.acquire()
+            wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
+                                control_seq_num) 
+            control_seq_num += 1
+            v2i_control_socket_lock.release()
         elif connection_state == "Disconnected":
             # print("Disconnected to server... broadcast " + str(time.time()))
             v2i_control_socket_lock.acquire()
@@ -529,15 +544,18 @@ def check_connection_state(disconnect_timestamps):
 
 def main():
     global curr_timestamp
+    senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
+             args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
+    senser_data_capture_thread.start()
     trace_files = 'trace.txt'
     lte_traces = utils.read_traces(trace_files)
     disconnect_timestamps = utils.process_traces(lte_traces, HELPEE_CONF)
     print("disconnect timestamp")
     print(disconnect_timestamps)
-    t_start = time.time()
-    sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
-    t_elapsed = time.time() - t_start
-    print("read and encode takes %f" % t_elapsed)
+    # t_start = time.time()
+    # sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
+    # t_elapsed = time.time() - t_start
+    # print("read and encode takes %f" % t_elapsed)
     curr_timestamp = time.time()
     v2i_control_thread = ServerControlThread()
     v2i_control_thread.start()
@@ -547,13 +565,6 @@ def main():
     v2v_data_thread.start()
     v2i_data_thread = threading.Thread(target=v2i_data_send_thread, args=())
     v2i_data_thread.start()
-    loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
-    loction_update_thread.daemon = True
-    loction_update_thread.start()
-
-    # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
-    #          args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
-    # senser_data_capture_thread.start()
 
     throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
     throughput_thread.start()
