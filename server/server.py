@@ -173,9 +173,10 @@ class ControlConnectionThread(threading.Thread):
                     node_seq_nums[v_id] = seq_num
             elif msg_type == message.TYPE_ROUTE:
                 # implment logic for receiving routing messages
-                pass
-            header, payload = message.recv_msg(self.client_socket,\
-                                        message.TYPE_CONTROL_MSG)
+                print("recv route")
+            #     v_type, v_id = message.server_parse_route_msg(payload)
+            # header, payload = message.recv_msg(self.client_socket,\
+            #                             message.TYPE_CONTROL_MSG)
         self.client_socket.close()
 
 
