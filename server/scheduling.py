@@ -114,6 +114,7 @@ def coverage_aware_sched(num_of_helpees, num_of_helpers, positions, coverages):
 
 def wwan_bw_sched(num_of_helpees, num_of_helpers, bws):
     print("Using the bw sched")
+    print(bws)
     scores = {}
     for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
         bw = 0

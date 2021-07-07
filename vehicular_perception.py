@@ -23,10 +23,11 @@ vehicle_data_dir = ['../DeepGTAV-data/object-0227-1/',
 default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0', \
                 '320.134, 854.744, 0', '296.692, 832.28, 0', '290.943, 881.713, 0', \
                 '313.943, 891.713, 0', '312.943, 875.713, 0']
-default_loc_file="input/locations/location-example.txt"
+default_loc_file="input/locations/location-multihop.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
 time_to_run = 100
+trace_filename = "input/traces/constant.txt"
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
@@ -112,12 +113,12 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 server/server.py -f %s -n %d -d %r > logs/server.log 2>&1 &"\
-                        %(assignment_str, num_nodes, save)
+        server_cmd = "python3 server/server.py -f %s -n %d -t %s -d %r > logs/server.log 2>&1 &"\
+                        %(assignment_str, num_nodes, trace_filename, save)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 server/server.py -s %s -n %d -d %r > logs/server.log 2>&1 &"\
-                        %(scheduler, num_nodes, save)
+        server_cmd = "python3 server/server.py -s %s -n %d -t %s -d %r > logs/server.log 2>&1 &"\
+                        %(scheduler, num_nodes, trace_filename, save)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
