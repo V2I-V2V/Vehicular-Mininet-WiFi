@@ -55,8 +55,8 @@ pcd_data_buffer = []
 oxts_data_buffer = []
 
 
-vehicle_seq_dict = {}
-control_seq_num = 0
+vehicle_seq_dict = {} # store other vehicle's highest seq
+control_seq_num = 0 # self seq number
 
 frame_lock = threading.Lock()
 v2i_control_socket_lock = threading.Lock()
@@ -324,25 +324,26 @@ class VehicleControlThread(threading.Thread):
                                             is_udp=True)
             
             msg_size, msg_type = message.parse_control_msg_header(data)
-            if connection_state == "Connected" and msg_type == message.TYPE_LOCATION:
-                # helper
-                print("[helper recv broadcast] " + str(time.time()))
-                helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
-                # send helpee location
-                print((helpee_id, helpee_loc))
-                if helpee_id not in vehicle_seq_dict.keys() \
-                    or seq_num > vehicle_seq_dict[helpee_id]:
-                    # only send location if received seq num is larger
-                    vehicle_seq_dict[helpee_id] = seq_num
-                    v2i_control_socket_lock.acquire()
-                    wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket, seq_num)
-                    # send self location
-                    wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, \
-                                         control_seq_num) 
-                    control_seq_num += 1
-                    v2i_control_socket_lock.release()
-            else:
-                if connection_state == "Disconnected" and msg_type == message.TYPE_ASSIGNMENT:
+            if connection_state == "Connected":
+                if msg_type == message.TYPE_LOCATION:
+                    # helper
+                    print("[helper recv broadcast] " + str(time.time()))
+                    helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
+                    # send helpee location
+                    print((helpee_id, helpee_loc))
+                    if helpee_id not in vehicle_seq_dict.keys() \
+                        or seq_num > vehicle_seq_dict[helpee_id]:
+                        # only send location if received seq num is larger
+                        vehicle_seq_dict[helpee_id] = seq_num
+                        v2i_control_socket_lock.acquire()
+                        wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket, seq_num)
+                        # send self location
+                        # wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, \
+                        #                      control_seq_num) 
+                        control_seq_num += 1
+                        v2i_control_socket_lock.release()
+            elif connection_state == "Disconnected":
+                if msg_type == message.TYPE_ASSIGNMENT:
                     helper_id = int.from_bytes(data[-msg_size:], 'big')
                     print("[Helpee get helper assignment] helper_id: "\
                          + str(helper_id) + ' ' + str(time.time()), flush=True)
@@ -354,7 +355,7 @@ class VehicleControlThread(threading.Thread):
                     if len(helper_data_send_thread) != 0:
                         helper_data_send_thread[-1].stop()
                     helper_data_send_thread.append(new_send_thread)
-                elif connection_state == "Disconnected" and msg_type == message.TYPE_LOCATION\
+                elif msg_type == message.TYPE_LOCATION\
                         and self_ip != addr[0]:
                     helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
