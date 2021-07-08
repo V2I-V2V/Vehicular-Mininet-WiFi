@@ -1,3 +1,5 @@
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import message
 import pyroute2
 import socket
@@ -19,7 +21,8 @@ def get_routes(vehicle_id):
                 nexthop = attr[1]
         dst_ip = dst.split('.')
         if dst_ip[0:3] == ['10', '0', '0'] and int(dst_ip[3]) >= 2 and int(dst_ip[3]) != vehicle_id + 2:
-            routing_table[dst_ip[-1]] = nexthop.split('.')[-1]
+            # vehicle_id = IP - 2
+            routing_table[int(dst_ip[-1]) - 2] = int(nexthop.split('.')[-1]) - 2
         else:
             print(dst_ip[0:3])
     print(routing_table)
@@ -40,11 +43,34 @@ def broadcast_route(vehicle_id, routing_table, source_socket, seq_num):
                         remote_addr=("10.255.255.255", 8888))
 
 
+def get_routing_path(helpee, helper, routing_tables):
+    # find the path from a helpee to a helper
+    i = helpee
+    routing_path = [i]
+    while i != helper:
+        i = routing_tables[i][helper]
+        routing_path.append(i)
+    return routing_path
+
+
+def get_num_hops(helpee, helper, routing_tables):
+    # find the number of hops from a helpee to a helper
+    return len(get_routing_path(helpee, helper, routing_tables)) - 1
+
+
+def get_neighbors(node, routing_tables):
+    neighbors = []
+    for k, v in routing_tables[node].items():
+        if k == v:
+            neighbors.append(k)
+    return neighbors
+
+
 if __name__ == "__main__":
-    routing_table = get_routes(0)
-    # # Use UDP socket for broadcasting
-    # v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, \
-    #                                                 socket.IPPROTO_UDP)
-    # v2v_control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    # v2v_control_socket.bind(('', 8888))
-    # broadcast_route(0, routing_table, v2v_control_socket)
+    # routing_table = get_routes(0)
+    routing_tables = {4: {0: 2, 1: 2, 2: 2, 3: 3, 5: 5}, 2: {0: 0, 1: 1, 3: 3, 4: 4, 5: 5}, 
+                      5: {0: 2, 1: 2, 2: 2, 3: 3, 4: 4}, 3: {0: 0, 1: 1, 2: 2, 4: 4, 5: 5}, 
+                      1: {0: 0, 2: 2, 3: 3, 4: 2, 5: 2}, 0: {1: 1, 2: 2, 3: 3, 4: 2, 5: 2}}
+    routing_path = get_routing_path(0, 5, routing_tables)
+    num_hops = get_num_hops(0, 5, routing_tables)
+    print(routing_path, num_hops)

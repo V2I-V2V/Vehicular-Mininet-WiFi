@@ -102,6 +102,7 @@ class SchedThread(threading.Thread):
             if len(location_map) == num_vehicles:
                 print(scheduler_mode)
                 positions = []
+                routing_tables = []
                 helper_list = []
                 helpee_count, helper_count = 0, 0
                 for i in range(num_vehicles):
@@ -116,12 +117,21 @@ class SchedThread(threading.Thread):
                 helper_list = np.array(helper_list)
                 mapped_nodes = np.argsort(helper_list)
                 print(mapped_nodes)
-                for mapped_node_id in mapped_nodes:
+                original_to_new = {}
+                for cnt, mapped_node_id in enumerate(mapped_nodes):
+                    original_to_new[mapped_node_id] = cnt
+                for cnt, mapped_node_id in enumerate(mapped_nodes):
                     positions.append(location_map[mapped_node_id])
+                    routing_table = {}
+                    for k, v in route_map[mapped_node_id].items():
+                        routing_table[original_to_new[k]] = original_to_new[v]
+                    routing_tables.append(routing_table)
                 if scheduler_mode == 'minDist':
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
                 elif scheduler_mode == 'bwAware':
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws)
+                elif scheduler_mode == 'routeAware':
+                    assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables)
                 elif scheduler_mode == 'fixed':
                     # TODO: if fixed assignment, don't need to get vehicles' locations
                     assignment = fixed_assignment
