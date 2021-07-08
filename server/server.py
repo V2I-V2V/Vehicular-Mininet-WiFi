@@ -99,7 +99,17 @@ class SchedThread(threading.Thread):
         global current_assignment
         while True:
             print(location_map, flush=True)
-            if len(location_map) == num_vehicles:
+            if scheduler_mode == 'fixed':
+                assignment = fixed_assignment
+                print("Assignment: " + str(assignment) + ' ' + str(time.time()))
+                for cnt, node in enumerate(assignment):
+                    real_helpee, real_helper = cnt, node
+                    current_assignment[real_helper] = real_helpee
+                    print("send %d to node %d" % (real_helpee, real_helper))
+                    msg = int(real_helpee).to_bytes(2, 'big')
+                    if real_helper in client_sockets.keys():
+                        client_sockets[real_helper].send(msg)
+            elif len(location_map) == num_vehicles:
                 print(scheduler_mode)
                 positions = []
                 helper_list = []

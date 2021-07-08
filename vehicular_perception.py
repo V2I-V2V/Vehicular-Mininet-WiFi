@@ -28,6 +28,7 @@ default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
 time_to_run = 100
 trace_filename = "input/traces/constant.txt"
+no_control = False
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
@@ -124,9 +125,9 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d > logs/node%d.log 2>&1 &'% \
+        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %r > logs/node%d.log 2>&1 &'% \
                             (node_num, vehicle_data_dir[node_num], loc_file,\
-                            helpee_conf, fps, node_num)
+                            helpee_conf, fps, no_control, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
 
@@ -216,8 +217,8 @@ if __name__ == '__main__':
     # take argument number of nodes:
     if '-n' in sys.argv:
         num_nodes = int(sys.argv[sys.argv.index('-n')+1])
-        if num_nodes > 6:
-            print("Not supported node num, plz use 6 nodes for now!")
+        if num_nodes > 6 and '--run_app' in sys.argv:
+            print("Not supported node num to run application, plz use 6 nodes for now!")
             sys.exit()
 
     ### define default values ###
@@ -283,6 +284,9 @@ if __name__ == '__main__':
 
     if '-t' in sys.argv:
         time_to_run = int(sys.argv[sys.argv.index('-t')+1])
+
+    if '--no_control' in sys.argv:
+        no_control = True
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\

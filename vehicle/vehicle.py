@@ -36,9 +36,10 @@ parser.add_argument('-l', '--location_file', default="input/object-0227-loc.txt"
 parser.add_argument('-c', '--helpee_conf', default="input/helpee_conf/helpee-nodes.txt",\
                     type=str, help='helpee nodes configuration file')
 parser.add_argument('-f', '--fps', default=1, type=int, help='FPS of pcd data')
+parser.add_argument('-n', '--disable_control', default=False, type=bool, help='disable control msgs')
 args = parser.parse_args()
 
-
+control_msg_disabled = args.disable_control
 vehicle_id = args.id
 PCD_DATA_PATH = args.data_path + '/velodyne_2/'
 OXTS_DATA_PATH = args.data_path + '/oxts/'
@@ -133,8 +134,9 @@ def send(socket, data, id, type):
     while hender_sent < len(header):
         bytes_sent = socket.send(header[hender_sent:])
         hender_sent += bytes_sent
-    assert hender_sent == len(header)
+    # assert hender_sent == len(header)
     total_sent = 0
+    send_start = time.time()
     while total_sent < msg_len:
         try:
             bytes_sent = socket.send(data[total_sent:])
@@ -147,7 +149,8 @@ def send(socket, data, id, type):
             print('[Send error]')
             # socket.close()
             # return
-
+    send_time = time.time() - send_start
+    print('send takes %f'%send_time)
 
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
@@ -274,15 +277,15 @@ class ServerControlThread(threading.Thread):
                 elif if_not_assigned_as_helper(helpee_id):
                     print("Not assigned as helper.. " + str(time.time()))
                 else:
-                    if current_helpee_id == helpee_id:
-                        # print("already helping node " + str(current_helpee_id))
-                        pass
-                    else:
-                        print("[Helper get assignment from server] helpee_id: " +\
-                                 str(helpee_id) + ' ' + str(time.time()))
-                        print(self_loc)
-                        current_helpee_id = helpee_id
-                        notify_helpee_node(helpee_id)
+                    # if current_helpee_id == helpee_id:
+                    #     # print("already helping node " + str(current_helpee_id))
+                    #     pass
+                    # else:
+                    print("[Helper get assignment from server] helpee_id: " +\
+                                str(helpee_id) + ' ' + str(time.time()))
+                    print(self_loc)
+                    current_helpee_id = helpee_id
+                    notify_helpee_node(helpee_id)
             time.sleep(0.2)
 
 
@@ -389,16 +392,17 @@ class VehicleControlThread(threading.Thread):
                 # This vehicle is a helpee now
                 if msg_type == message.TYPE_ASSIGNMENT:
                     helper_id = int.from_bytes(data[-msg_size:], 'big')
-                    print("[Helpee get helper assignment] helper_id: "\
-                         + str(helper_id) + ' ' + str(time.time()), flush=True)
-                    helper_ip = "10.0.0." + str(helper_id+2)   
-                    current_helper_id = helper_id
-                    new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port)
-                    new_send_thread.daemon = True
-                    new_send_thread.start()
-                    if len(helper_data_send_thread) != 0:
-                        helper_data_send_thread[-1].stop()
-                    helper_data_send_thread.append(new_send_thread)
+                    if helper_id != current_helper_id:
+                        print("[Helpee get helper assignment] helper_id: "\
+                            + str(helper_id) + ' ' + str(time.time()), flush=True)
+                        helper_ip = "10.0.0." + str(helper_id+2)   
+                        current_helper_id = helper_id
+                        new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port)
+                        new_send_thread.daemon = True
+                        new_send_thread.start()
+                        if len(helper_data_send_thread) != 0:
+                            helper_data_send_thread[-1].stop()
+                        helper_data_send_thread.append(new_send_thread)
                 elif msg_type == message.TYPE_LOCATION and self_ip != addr[0]:
                     helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
@@ -563,7 +567,7 @@ def check_connection_state(disconnect_timestamps):
     global connection_state, control_seq_num
     while True:
         t_start = time.time()
-        if connection_state == "Connected":
+        if connection_state == "Connected" and not control_msg_disabled:
             # print("Connected to server...")
             if vehicle_id not in disconnect_timestamps.keys():
                 v2i_control_socket_lock.acquire()
@@ -577,7 +581,7 @@ def check_connection_state(disconnect_timestamps):
                                 v2i_control_socket, control_seq_num)
                 control_seq_num += 1
                 v2i_control_socket_lock.release()
-        elif connection_state == "Disconnected":
+        elif connection_state == "Disconnected" and not control_msg_disabled:
             # print("Disconnected to server... broadcast " + str(time.time()))
             v2i_control_socket_lock.acquire()
             mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num)
