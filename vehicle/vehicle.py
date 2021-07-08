@@ -36,10 +36,10 @@ parser.add_argument('-l', '--location_file', default="input/object-0227-loc.txt"
 parser.add_argument('-c', '--helpee_conf', default="input/helpee_conf/helpee-nodes.txt",\
                     type=str, help='helpee nodes configuration file')
 parser.add_argument('-f', '--fps', default=1, type=int, help='FPS of pcd data')
-parser.add_argument('-n', '--disable_control', default=False, type=bool, help='disable control msgs')
+parser.add_argument('-n', '--disable_control', default=0, type=int, help='disable control msgs')
 args = parser.parse_args()
 
-control_msg_disabled = args.disable_control
+control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
 PCD_DATA_PATH = args.data_path + '/velodyne_2/'
 OXTS_DATA_PATH = args.data_path + '/oxts/'

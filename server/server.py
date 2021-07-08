@@ -142,9 +142,6 @@ class SchedThread(threading.Thread):
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws)
                 elif scheduler_mode == 'routeAware':
                     assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables)
-                elif scheduler_mode == 'fixed':
-                    # TODO: if fixed assignment, don't need to get vehicles' locations
-                    assignment = fixed_assignment
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed)

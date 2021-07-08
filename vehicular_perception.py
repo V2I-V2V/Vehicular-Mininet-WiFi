@@ -6,6 +6,7 @@ from mn_wifi.link import wmediumd, adhoc, Intf
 from mn_wifi.cli import CLI
 from mn_wifi.net import Mininet_wifi
 from mn_wifi.wmediumdConnector import interference
+from mn_wifi.replaying import ReplayingMobility
 from threading import Thread as thread
 import numpy as np
 import time
@@ -28,7 +29,7 @@ default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
 time_to_run = 100
 trace_filename = "input/traces/constant.txt"
-no_control = False
+no_control = 0
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
@@ -77,6 +78,17 @@ def read_location_traces(loc_file):
         loc_trace = loc_trace.reshape(1, -1)
     return loc_trace
 
+def config_mobility_mininet_replay(net, stations, loc_file, plot=True):
+    net.isReplaying = True
+    loc_trace = read_location_traces(loc_file)
+    print('\nUse mininet replay mobility')
+    for sta_idx in range(len(stations)):
+        stations[sta_idx].p = []
+    for time_i in range(loc_trace.shape[0]):
+        for sta_idx in range(len(stations)):
+            pos = float(loc_trace[time_i][2*sta_idx]), float(loc_trace[time_i][2*sta_idx+1]), 0.0
+            stations[sta_idx].p.append(pos)
+
 def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
     time.sleep(8)
@@ -90,6 +102,7 @@ def config_mobility(net, stations, loc_file, plot=False):
                 stations[station_idx].update_2d()
         time.sleep(0.1)
     print("\nfinish update location at %f" % time.time())
+
     #     net.startMobility(time=0, mob_rep=1, reverse=False)
     #     p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
     #     if '-c' not in args:
@@ -125,7 +138,7 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %r > logs/node%d.log 2>&1 &'% \
+        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d > logs/node%d.log 2>&1 &'% \
                             (node_num, vehicle_data_dir[node_num], loc_file,\
                             helpee_conf, fps, no_control, node_num)
         print(vehicle_app_cmd)
@@ -146,7 +159,7 @@ def collect_tcpdump(nodes):
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
                 enable_tcpdump=False, run_app=False, scheduler="minDist",
-                helpee_conf=None, fps=1, save=False):
+                helpee_conf=None, fps=1, save=False, mininet_replay_mob=False):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     
     info("*** Creating nodes\n")
@@ -181,10 +194,6 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     c1.start()
     s1.start([c1])
 
-    ### configure mobility ###
-    # TODO: Implement the following function with different mobility model, etc.
-    mobility_thread = thread(target=config_mobility, args=(net, stations, loc_file, enable_plot))
-    mobility_thread.start()
 
     ### Trace replaying ###
     for i in range(num_nodes):
@@ -200,6 +209,15 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
         info("*** Tcpdump trace enabled\n")
         collect_tcpdump(stations)
         server.cmd('tcpdump -nni any -s96 -w pcaps/server.pcap >/dev/null 2>&1 &')
+
+    ### configure mobility ###
+    # TODO: Implement the following function with different mobility model, etc.
+    if mininet_replay_mob:
+        config_mobility_mininet_replay(net, stations, loc_file)
+        ReplayingMobility(net)
+    else:
+        mobility_thread = thread(target=config_mobility, args=(net, stations, loc_file, enable_plot))
+        mobility_thread.start()
 
     info("*** Running CLI\n")
     if run_app:
@@ -233,6 +251,10 @@ if __name__ == '__main__':
     scheduler = 'minDist'
     fps = 1
     helpee_conf_file = 'input/helpee_conf/helpee-nodes.txt'
+    mininet_mob_replay = False
+
+    if '--replay-mobility' in sys.argv:
+        mininet_mob_replay = True
 
     if '-p' in sys.argv:
         pcd_config_file = sys.argv[sys.argv.index('-p')+1]
@@ -286,9 +308,10 @@ if __name__ == '__main__':
         time_to_run = int(sys.argv[sys.argv.index('-t')+1])
 
     if '--no_control' in sys.argv:
-        no_control = True
+        no_control = 1
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
             enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
-            helpee_conf=helpee_conf_file, fps=fps, save=data_save)  
+            helpee_conf=helpee_conf_file, fps=fps, save=data_save,\
+            mininet_replay_mob=mininet_mob_replay)  

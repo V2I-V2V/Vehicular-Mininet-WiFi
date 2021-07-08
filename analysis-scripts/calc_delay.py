@@ -13,6 +13,7 @@ MAX_FRAMES = 80
 
 dir=sys.argv[1]
 num_nodes = int(sys.argv[2])
+frames = int(sys.argv[3])
 
 np.set_printoptions(precision=3)
 
@@ -77,7 +78,7 @@ def main():
             sender_ts_dict[i] = np.array(sender_ts_dict[i][:len(receiver_ts_dict[i])])
         elif len(sender_ts_dict[i]) < len(receiver_ts_dict[i]):
             receiver_ts_dict[i] = np.array(receiver_ts_dict[i][:len(sender_ts_dict[i])])
-        delay_dict[i] = np.array(receiver_ts_dict[i]) - np.array(sender_ts_dict[i])
+        delay_dict[i] = np.array(receiver_ts_dict[i][:frames]) - np.array(sender_ts_dict[i][:frames])
         # print(delay_dict)
         print(receiver_ts_dict[i][0])
         print(receiver_ts_dict[i][-1])
