@@ -12,6 +12,6 @@ with open(log, 'r') as f:
             if thrpt != 0:
                 throughput.append(thrpt)
 
-
+print(throughput)
 print(np.mean(throughput))
 print(np.std(throughput))
