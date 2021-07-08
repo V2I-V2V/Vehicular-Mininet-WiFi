@@ -39,7 +39,8 @@ def replay_trace(node, ifname, trace):
         intf.config(bw=trace[throughput_idx])
         elapsed_t = time.time() - start_t
         sleep_t = 1.0 - elapsed_t
-        time.sleep(sleep_t)
+        if elapsed_t > 0:
+            time.sleep(sleep_t)
 
 
 def replay_trace_thread_on_sta(sta, ifname, thrpt_trace):
@@ -78,7 +79,7 @@ def read_location_traces(loc_file):
 def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
     time.sleep(8)
-    print("start update location at %f" % time.time())
+    print("\nstart update location at %f" % time.time())
     for time_i in range(loc_trace.shape[0]):
         # print("update location for stas")
         for station_idx in range(len(stations)):
@@ -87,7 +88,7 @@ def config_mobility(net, stations, loc_file, plot=False):
             if enable_plot:
                 stations[station_idx].update_2d()
         time.sleep(0.1)
-
+    print("\nfinish update location at %f" % time.time())
     #     net.startMobility(time=0, mob_rep=1, reverse=False)
     #     p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
     #     if '-c' not in args:

@@ -7,6 +7,7 @@ import threading
 import socket
 import time
 import ptcl.pointcloud
+import ptcl.partition
 import wwan
 import config
 import utils
@@ -109,15 +110,17 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         t_s = time.time()
         pcd_f_name = pcd_data_path + "%06d.bin"%i
         raw_pcd = ptcl.pointcloud.read_pointcloud(pcd_f_name)
-        pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(raw_pcd, dtype='float32').reshape([-1,4]), 
+        pcd_np = np.frombuffer(raw_pcd, dtype=np.float32).reshape([-1,4])
+        partitioned = ptcl.partition.simple_partition(pcd_np, 20)
+        pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
                                             PCD_ENCODE_LEVEL, PCD_QB)
         pcd_data_buffer.append(pcd)
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         t_elapsed = time.time() - t_s
-        print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
-        if (1.0/fps-t_elapsed) > 0:
-            time.sleep(1.0/fps-t_elapsed)
+        # print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
+        # if (1.0/fps-t_elapsed) > 0:
+        #     time.sleep(1.0/fps-t_elapsed)
     capture_finished = True
 
 
@@ -163,13 +166,13 @@ def v2i_data_send_thread():
             # pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
             #                                 PCD_ENCODE_LEVEL, PCD_QB)
             # TODO: maybe compress the frames beforehand, change encode to another thread
-            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()))
+            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
             print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()))
             t_elapsed = time.time() - t_start
             if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
-                print("capture finished")
+                print("capture finished, sleep %f" % (1.0/FRAMERATE-t_elapsed))
                 time.sleep(1.0/FRAMERATE-t_elapsed)
         elif curr_frame_id >= config.MAX_FRAMES:
             curr_frame_id = 0
@@ -508,7 +511,7 @@ class VehicleDataSendThread(threading.Thread):
                 # pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]),
                 #                                 PCD_ENCODE_LEVEL, PCD_QB)
                 print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
-                         + str(current_helper_id) + ' ' + str(time.time()))
+                         + str(current_helper_id) + ' ' + str(time.time()), flush=True)
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
                 t_elapsed = time.time() - t_start
@@ -594,18 +597,18 @@ def check_connection_state(disconnect_timestamps):
 
 def main():
     global curr_timestamp
-    senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
-             args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
-    senser_data_capture_thread.start()
+    # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
+    #          args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
+    # senser_data_capture_thread.start()
     trace_files = 'trace.txt'
     lte_traces = utils.read_traces(trace_files)
     disconnect_timestamps = utils.process_traces(lte_traces, HELPEE_CONF)
     print("disconnect timestamp")
     print(disconnect_timestamps)
-    # t_start = time.time()
-    # sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
-    # t_elapsed = time.time() - t_start
-    # print("read and encode takes %f" % t_elapsed)
+    t_start = time.time()
+    sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
+    t_elapsed = time.time() - t_start
+    print("read and encode takes %f" % t_elapsed)
     curr_timestamp = time.time()
     v2i_control_thread = ServerControlThread()
     v2i_control_thread.start()
