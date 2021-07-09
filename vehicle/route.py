@@ -8,24 +8,25 @@ def get_routes(vehicle_id):
     routing_table = {}
     routes = pyroute2.IPRoute().get_routes()
     for route in routes:
-        print(route)
+        # print(route)
         # print(route['attrs'])
         dst = ""
         nexthop = ""
         for attr in route['attrs']:
             if 'DST' in attr[0]:
-                print('DST', attr[1])
+                # print('DST', attr[1])
                 dst = attr[1]
             elif 'GATEWAY' in attr[0]:
-                print('GATEWAY', attr[1])
+                # print('GATEWAY', attr[1])
                 nexthop = attr[1]
         dst_ip = dst.split('.')
         if dst_ip[0:3] == ['10', '0', '0'] and int(dst_ip[3]) >= 2 and int(dst_ip[3]) != vehicle_id + 2:
             # vehicle_id = IP - 2
             routing_table[int(dst_ip[-1]) - 2] = int(nexthop.split('.')[-1]) - 2
         else:
-            print(dst_ip[0:3])
-    print(routing_table)
+            # print(dst_ip[0:3])
+            pass
+    # print(routing_table)
     return routing_table
 
 

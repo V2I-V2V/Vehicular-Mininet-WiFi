@@ -13,6 +13,7 @@ MAX_FRAMES = 80
 
 dir=sys.argv[1]
 num_nodes = int(sys.argv[2])
+frames = int(sys.argv[3])
 
 np.set_printoptions(precision=3)
 
@@ -70,10 +71,17 @@ def main():
     get_receiver_ts(dir + 'logs/server.log')
     # print(len(receiver_ts_dict[0]))
     for i in range(num_nodes):
+        print(len(receiver_ts_dict[i]))
+        print(len(sender_ts_dict[i]))
         if len(sender_ts_dict[i]) > len(receiver_ts_dict[i]):
             print(i)
             sender_ts_dict[i] = np.array(sender_ts_dict[i][:len(receiver_ts_dict[i])])
-        delay_dict[i] = np.array(receiver_ts_dict[i]) - np.array(sender_ts_dict[i])
+        elif len(sender_ts_dict[i]) < len(receiver_ts_dict[i]):
+            receiver_ts_dict[i] = np.array(receiver_ts_dict[i][:len(sender_ts_dict[i])])
+        delay_dict[i] = np.array(receiver_ts_dict[i][:frames]) - np.array(sender_ts_dict[i][:frames])
+        # print(delay_dict)
+        print(receiver_ts_dict[i][0])
+        print(receiver_ts_dict[i][-1])
         # if len(helper_ts_dict[i].values()) > 0:
         #     for helpee, ts in helper_ts_dict[i].items():
         #         v2v_delay_dict[helpee] = np.array(ts) - np.array(sender_ts_dict[helpee][-len(ts):])

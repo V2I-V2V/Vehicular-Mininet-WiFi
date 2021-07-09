@@ -99,7 +99,17 @@ class SchedThread(threading.Thread):
         global current_assignment
         while True:
             print(location_map, flush=True)
-            if len(location_map) == num_vehicles:
+            if scheduler_mode == 'fixed':
+                assignment = fixed_assignment
+                print("Assignment: " + str(assignment) + ' ' + str(time.time()))
+                for cnt, node in enumerate(assignment):
+                    real_helpee, real_helper = cnt, node
+                    current_assignment[real_helper] = real_helpee
+                    print("send %d to node %d" % (real_helpee, real_helper))
+                    msg = int(real_helpee).to_bytes(2, 'big')
+                    if real_helper in client_sockets.keys():
+                        client_sockets[real_helper].send(msg)
+            elif len(location_map) == num_vehicles:
                 print(scheduler_mode)
                 positions = []
                 routing_tables = []
@@ -132,9 +142,6 @@ class SchedThread(threading.Thread):
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws)
                 elif scheduler_mode == 'routeAware':
                     assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables)
-                elif scheduler_mode == 'fixed':
-                    # TODO: if fixed assignment, don't need to get vehicles' locations
-                    assignment = fixed_assignment
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed)
