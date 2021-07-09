@@ -41,7 +41,7 @@ def replay_trace(node, ifname, trace):
         intf.config(bw=trace[throughput_idx])
         elapsed_t = time.time() - start_t
         sleep_t = 1.0 - elapsed_t
-        if elapsed_t > 0:
+        if sleep_t > 0:
             time.sleep(sleep_t)
 
 

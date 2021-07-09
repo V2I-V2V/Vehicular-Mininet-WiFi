@@ -71,7 +71,7 @@ if args.fixed_assignment is not None:
     print(fixed_assignment)
 else:
     print("Run in %s mode" % scheduler_mode)
-    if scheduler_mode == "bwAware":
+    if scheduler_mode == "bwAware" or scheduler_mode == "combined":
         bw_update_thread(trace_filename)
 num_vehicles = args.num_vehicles
 

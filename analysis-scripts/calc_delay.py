@@ -127,6 +127,7 @@ def main():
     ax.set_axisbelow(True)
     sns.ecdfplot(delay_all)
     # plt.xlim([0, 0.5])
+    np.savetxt(dir+'all_delay.txt', delay_all)
     print(len(delay_all[delay_all <= 0]))
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")

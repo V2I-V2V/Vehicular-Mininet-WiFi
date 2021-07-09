@@ -9,6 +9,8 @@ font = {'family' : 'DejaVu Sans',
 
 matplotlib.rc('font', **font)
 
+trajs = {}
+
 traj = np.loadtxt(sys.argv[1])
 
 fig = plt.figure(figsize=(7,7))
@@ -16,10 +18,23 @@ ax = fig.add_subplot(111)
 
 for i in range(int(traj.shape[1]/2)):
     ax.plot(traj[:,2*i], traj[:,2*i+1], label='node%d'%i)
+    ax.scatter([traj[:,2*i][0]], [traj[:,2*i+1][0]])
+    print(traj[:,2*i+1][-1])
+    # ax.scatter(traj[:,2*i][-1], traj[:,2*i+1][-1])
+    trajs[i] = traj[:,2*i:2*i+2]
 
 plt.xlabel('x (m)')
 plt.ylabel('y (m)')
 plt.legend()
+plt.tight_layout()
 
 plt.savefig('traj.png')
 
+# for k in trajs.keys():
+#     for k in trajs
+dist = np.linalg.norm(trajs[2] - trajs[1], axis=1)
+print(np.max(dist))
+dist = np.linalg.norm(trajs[2] - trajs[3], axis=1)
+print(np.max(dist))
+dist = np.linalg.norm(trajs[1] - trajs[3], axis=1)
+print(dist)
