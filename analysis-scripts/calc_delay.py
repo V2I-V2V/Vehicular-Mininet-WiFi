@@ -70,6 +70,7 @@ def main():
     # print(sender_ts_dict)
     get_receiver_ts(dir + 'logs/server.log')
     # print(len(receiver_ts_dict[0]))
+    delay_all = np.empty((frames,))
     for i in range(num_nodes):
         print(len(receiver_ts_dict[i]))
         print(len(sender_ts_dict[i]))
@@ -79,7 +80,12 @@ def main():
         elif len(sender_ts_dict[i]) < len(receiver_ts_dict[i]):
             receiver_ts_dict[i] = np.array(receiver_ts_dict[i][:len(sender_ts_dict[i])])
         delay_dict[i] = np.array(receiver_ts_dict[i][:frames]) - np.array(sender_ts_dict[i][:frames])
-        # print(delay_dict)
+        print(len(delay_dict[i]))
+        if i == 0:
+            delay_all = delay_dict[i]
+        else:
+            delay_all = np.concatenate((delay_all, delay_dict[i]))
+        print(delay_dict[i][delay_dict[i]<0])
         print(receiver_ts_dict[i][0])
         print(receiver_ts_dict[i][-1])
         # if len(helper_ts_dict[i].values()) > 0:
@@ -87,13 +93,13 @@ def main():
         #         v2v_delay_dict[helpee] = np.array(ts) - np.array(sender_ts_dict[helpee][-len(ts):])
         #         print(np.array(v2v_delay_dict[helpee]))
         
-
+    
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_axisbelow(True)
     for i in range(num_nodes):
         # ax.plot(np.arange(0, len(delay_dict[i])), delay_dict[i], '--o', label='node%d'%i)
-        sns.distplot(delay_dict[i], kde_kws={'cumulative': True, "lw": 2.5}, hist=False, label='node%d'%i)
+        sns.ecdfplot(delay_dict[i], label='node%d'%i)
     plt.xlim([0, 0.5])
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
@@ -113,6 +119,20 @@ def main():
     plt.ylabel("Latency (s)")
     plt.legend()
     plt.savefig(dir+'latency-frame.png')
+
+    print(delay_all.shape)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_axisbelow(True)
+    sns.ecdfplot(delay_all)
+    # plt.xlim([0, 0.5])
+    print(len(delay_all[delay_all <= 0]))
+    plt.xlabel("Latency (s)")
+    plt.ylabel("CDF")
+    # plt.legend()
+    plt.savefig(dir+'latency-cdf-all.png')
+
+
 if __name__ == '__main__':
     
     main()
