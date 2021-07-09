@@ -34,6 +34,7 @@ def get_sender_ts(filename):
                 sender_ts.append(float(line.split()[-1]))
     return sender_ts
 
+
 def get_receiver_ts(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -44,7 +45,8 @@ def get_receiver_ts(filename):
                 ts = float(parse[-1])
                 receiver_ts_dict[sender_id].append(ts)
         f.close()
-    
+
+
 def get_helper_receive_ts(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -59,7 +61,6 @@ def get_helper_receive_ts(filename):
                     helper_receive_ts[sender_id].append(ts)
         f.close()
         return helper_receive_ts
-
 
 
 def main():
@@ -113,6 +114,7 @@ def main():
     plt.ylabel("Latency (s)")
     plt.legend()
     plt.savefig(dir+'latency-frame.png')
+
+
 if __name__ == '__main__':
-    
     main()
