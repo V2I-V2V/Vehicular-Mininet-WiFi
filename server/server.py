@@ -136,7 +136,9 @@ class SchedThread(threading.Thread):
                     for k, v in route_map[mapped_node_id].items():
                         routing_table[original_to_new[k]] = original_to_new[v]
                     routing_tables.append(routing_table)
-                if scheduler_mode == 'minDist':
+                if scheduler_mode == 'combined':
+                    assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables)
+                elif scheduler_mode == 'minDist':
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
                 elif scheduler_mode == 'bwAware':
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws)
