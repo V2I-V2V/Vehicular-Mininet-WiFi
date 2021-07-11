@@ -34,6 +34,7 @@ def get_sender_ts(filename):
                 sender_ts.append(float(line.split()[-1]))
     return sender_ts
 
+
 def get_receiver_ts(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -44,7 +45,8 @@ def get_receiver_ts(filename):
                 ts = float(parse[-1])
                 receiver_ts_dict[sender_id].append(ts)
         f.close()
-    
+
+
 def get_helper_receive_ts(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -59,7 +61,6 @@ def get_helper_receive_ts(filename):
                     helper_receive_ts[sender_id].append(ts)
         f.close()
         return helper_receive_ts
-
 
 
 def main():
@@ -126,6 +127,7 @@ def main():
     ax.set_axisbelow(True)
     sns.ecdfplot(delay_all)
     # plt.xlim([0, 0.5])
+    np.savetxt(dir+'all_delay.txt', delay_all)
     print(len(delay_all[delay_all <= 0]))
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
@@ -134,5 +136,4 @@ def main():
 
 
 if __name__ == '__main__':
-    
     main()
