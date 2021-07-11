@@ -60,17 +60,17 @@ sudo python3 vehicular_perception.py -n 6 -p input/pcds/pcd-data-config.txt -l i
 Required arguments:
 
 * `-n`: Number of nodes (vehicles), must be `<= 6`.
+
+Optional arguments:
+
 * `--run_app`: Start the vehicular application.
 * `-l <location_file>`: Read a location file trace. File format [sta1_x sta1_y sta2_x, sta2_y ...]. If not specified, `input/locations/location-example.txt` will be used.
 * `--trace <network_trace>`: V2I network trace for each node. File format [node0_bw node1_bw ...]. If not specified, each node will begin with 100Mbps V2I bw and not change.
 * `-p <pcd_data_file>`: pcd data file to locate each node's point cloud data. If not specified, default pcd data file configuration file `input/pcds/pcd-data-config.txt` will be used.
-
-
-Optional arguments:
-
 * `-s <scheduler>`: Scheduler algorithm used by `server/server.py`. Default scheduler scheme is `minDist`. If you want to use fixed assignment mode, see next bullet.
 * `-s fixed <assignment_file> <assignment_index>`: Fix assignment mode. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`
 * `--fps <fps>`: Framerate of `vechile.py`,  default value is 1
+* `--no_control`: Disable control messages of `vehicle.py`. 
 * `-t <time_in_seconds>`: Total emulation time of the script. Default is 100 s.
 * `--helpee_conf <helpee_conf_file>`: You can specify which nodes are helpees by providing a configuration file. Default helpee_conf file is `input/helpee_conf/helpee-nodes.txt` (0 and 1 are helpee nodes). This will be updated later to just read the bw traces and determine which node is helpee.
 * `--collect-traffic`: Enable pcap trace.
