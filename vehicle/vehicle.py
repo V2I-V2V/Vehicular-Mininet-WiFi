@@ -252,7 +252,6 @@ def notify_helpee_node(helpee_id):
     helpee_addr = "10.0.0." + str(helpee_id+2)
     message.send_msg(send_note_sock, header, msg, is_udp=True,\
                         remote_addr=(helpee_addr, helper_control_recv_port))
-    # send_note_sock.sendto(msg, (helpee_addr, helper_control_recv_port))
 
 
 class ServerControlThread(threading.Thread):
@@ -289,54 +288,6 @@ class ServerControlThread(threading.Thread):
             time.sleep(0.2)
 
 
-def parse_location_packet_data(data):
-    """Parse location packet, packet should be of length 10 = 2 + 2 + 2 + 4
-
-    Args:
-        data (bytes): raw network packet data to parse
-
-    Returns:
-        helpee_id: helpee node id that sends the packet
-        [x, y]: location of the helpee node
-    """
-    # return helpee id, location
-    helpee_id = int.from_bytes(data[0:2], "big")
-    x = int.from_bytes(data[2:4], "big")
-    y = int.from_bytes(data[4:6], "big")
-    seq_num = int.from_bytes(data[6:10], "big")
-    return helpee_id, [x, y], seq_num
-
-
-def parse_route_packet_data(data):
-    """Parse route packet, packet should be of length (2 + (1 + 1) * (n_vechiles - 1) + 4)
-
-    Args:
-        data (bytes): raw network packet data to parse
-
-    Returns:
-        helpee_id: helpee node id that sends the packet
-        [x, y]: location of the helpee node
-    """
-    # return helpee id, route, seq
-    l = len(data)
-    helpee_id = int.from_bytes(data[0:2], "big")
-    route_bytes = data[2:-4]
-    seq_num = int.from_bytes(data[-4:], "big")
-    return helpee_id, route_bytes, seq_num
-
-
-def is_packet_assignment(data):
-    """Check packet to be an assignment packet (sent from server to assign helpee node)
-
-    Args:
-        data (bytes): raw network packet data to parse
-
-    Returns:
-        Bool: True for assignment packets, False else
-    """
-    return len(data) == 2
-
-
 class VehicleControlThread(threading.Thread):
     """Thread that handle control messages between nodes (vehicles)
     """
@@ -364,7 +315,7 @@ class VehicleControlThread(threading.Thread):
                 # This vehicle is a helper now
                 if msg_type == message.TYPE_LOCATION:
                     print("[helper recv location broadcast] " + str(time.time()))
-                    helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
+                    helpee_id, helpee_loc, seq_num = message.vehicle_parse_location_packet_data(data[-msg_size:])
                     # send helpee location
                     print((helpee_id, helpee_loc))
                     if helpee_id not in vehicle_seq_dict.keys() \
@@ -377,7 +328,7 @@ class VehicleControlThread(threading.Thread):
                         v2i_control_socket_lock.release()
                 elif msg_type == message.TYPE_ROUTE:
                     print("[helper recv route broadcast] " + str(time.time()))
-                    helpee_id, route_bytes, seq_num = parse_route_packet_data(data[-msg_size:])
+                    helpee_id, route_bytes, seq_num = message.vehicle_parse_route_packet_data(data[-msg_size:])
                     # forward helpee route
                     if helpee_id not in vehicle_seq_dict.keys() \
                         or seq_num > vehicle_seq_dict[helpee_id]:
@@ -404,7 +355,7 @@ class VehicleControlThread(threading.Thread):
                             helper_data_send_thread[-1].stop()
                         helper_data_send_thread.append(new_send_thread)
                 elif msg_type == message.TYPE_LOCATION and self_ip != addr[0]:
-                    helpee_id, helpee_loc, seq_num = parse_location_packet_data(data[-msg_size:])
+                    helpee_id, helpee_loc, seq_num = message.vehicle_parse_location_packet_data(data[-msg_size:])
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
                             seq_num > vehicle_seq_dict[helpee_id]):
                         # helpee only rebroadcast loc not equal to themselves and with larger seq
@@ -413,7 +364,7 @@ class VehicleControlThread(threading.Thread):
                                         data[message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
                                         remote_addr=("10.255.255.255", helper_control_recv_port))
                 elif msg_type == message.TYPE_ROUTE and self_ip != addr[0]:
-                    helpee_id, route_bytes, seq_num = parse_route_packet_data(data[-msg_size:])
+                    helpee_id, route_bytes, seq_num = message.vehicle_parse_route_packet_data(data[-msg_size:])
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
                             seq_num > vehicle_seq_dict[helpee_id]):
                         # helpee only rebroadcast route not equal to themselves and with larger seq
@@ -459,7 +410,6 @@ class VehicleDataRecvThread(threading.Thread):
             frame_id = int.from_bytes(data[4:6], "big")
             v_id = int.from_bytes(data[6:8], "big")
             type = int.from_bytes(data[8:10], "big")
-            assert len(data) == 10
             to_send = header_len
             sent = 0
             while sent < to_send:
