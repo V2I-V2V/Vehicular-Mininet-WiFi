@@ -102,6 +102,42 @@ def parse_data_msg_header(data):
     return payload_size, frame_id, v_id, type
 
 
+def vehicle_parse_location_packet_data(data):
+    """Parse location packet, packet should be of length 10 = 2 + 2 + 2 + 4
+
+    Args:
+        data (bytes): raw network packet data to parse
+
+    Returns:
+        helpee_id: helpee node id that sends the packet
+        [x, y]: location of the helpee node
+    """
+    # return helpee id, location
+    helpee_id = int.from_bytes(data[0:2], "big")
+    x = int.from_bytes(data[2:4], "big")
+    y = int.from_bytes(data[4:6], "big")
+    seq_num = int.from_bytes(data[6:10], "big")
+    return helpee_id, [x, y], seq_num
+
+
+def vehicle_parse_route_packet_data(data):
+    """Parse route packet, packet should be of length (2 + (1 + 1) * (n_vechiles - 1) + 4)
+
+    Args:
+        data (bytes): raw network packet data to parse
+
+    Returns:
+        helpee_id: helpee node id that sends the packet
+        [x, y]: location of the helpee node
+    """
+    # return helpee id, route, seq
+    l = len(data)
+    helpee_id = int.from_bytes(data[0:2], "big")
+    route_bytes = data[2:-4]
+    seq_num = int.from_bytes(data[-4:], "big")
+    return helpee_id, route_bytes, seq_num
+
+
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")
     v_id = int.from_bytes(msg_payload[2:4], "big")
