@@ -66,7 +66,7 @@ In sta3 terminal, execute
 ./routing/simple-route add to 10.0.0.1 dev sta3-wlan0 via 10.0.0.2
 ```
 
-Now try `sta1 ping sta3` and it should work. You can also verify the routing by looking at the output of `route -n` before/after execute the `simple-route` command.
+Now try `sta1 ping sta3` and it should work. You can also verify the routing change by looking at the output of `route -n` before/after execute the `simple-route` command.
 
 ## Use the `vehicular_perception.py` script
 
