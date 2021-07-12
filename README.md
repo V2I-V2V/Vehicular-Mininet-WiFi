@@ -68,7 +68,7 @@ In sta3 terminal, execute
 
 Now try `sta1 ping sta3` and it should work. You can also verify the routing change by looking at the output of `route -n` before/after execute the `simple-route` command.
 
-For more information about the usage of `routing/simple-route.py`, refer to `routing/README.md`.
+For more information about the usage of `routing/simple-route.c`, refer to `routing/README.md`.
 
 ## Use the `vehicular_perception.py` script
 
