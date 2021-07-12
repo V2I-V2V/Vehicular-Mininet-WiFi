@@ -30,6 +30,44 @@ As a quick fix, you can copy my config to your olsrd configuration directory by
 sudo cp config/olsrd.conf /etc/olsrd/
 ```
 
+## Use simple custom routing
+
+First, compile the `simple-route.c` by
+```
+cd routing
+make
+```
+And then start a simple adhoc topogy without routing by
+
+```
+python3 routing/adhoc.py
+```
+
+From mininet CLI, first verify that sta1 cannot ping sta3 (because thery are out of wireless range and require a intermidiate hop sta2 to route):
+
+```
+sta1 ping sta3
+PING 10.0.0.3 (10.0.0.3) 56(84) bytes of data.
+From 10.0.0.1 icmp_seq=1 Destination Host Unreachable
+From 10.0.0.1 icmp_seq=2 Destination Host Unreachable
+From 10.0.0.1 icmp_seq=3 Destination Host Unreachable
+From 10.0.0.1 icmp_seq=4 Destination Host Unreachable
+From 10.0.0.1 icmp_seq=5 Destination Host Unreachable
+```
+
+Then type `xterm sta1 sta3` to open two xterm terminals. Execute below command in the corresponding xtem terminal.
+
+In sta1 terminal, execute
+```
+./routing/simple-route add to 10.0.0.3 dev sta1-wlan0 via 10.0.0.2
+```
+In sta3 terminal, execute
+```
+./routing/simple-route add to 10.0.0.1 dev sta3-wlan0 via 10.0.0.2
+```
+
+Now try `sta1 ping sta3` and it should work. You can also verify the routing by looking at the output of `route -n` before/after execute the `simple-route` command.
+
 ## Use the `vehicular_perception.py` script
 
 Only setup the network:
@@ -72,6 +110,7 @@ Optional arguments:
 * `--fps <fps>`: Framerate of `vechile.py`,  default value is 1
 * `--no_control`: Disable control messages of `vehicle.py`. 
 * `-t <time_in_seconds>`: Total emulation time of the script. Default is 100 s.
+* `--no_control`: Disable vehicle control messages. Make sure the scheduler scheme (e.g. fixed assignment) will not require node to send control messages, otherwise the behavior will be undefined.
 * `--helpee_conf <helpee_conf_file>`: You can specify which nodes are helpees by providing a configuration file. Default helpee_conf file is `input/helpee_conf/helpee-nodes.txt` (0 and 1 are helpee nodes). This will be updated later to just read the bw traces and determine which node is helpee.
 * `--collect-traffic`: Enable pcap trace.
 * `--save-data`: Save undecoded point cloud. 
