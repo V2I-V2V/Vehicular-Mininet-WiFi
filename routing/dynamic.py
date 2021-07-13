@@ -17,9 +17,8 @@ def binary_to_dict(the_binary):
     d = json.loads(jsn)  
     return d
 
-ars = argparse.ArgumentParser()
+args = argparse.ArgumentParser()
 
-# LSA, LSDB
 
 ROUTE_NUM = 2
 BROADCAST_INTERVAL = 0.5
@@ -146,7 +145,6 @@ def clear_outdated_neighbour_info():
             if curr_time - t > VALID_INTERVAL:
                 print("%d outdated %f" % (n, time.time()))
                 node_neighbours[n] = []
-                # for node_id in node_neighbours.keys():   
                 if n in node_neighbours[self_id]:
                     node_neighbours[self_id].remove(n)
         node_neighbour_lock.release()
