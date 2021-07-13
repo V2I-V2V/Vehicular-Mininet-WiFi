@@ -32,6 +32,7 @@ sudo cp config/olsrd.conf /etc/olsrd/
 
 ## Use simple custom routing
 
+### Static
 First, compile the `simple-route.c` by
 ```
 cd routing
@@ -67,6 +68,12 @@ In sta3 terminal, execute
 ```
 
 Now try `sta1 ping sta3` and it should work. You can also verify the routing by looking at the output of `route -n` before/after execute the `simple-route` command.
+
+
+### Dynamic Routing
+
+Add the argument `-r custom` when running `vehicular_perception.py`. See optional arguments in the next section.
+
 
 ## Use the `vehicular_perception.py` script
 
@@ -106,6 +113,7 @@ Required arguments:
 
 Optional arguments:
 
+* `-r <routing_algorithm>`: Support `olsrd` and `custom`. Other input will make nodes run no routing algorithm.
 * `-s <scheduler>`: Scheduler algorithm used by `server/server.py`. Default scheduler scheme is `minDist`. If you want to use fixed assignment mode, see next bullet.
 * `-s fixed <assignment_file> <assignment_index>`: Fix assignment mode. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`
 * `--fps <fps>`: Framerate of `vechile.py`,  default value is 1
