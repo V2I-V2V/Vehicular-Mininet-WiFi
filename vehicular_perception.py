@@ -29,6 +29,7 @@ default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
 time_to_run = 100
 trace_filename = "input/traces/constant.txt"
+routing = 'olsrd'
 no_control = 0
 
 def replay_trace(node, ifname, trace):
@@ -63,7 +64,8 @@ def create_nodes(net, num_nodes, locations):
 
 def create_adhoc_links(net, node, ifname):
     kwargs = dict()
-    kwargs['proto'] = 'olsrd'
+    if routing == 'olsrd':
+        kwargs['proto'] = 'olsrd'
     channel_num = 5
     net.addLink(node, cls=adhoc, intf=ifname, ssid='adhocNet', \
                 mode='g', channel=channel_num, **kwargs)
@@ -156,6 +158,12 @@ def collect_tcpdump(nodes):
         nodes[node_num].cmd(tcpdump_cmds[node_num])
 
 
+def run_custom_routing(nodes):
+    routing_cmds = []
+    for node_num in range(len(nodes)):
+        routing_cmds.append('python3 routing/dynamic.py %d > node%d.route 2>&1 &'%(node_num, node_num))
+        nodes[node_num].cmd(routing_cmds[node_num])
+
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
                 enable_tcpdump=False, run_app=False, scheduler="minDist",
@@ -198,6 +206,10 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### Trace replaying ###
     for i in range(num_nodes):
         replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i])
+
+    ### Configure routing if custom
+    if routing == 'custom':
+        run_custom_routing(stations)
 
     ### Run application ###
     if run_app is True:
@@ -309,6 +321,9 @@ if __name__ == '__main__':
 
     if '--no_control' in sys.argv:
         no_control = 1
+    
+    if '-r' in sys.argv:
+        routing = sys.argv[sys.argv.index('-r')+1]
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
