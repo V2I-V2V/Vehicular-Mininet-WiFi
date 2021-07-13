@@ -5,3 +5,4 @@ TrakoDracoPy==0.0.13b2.dev9
 pyroute2==0.6.4
 seaborn==0.11.1
 pyroute2==0.6.4
+networkx==2.5.1
