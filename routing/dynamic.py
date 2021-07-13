@@ -73,10 +73,11 @@ def update_routing_thread():
                         # multipath routing
                         print("path cnt: %d" % cnt)
                         print(next_hops)
-                        if cnt == ROUTE_NUM:
-                            print("configure multipath %s, %s, %s" % (node_ip(n_id), node_ip(next_hops[0]), node_ip(next_hops[1])))
+                        if cnt > 1:
+                            print("configure multipath %s, %s, %s"\
+                                    % (node_ip(n_id), node_ip(next_hops[0]), node_ip(next_hops[1])))
                             os.system('ip route replace %s nexthop via %s weight 100 nexthop via %s weight 1'\
-                                % (node_ip(n_id), node_ip(next_hops[0]), node_ip(next_hops[1])))
+                                    % (node_ip(n_id), node_ip(next_hops[0]), node_ip(next_hops[1])))
                         elif cnt == 1:
                             print("configure singlepath")
                             os.system('ip route replace %s nexthop via %s' % (node_ip(n_id), node_ip(next_hops[0])))
