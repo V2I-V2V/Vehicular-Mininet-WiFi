@@ -19,6 +19,7 @@ TYPE_PCD = 0
 TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 sys.stderr = sys.stdout
 
@@ -255,10 +256,10 @@ def merge_data_when_ready():
                 pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
                 points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
                 if save:
-                    with open('output/node%d_%d.bin'%(i, curr_processed_frame), 'wb') as f:
+                    with open('%s/output/node%d_%d.bin'%(REPO_DIR, i, curr_processed_frame), 'wb') as f:
                         f.write(pcds[i][curr_processed_frame])
             merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
-            # with open('output/merged_%d.bin'%curr_processed_frame, 'w') as f:
+            # with open('%s/output/merged_%d.bin'%(REPO_DIR, curr_processed_frame), 'w') as f:
             #     merged_pcl.tofile(f)
             curr_processed_frame += 1
 
