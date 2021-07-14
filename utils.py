@@ -47,6 +47,8 @@ def produce_3d_location_arr(location):
 
 def produce_assignment_str(assignment):
     assignment_str = ""
+    if type(assignment) is np.int64:
+        return str(assignment)
     for i in assignment:
         assignment_str = assignment_str + str(i) + ' '
     return assignment_str
