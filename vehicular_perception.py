@@ -29,6 +29,7 @@ default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
 time_to_run = 100
 trace_filename = os.path.dirname(os.path.abspath(__file__)) + "/input/traces/constant.txt"
+routing = 'olsrd'
 no_control = 0
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -64,7 +65,8 @@ def create_nodes(net, num_nodes, locations):
 
 def create_adhoc_links(net, node, ifname):
     kwargs = dict()
-    kwargs['proto'] = 'olsrd'
+    if routing == 'olsrd':
+        kwargs['proto'] = 'olsrd'
     channel_num = 5
     net.addLink(node, cls=adhoc, intf=ifname, ssid='adhocNet', \
                 mode='g', channel=channel_num, **kwargs)
@@ -104,20 +106,6 @@ def config_mobility(net, stations, loc_file, plot=False):
         time.sleep(0.1)
     print("\nfinish update location at %f" % time.time())
 
-    #     net.startMobility(time=0, mob_rep=1, reverse=False)
-    #     p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
-    #     if '-c' not in args:
-    #         p1_start = {'position': '286.116,832.733,0.0'}
-    #         p2_start = {'position': '280.225,891.726,0.0'}
-    #         p1_end = {'position': '257.905,907.762,0.0'}
-    #         p2_end = {'position': '284.816,879.443,0.0'}
-
-    #     net.mobility(stations[0], 'start', time=50, **p1_start)
-    #     net.mobility(stations[1], 'start', time=50, **p2_start)
-    #     net.mobility(stations[0], 'stop', time=60, **p1_end)
-    #     net.mobility(stations[1], 'stop', time=60, **p2_end)
-    #     net.stopMobility(time=61)
-
 
 def setup_ip(node, ip, ifname):
     node.setIP(ip, intf=ifname)
@@ -125,15 +113,15 @@ def setup_ip(node, ip, ifname):
 
 
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
-                    save=False):
+                    save=0):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 %s/server/server.py -f %s -n %d -t %s -d %r > %s/logs/server.log 2>&1 &"\
+        server_cmd = "python3 %s/server/server.py -f %s -n %d -t %s -d %d > %s/logs/server.log 2>&1 &"\
              % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 %s/server/server.py -s %s -n %d -t %s -d %r > %s/logs/server.log 2>&1 &"\
+        server_cmd = "python3 %s/server/server.py -s %s -n %d -t %s -d %d > %s/logs/server.log 2>&1 &"\
              % (CODE_DIR, scheduler, num_nodes, trace_filename, save, CODE_DIR)
         print(server_cmd)
     server.cmd(server_cmd)
@@ -156,10 +144,16 @@ def collect_tcpdump(nodes):
         nodes[node_num].cmd(tcpdump_cmds[node_num])
 
 
+def run_custom_routing(nodes):
+    routing_cmds = []
+    for node_num in range(len(nodes)):
+        routing_cmds.append('python3 routing/dynamic.py %d > node%d.route 2>&1 &'%(node_num, node_num))
+        nodes[node_num].cmd(routing_cmds[node_num])
+
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
                 enable_tcpdump=False, run_app=False, scheduler="minDist",
-                helpee_conf=None, fps=1, save=False, mininet_replay_mob=False):
+                helpee_conf=None, fps=1, save=0, mininet_replay_mob=False):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     
     info("*** Creating nodes\n")
@@ -198,6 +192,10 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### Trace replaying ###
     for i in range(num_nodes):
         replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i])
+
+    ### Configure routing if custom
+    if routing == 'custom':
+        run_custom_routing(stations)
 
     ### Run application ###
     if run_app is True:
@@ -247,7 +245,7 @@ if __name__ == '__main__':
     enable_plot = False
     enable_tcpdump = False
     run_app = False
-    data_save = False
+    data_save = 0 # by default, dont save pcd
     scheduler = 'minDist'
     fps = 1
     helpee_conf_file = os.path.dirname(os.path.abspath(__file__)) + '/input/helpee_conf/helpee-nodes.txt'
@@ -302,16 +300,19 @@ if __name__ == '__main__':
         # print(config.num_helpee)
     
     if '--save_data' in sys.argv:
-        data_save = True
+        data_save = 0
 
     if '-t' in sys.argv:
         time_to_run = int(sys.argv[sys.argv.index('-t')+1])
 
     if '--no_control' in sys.argv:
         no_control = 1
+    
+    if '-r' in sys.argv:
+        routing = sys.argv[sys.argv.index('-r')+1]
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
             enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
             helpee_conf=helpee_conf_file, fps=fps, save=data_save,\
-            mininet_replay_mob=mininet_mob_replay)  
+            mininet_replay_mob=mininet_mob_replay) 

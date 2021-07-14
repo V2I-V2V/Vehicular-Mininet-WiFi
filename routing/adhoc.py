@@ -29,7 +29,8 @@ def topology(args):
                           position='50,10,0', **kwargs)
     sta3 = net.addStation('sta3', ip6='fe80::3',
                           position='90,10,0', **kwargs)
-    # net.addStation('sta4', ip6='fe80::3', position='120,10,0')
+    sta4 = net.addStation('sta4', ip6='fe80::4',
+                          position='50,11,0', **kwargs)
     net.setPropagationModel(model="logDistance", exp=4)
 
     info("*** Configuring wifi nodes\n")
@@ -55,15 +56,21 @@ def topology(args):
     net.addLink(sta3, cls=adhoc, intf='sta3-wlan0',
                 ssid='adhocNet', mode='g', channel=5,
                  **kwargs)
+    net.addLink(sta4, cls=adhoc, intf='sta4-wlan0',
+                ssid='adhocNet', mode='g', channel=5,
+                 **kwargs)
+    
 
     # net.addLink(sta4, cls=adhoc, intf='sta4-wlan0', ssid='adhocNet', mode='g', channel=5, ht_cap='HT40+', **{'proto':'olsrd'})
     
     sta1.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     sta2.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     sta3.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
+    sta4.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
+    
 
     if '-p' not in args:
-        net.plotGraph(max_x=400, max_y=1100)
+        net.plotGraph(max_x=200, max_y=200)
 
     info("*** Starting network\n")
     net.build()
@@ -73,7 +80,13 @@ def topology(args):
         sta1.setIP6('2001::1/64', intf="sta1-wlan0")
         sta2.setIP6('2001::2/64', intf="sta2-wlan0")
         sta3.setIP6('2001::3/64', intf="sta3-wlan0")
+        sta4.setIP6('2001::4/64', intf="sta4-wlan0")
 
+
+    sta1.cmd('python3 routing/dynamic.py 1 &')
+    sta2.cmd('python3 routing/dynamic.py 2 &')
+    sta3.cmd('python3 routing/dynamic.py 3 &')
+    sta4.cmd('python3 routing/dynamic.py 4 &')
     info("*** Running CLI\n")
     CLI(net)
 

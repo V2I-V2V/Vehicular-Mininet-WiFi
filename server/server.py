@@ -57,7 +57,7 @@ parser.add_argument('-f', '--fixed_assignment', nargs='+', type=int,
 parser.add_argument('-s', '--scheduler', default='minDist', type=str, 
                     help='scheduler to use: minDist|random|bwAware')
 parser.add_argument('-t', '--trace_filename', default='', type=str, help='trace file to use')
-parser.add_argument('-d', '--data_save', default=False, type=bool, 
+parser.add_argument('-d', '--data_save', default=0, type=int, 
                     help='whether to save undecoded pcds')
 
 args = parser.parse_args()
