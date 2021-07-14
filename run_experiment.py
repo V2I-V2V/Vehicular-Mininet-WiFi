@@ -1,7 +1,8 @@
 import getpass
-import os
+import os, sys
 import time
 from datetime import datetime, timedelta
+import subprocess
 
 
 def parse_config_from_file(filename):
@@ -28,7 +29,7 @@ def init_config():
     config_params = {"num_of_nodes": "6", "location_file": input_path + "/locations/location-mindist-bw.txt",
                      "network_trace": input_path + "/traces/trace-mindist-bw.txt", "ptcl_config": input_path + "/pcds/pcd-data-config.txt",
                      "scheduler": "minDist", "fps": "10", "t": "70", "helpee_conf": input_path + "/helpee_conf/helpee-nodes.txt",
-                     "routing": "custom", "frames": "300"}
+                     "routing": "olsrd", "frames": "300"}
     return config_params
 
 
@@ -65,6 +66,16 @@ def run_experiment(config_params):
     print("+" + cmd)
 
 
+def check_exception_in_output():
+    logs = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
+    proc = subprocess.Popen("grep -nr \"Traceback\" %s"%logs, stdout=subprocess.PIPE, shell=True)
+    (output, err) = proc.communicate()
+    print("+checking output")
+    if len(output) != 0:
+        print('+Error found in logs, terminating')
+        sys.exit(1)
+    # if output 
+
 def move_output(folder):
     cmds = ["cp -r " + os.path.dirname(os.path.abspath(__file__)) + "/logs/ " + folder, 
             "cp -r " + os.path.dirname(os.path.abspath(__file__)) + "/pcaps/ " + folder]
@@ -74,11 +85,14 @@ def move_output(folder):
 
 
 def run_analysis(folder, config_params):
-    cmd = "sudo python3 " + os.path.dirname(os.path.abspath(__file__)) + "/analysis-scripts/calc_delay.py " + folder + '/ ' +  config_params["num_of_nodes"] + ' ' + config_params["frames"] 
+    cmd = "sudo python3 " + os.path.dirname(os.path.abspath(__file__)) \
+        + "/analysis-scripts/calc_delay.py " + folder + '/ ' +  config_params["num_of_nodes"] \
+        + ' ' + config_params["frames"] + ' >/dev/null'
     os.system(cmd)
 
+
 def main():
-    for i in range(1):
+    for i in range(30):
         kill_mininet()
         clean_output()
         folder = create_folder()
@@ -90,6 +104,7 @@ def main():
         write_config_to_file(config_params, folder + "/config.txt")
         # config_params = parse_config_from_file(folder + "/config.txt")
         run_experiment(config_params)
+        check_exception_in_output()
         move_output(folder)
         run_analysis(folder, config_params)
     
