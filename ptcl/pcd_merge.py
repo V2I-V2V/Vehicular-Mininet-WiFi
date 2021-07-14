@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-# Filename : bin_merge_gta
-__author__ = 'Xumiao Zhang'
-
 import numpy as np
 import sys
 import time
