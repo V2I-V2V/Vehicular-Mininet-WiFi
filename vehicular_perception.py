@@ -15,22 +15,23 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils
 
 # global default values
-vehicle_data_dir = ['../DeepGTAV-data/object-0227-1/', 
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0022786/',
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0037122/',
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0191023/',
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0399881/',
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0735239/']
+vehicle_data_dir = ['~/DeepGTAV-data/object-0227-1/', 
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0022786/',
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0037122/',
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0191023/',
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0399881/',
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0735239/']
 default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0', \
                 '320.134, 854.744, 0', '296.692, 832.28, 0', '290.943, 881.713, 0', \
                 '313.943, 891.713, 0', '312.943, 875.713, 0']
-default_loc_file="input/locations/location-multihop.txt"
+default_loc_file = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/location-multihop.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
 time_to_run = 100
-trace_filename = "input/traces/constant.txt"
+trace_filename = os.path.dirname(os.path.abspath(__file__)) + "/input/traces/constant.txt"
 routing = 'olsrd'
 no_control = 0
+CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
@@ -116,19 +117,18 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 server/server.py -f %s -n %d -t %s -d %d > logs/server.log 2>&1 &"\
-                        %(assignment_str, num_nodes, trace_filename, save)
+        server_cmd = "python3 %s/server/server.py -f %s -n %d -t %s -d %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 server/server.py -s %s -n %d -t %s -d %d > logs/server.log 2>&1 &"\
-                        %(scheduler, num_nodes, trace_filename, save)
+        server_cmd = "python3 %s/server/server.py -s %s -n %d -t %s -d %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, CODE_DIR)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d > logs/node%d.log 2>&1 &'% \
-                            (node_num, vehicle_data_dir[node_num], loc_file,\
-                            helpee_conf, fps, no_control, node_num)
+        vehicle_app_cmd = 'sleep 8 && python3 %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d > %s/logs/node%d.log 2>&1 &'\
+            % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, CODE_DIR, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
 
@@ -248,7 +248,7 @@ if __name__ == '__main__':
     data_save = 0 # by default, dont save pcd
     scheduler = 'minDist'
     fps = 1
-    helpee_conf_file = 'input/helpee_conf/helpee-nodes.txt'
+    helpee_conf_file = os.path.dirname(os.path.abspath(__file__)) + '/input/helpee_conf/helpee-nodes.txt'
     mininet_mob_replay = False
 
     if '--replay-mobility' in sys.argv:
@@ -315,4 +315,4 @@ if __name__ == '__main__':
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
             enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
             helpee_conf=helpee_conf_file, fps=fps, save=data_save,\
-            mininet_replay_mob=mininet_mob_replay)  
+            mininet_replay_mob=mininet_mob_replay) 
