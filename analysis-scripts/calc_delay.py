@@ -62,6 +62,17 @@ def get_helper_receive_ts(filename):
         f.close()
         return helper_receive_ts
 
+def get_server_ass(filename):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            if line.startswith("Assignment:"):
+                parse = line.split()
+                helper1 = int(parse[1][1:-1])
+                helper2 = int(parse[2][1:-1])
+                ts = float(parse[-1])
+                # receiver_ts_dict[sender_id].append(ts)
+        f.close()
 
 def main():
     for i in range(num_nodes):
