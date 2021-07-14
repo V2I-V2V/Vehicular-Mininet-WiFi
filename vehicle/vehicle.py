@@ -29,11 +29,11 @@ sys.stderr = sys.stdout
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
-parser.add_argument('-d', '--data_path', default='../DeepGTAV-data/object-0227-1/',\
+parser.add_argument('-d', '--data_path', default='~/DeepGTAV-data/object-0227-1/',\
                     type=str, help='point cloud and oxts data path')
-parser.add_argument('-l', '--location_file', default="input/object-0227-loc.txt", \
+parser.add_argument('-l', '--location_file', default=os.path.dirname(os.path.abspath(__file__)) + "/input/object-0227-loc.txt", \
                     type=str, help='location file name')
-parser.add_argument('-c', '--helpee_conf', default="input/helpee_conf/helpee-nodes.txt",\
+parser.add_argument('-c', '--helpee_conf', default=os.path.dirname(os.path.abspath(__file__)) + "/input/helpee_conf/helpee-nodes.txt",\
                     type=str, help='helpee nodes configuration file')
 parser.add_argument('-f', '--fps', default=1, type=int, help='FPS of pcd data')
 parser.add_argument('-n', '--disable_control', default=0, type=int, help='disable control msgs')
@@ -41,6 +41,7 @@ args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
+
 PCD_DATA_PATH = args.data_path + '/velodyne_2/'
 OXTS_DATA_PATH = args.data_path + '/oxts/'
 LOCATION_FILE = args.location_file
