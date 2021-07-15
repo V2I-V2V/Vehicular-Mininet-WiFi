@@ -5,7 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import run_experiment
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 import matplotlib
-# matplotlib.use('AGG')
+matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 
 font = {'family' : 'DejaVu Sans',
@@ -55,7 +55,8 @@ def plot_bar_across_runs():
         print(v['all'])
         ax.boxplot(v['all'], positions=np.array([x_positions[cnt]]), autorange=True, showfliers=False)
         cnt += 1
-    plt.show()
+    # plt.show()
+    plt.savefig('all_runs.png')
 
 
 def calculate_per_node_std():
