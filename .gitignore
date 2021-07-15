@@ -10,4 +10,5 @@ compression.py
 *.pcap
 *.png
 routing/simple-route
+mininet-scripts/
 *.route
