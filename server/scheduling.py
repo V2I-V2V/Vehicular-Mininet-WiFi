@@ -19,6 +19,21 @@ def find_all_one_to_one(num_of_helpees, num_of_helpers):
     return assignments
 
 
+def find_all(num_of_helpees, num_of_helpers):
+    
+    def get_assignments(n):
+        if n == 1:
+            return [(x + num_of_helpees,) for x in range(num_of_helpers)]
+        assignments = []
+        last_assignments = get_assignments(n - 1)
+        for i in range(len(last_assignments)):
+            for j in range(num_of_helpers):
+                assignments.append((j + num_of_helpees,) + last_assignments[i])
+        return assignments
+
+    return get_assignments(num_of_helpees)
+
+
 def get_distance(p1, p2):
     return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
@@ -129,10 +144,11 @@ def get_distance_scores(assignment, positions):
     return scores
 
 
-def min_total_distance_sched(num_of_helpees, num_of_helpers, positions):
+def min_total_distance_sched(num_of_helpees, num_of_helpers, positions, is_one_to_one=False):
     print("Using the min total distance sched")
     sum_distances = {}
-    for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
+    assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
+    for assignment in assignments:
         sum_distance = 0
         for distance in get_distances(assignment, positions):
             sum_distance += distance
@@ -189,14 +205,21 @@ def get_v2i_bws(assignment, bws):
     return v2i_bws
 
 
-def wwan_bw_sched(num_of_helpees, num_of_helpers, bws):
+def wwan_bw_sched(num_of_helpees, num_of_helpers, bws, is_one_to_one=False):
     print("Using the bw sched")
     print(bws)
     scores = {}
-    for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
+    assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
+    for assignment in assignments:
         bw = 0
-        for cnt, node in enumerate(assignment):
-            bw += bws[node]
+        counts = {}
+        for helper in assignment:
+            if helper not in counts:
+                counts[helper] = 1
+            else:
+                counts[helper] += 1
+        for helpee, helper in enumerate(assignment):
+            bw += bws[helper] / (counts[helper] + 1)
         scores[get_id_from_assignment(assignment)] = bw
     sorted_scores = sorted(scores.items(), key=lambda item: -item[1]) # decreasing order
     return get_assignment_from_id(sorted_scores[0][0])
@@ -280,7 +303,7 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
 
 
 def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables):
-    print("Using the coombined sched")
+    print("Using the combined sched")
     scores = {}
     for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
         # distances = get_distances(assignment, positions)
@@ -302,6 +325,7 @@ def bipartite():
 
 
 def main():
+    print(find_all(3, 3))
     print("Schedule helpers for helpees")
     # find_all_one_to_one(3, 5)
     # min_total_distance_sched(1, 2, [[0, 0], [1, 1], [2, 2]])
