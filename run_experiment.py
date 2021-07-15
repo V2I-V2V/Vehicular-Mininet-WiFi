@@ -103,22 +103,37 @@ def run_analysis(folder, config_params):
 
 
 def main():
-    for i in range(1):
-        kill_mininet(3)
-        clean_output()
-        folder = create_folder()
-        cmd = "mkdir " + folder
-        os.system(cmd)
-        print("+", cmd)
-        config_params = init_config()
-        config_params["scheduler"] = "minDist"
-        print(config_params)
-        write_config_to_file(config_params, folder + "/config.txt")
-        # config_params = parse_config_from_file(folder + "/config.txt")
-        run_experiment(config_params)
-        check_exception_in_output()
-        move_output(folder)
-        run_analysis(folder, config_params)
+    scheds = ['combined', 'random', 'minDist']
+    locs = [os.path.dirname(os.path.abspath(__file__)) + "/input/locations/" + x \
+        for x in ['28.txt', '49.txt', '95.txt']]
+    bw_traces = [os.path.dirname(os.path.abspath(__file__)) + "/input/traces/" + x \
+         for x in ['lte-4.txt', 'lte-15.txt', 'lte-22.txt']]
+    helpee_confs = [os.path.dirname(os.path.abspath(__file__)) + "/input/helpee_conf/" + x \
+         for x in ['helpee-start.txt', 'helpee-start-middle.txt', 'helpee-middle-middle.txt']]
+    for i in range(3):
+        for sched in scheds:
+            for loc in locs:
+                for bw_trace in bw_traces:
+                    for helpee_conf in helpee_confs: 
+                        kill_mininet(3)
+                        kill_routing()
+                        clean_output()
+                        folder = create_folder()
+                        cmd = "mkdir " + folder
+                        os.system(cmd)
+                        print("+", cmd)
+                        config_params = init_config()
+                        config_params["scheduler"] = sched
+                        config_params["location_file"] = loc
+                        config_params["network_trace"] = bw_trace
+                        config_params["helpee_conf"] = helpee_conf
+                        print(config_params)
+                        write_config_to_file(config_params, folder + "/config.txt")
+                        # config_params = parse_config_from_file(folder + "/config.txt")
+                        run_experiment(config_params)
+                        check_exception_in_output()
+                        move_output(folder)
+                        run_analysis(folder, config_params)
     
 
 if __name__ == "__main__":

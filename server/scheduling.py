@@ -126,9 +126,9 @@ def get_valid_neighbor_map(neighbor_map, nodes_on_routes, tx_nodes, assignment, 
     return valid_neighbor_map
 
 
-def random_sched(num_of_helpees, num_of_helpers, random_seed):
+def random_sched(num_of_helpees, num_of_helpers, random_seed, is_one_to_one=False):
     random.seed(random_seed)
-    assignments = find_all_one_to_one(num_of_helpees, num_of_helpers)
+    assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     return assignments[random.randint(0, len(assignments) - 1)]
 
 
