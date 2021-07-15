@@ -46,6 +46,12 @@ def kill_routing():
     print("+" + cmd)
 
 
+def kill_application():
+    cmd = "sudo kill $(ps aux | grep \"[v]ehicular_perception.py\" | awk {'print $2'})"
+    os.system(cmd)
+    print("+" + cmd)
+
+
 def clean_output():
     cmds = ["sudo rm " + os.path.dirname(os.path.abspath(__file__)) + "/output/*.bin", 
             "sudo rm " + os.path.dirname(os.path.abspath(__file__)) + "/pcaps/*.pcap",
@@ -80,10 +86,10 @@ def check_exception_in_output():
     logs = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
     proc = subprocess.Popen("grep -nr \"Traceback\" %s"%logs, stdout=subprocess.PIPE, shell=True)
     (output, err) = proc.communicate()
-    print("+checking output")
+    print("[INFO] checking output")
     if len(output) != 0:
-        print('+Error found in logs')
-        os.system('touch '+os.path.dirname(os.path.abspath(__file__)) + "/logs/error.log")
+        print('[INFO] Error found in logs')
+        os.system('touch ' + os.path.dirname(os.path.abspath(__file__)) + "/logs/error.log")
         # sys.exit(1)
     # if output 
 
@@ -110,30 +116,38 @@ def main():
          for x in ['lte-4.txt', 'lte-15.txt', 'lte-22.txt']]
     helpee_confs = [os.path.dirname(os.path.abspath(__file__)) + "/input/helpee_conf/" + x \
          for x in ['helpee-start.txt', 'helpee-start-middle.txt', 'helpee-middle-middle.txt']]
+    settings = []
     for i in range(3):
         for sched in scheds:
             for loc in locs:
                 for bw_trace in bw_traces:
-                    for helpee_conf in helpee_confs: 
-                        kill_mininet(3)
-                        kill_routing()
-                        clean_output()
-                        folder = create_folder()
-                        cmd = "mkdir " + folder
-                        os.system(cmd)
-                        print("+", cmd)
-                        config_params = init_config()
-                        config_params["scheduler"] = sched
-                        config_params["location_file"] = loc
-                        config_params["network_trace"] = bw_trace
-                        config_params["helpee_conf"] = helpee_conf
-                        print(config_params)
-                        write_config_to_file(config_params, folder + "/config.txt")
-                        # config_params = parse_config_from_file(folder + "/config.txt")
-                        run_experiment(config_params)
-                        check_exception_in_output()
-                        move_output(folder)
-                        run_analysis(folder, config_params)
+                    for helpee_conf in helpee_confs:
+                        settings.append((i, sched, loc, bw_trace, helpee_conf))
+    # for cnt, setting in enumerate(settings): 
+    #     print(cnt, setting)
+    start = 29
+    for setting in settings[start:]:
+        i, sched, loc, bw_trace, helpee_conf = setting
+        kill_mininet(3)
+        kill_routing()
+        kill_application()
+        clean_output()
+        folder = create_folder()
+        cmd = "mkdir " + folder
+        os.system(cmd)
+        print("+", cmd)
+        config_params = init_config()
+        config_params["scheduler"] = sched
+        config_params["location_file"] = loc
+        config_params["network_trace"] = bw_trace
+        config_params["helpee_conf"] = helpee_conf
+        print(config_params)
+        write_config_to_file(config_params, folder + "/config.txt")
+        # config_params = parse_config_from_file(folder + "/config.txt")
+        run_experiment(config_params)
+        check_exception_in_output()
+        move_output(folder)
+        run_analysis(folder, config_params)
     
 
 if __name__ == "__main__":
