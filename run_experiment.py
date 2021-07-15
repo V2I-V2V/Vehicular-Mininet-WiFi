@@ -125,7 +125,7 @@ def main():
                         settings.append((i, sched, loc, bw_trace, helpee_conf))
     # for cnt, setting in enumerate(settings): 
     #     print(cnt, setting)
-    start = 29
+    start = 0
     for setting in settings[start:]:
         i, sched, loc, bw_trace, helpee_conf = setting
         kill_mininet(3)
