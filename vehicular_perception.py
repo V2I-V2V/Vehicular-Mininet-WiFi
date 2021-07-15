@@ -36,7 +36,7 @@ CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
     time.sleep(8)
-    for throughput_idx in range(min(len(trace), time_to_run-8)):
+    for throughput_idx in range(min(len(trace), time_to_run-20)):
         start_t = time.time()
         if trace[throughput_idx] == 0:
             trace[throughput_idx] += 0.001
@@ -96,14 +96,14 @@ def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
     time.sleep(8)
     print("\nstart update location at %f" % time.time())
-    for time_i in range(loc_trace.shape[0]):
+    for time_i in range(max(loc_trace.shape[0], 120)):
         # print("update location for stas")
         for station_idx in range(len(stations)):
             stations[station_idx].setPosition('%f,%f,0'%(loc_trace[time_i][2*station_idx], \
                                                      loc_trace[time_i][2*station_idx+1]))
             if enable_plot:
                 stations[station_idx].update_2d()
-        time.sleep(0.1)
+        time.sleep(0.5)
     print("\nfinish update location at %f" % time.time())
 
 
