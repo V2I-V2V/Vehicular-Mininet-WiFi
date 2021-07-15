@@ -105,7 +105,7 @@ def run_analysis(folder, config_params):
 def main():
     scheds = ['bwAware', 'random', 'minDist']
     locs = [os.path.dirname(os.path.abspath(__file__)) + "/input/locations/" + x \
-        for x in ['28.txt', '49.txt', '95.txt']]
+        for x in [ 'location-multihop.txt', '106.txt', '5.txt']]
     bw_traces = [os.path.dirname(os.path.abspath(__file__)) + "/input/traces/" + x \
          for x in ['lte-4.txt', 'lte-15.txt', 'lte-22.txt']]
     helpee_confs = [os.path.dirname(os.path.abspath(__file__)) + "/input/helpee_conf/" + x \
