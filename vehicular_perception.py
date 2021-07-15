@@ -147,7 +147,8 @@ def collect_tcpdump(nodes):
 def run_custom_routing(nodes):
     routing_cmds = []
     for node_num in range(len(nodes)):
-        routing_cmds.append('python3 routing/dynamic.py %d > node%d.route 2>&1 &'%(node_num, node_num))
+        routing_cmds.append('sleep 2 && python3 %s/routing/dynamic.py %d > %s/logs/node%d.route 2>&1 &'\
+                            %(CODE_DIR, node_num, CODE_DIR, node_num))
         nodes[node_num].cmd(routing_cmds[node_num])
 
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \

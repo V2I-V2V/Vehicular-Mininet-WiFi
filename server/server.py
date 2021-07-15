@@ -134,8 +134,9 @@ class SchedThread(threading.Thread):
                 for cnt, mapped_node_id in enumerate(mapped_nodes):
                     positions.append(location_map[mapped_node_id])
                     routing_table = {}
-                    for k, v in route_map[mapped_node_id].items():
-                        routing_table[original_to_new[k]] = original_to_new[v]
+                    if mapped_node_id in route_map.keys():
+                        for k, v in route_map[mapped_node_id].items():
+                            routing_table[original_to_new[k]] = original_to_new[v]
                     routing_tables.append(routing_table)
                 if scheduler_mode == 'combined':
                     assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables)
