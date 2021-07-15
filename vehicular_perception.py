@@ -113,6 +113,15 @@ def setup_ip(node, ip, ifname):
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
 
+def kill_application():
+    print("*** Stop server.py and vehicle.py ***")
+    cmd = "kill -9 $(ps aux | grep \"[v]ehicle.py\" | awk {'print $2'})"
+    os.system(cmd)
+    cmd = "kill -9 $(ps aux | grep \"[s]erver.py\" | awk {'print $2'})"
+    os.system(cmd)
+    cmd = "kill -9 $(ps aux | grep \"[d]ynamic.py\" | awk {'print $2'})"
+    os.system(cmd)
+
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
                     save=0):
     num_nodes = len(stations)
@@ -230,6 +239,8 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     mobility_thread.join()
     for replaying_thread in replaying_threads:
         replaying_thread.join()
+    
+    kill_application()
 
     info("*** Stopping network\n")
     net.stop()
