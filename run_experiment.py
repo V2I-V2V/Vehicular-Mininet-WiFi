@@ -29,7 +29,7 @@ def init_config():
     config_params = {"num_of_nodes": "6", "location_file": input_path + "/locations/location-mindist-bw.txt",
                      "network_trace": input_path + "/traces/trace-mindist-bw.txt", "ptcl_config": input_path + "/pcds/pcd-data-config.txt",
                      "scheduler": "minDist", "fps": "10", "t": "70", "helpee_conf": input_path + "/helpee_conf/helpee-nodes.txt",
-                     "routing": "olsrd", "frames": "300"}
+                     "routing": "custom", "frames": "300"}
     return config_params
 
 
@@ -42,7 +42,8 @@ def kill_mininet():
 def clean_output():
     cmds = ["sudo rm " + os.path.dirname(os.path.abspath(__file__)) + "/output/*.bin", 
             "sudo rm " + os.path.dirname(os.path.abspath(__file__)) + "/pcaps/*.pcap",
-            "sudo rm " + os.path.dirname(os.path.abspath(__file__)) + "/logs/*.log"]
+            "sudo rm " + os.path.dirname(os.path.abspath(__file__)) + "/logs/*.log",
+            "sudo rm " + os.path.dirname(os.path.abspath(__file__)) + "/logs/*.route"]
     for cmd in cmds:
         os.system(cmd)
         print("+" + cmd)
@@ -72,8 +73,8 @@ def check_exception_in_output():
     (output, err) = proc.communicate()
     print("+checking output")
     if len(output) != 0:
-        print('+Error found in logs, terminating')
-        sys.exit(1)
+        print('+Error found in logs')
+        # sys.exit(1)
     # if output 
 
 def move_output(folder):
@@ -92,7 +93,7 @@ def run_analysis(folder, config_params):
 
 
 def main():
-    for i in range(30):
+    for i in range(1):
         kill_mininet()
         clean_output()
         folder = create_folder()

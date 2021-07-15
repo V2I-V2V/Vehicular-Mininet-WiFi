@@ -4,7 +4,6 @@ import sys
 import time
 import torch
 from math import sin, cos
-import open3d as o3d
 
 
 def rotate(oxts1, oxts2):

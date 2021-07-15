@@ -20,14 +20,16 @@ def get_routes(vehicle_id):
                 # print('GATEWAY', attr[1])
                 nexthop = attr[1]
             elif 'MULTIPATH' in attr[0]:
-                print('MULTIPATH', attr[1])
-                
+                # print('MULTIPATH', attr[1])
+                nexthop = attr[1][0]['attrs'][0][1]
+                # print('NEXTHOP', nexthop)
+
         dst_ip = dst.split('.')
         if dst_ip[0:3] == ['10', '0', '0'] and int(dst_ip[3]) >= 2 and int(dst_ip[3]) != vehicle_id + 2:
             # vehicle_id = IP - 2
-            print('dst_ip %s, nexthop: %s'%(dst_ip, nexthop))
-            if nexthop != "":
-                routing_table[int(dst_ip[-1]) - 2] = int(nexthop.split('.')[-1]) - 2
+            # print('dst_ip %s, nexthop: %s'%(dst_ip, nexthop))
+            # if nexthop != "":
+            routing_table[int(dst_ip[-1]) - 2] = int(nexthop.split('.')[-1]) - 2
         else:
             # print(dst_ip[0:3])
             pass

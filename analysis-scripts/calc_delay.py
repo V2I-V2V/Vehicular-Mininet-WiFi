@@ -110,7 +110,6 @@ def main():
     ax = fig.add_subplot(111)
     ax.set_axisbelow(True)
     for i in range(num_nodes):
-        # ax.plot(np.arange(0, len(delay_dict[i])), delay_dict[i], '--o', label='node%d'%i)
         sns.ecdfplot(delay_dict[i], label='node%d'%i)
     plt.xlim([0, 0.5])
     plt.xlabel("Latency (s)")
@@ -123,9 +122,7 @@ def main():
     ax.set_axisbelow(True)
     for i in range(num_nodes):
         ax.plot(np.arange(0, len(delay_dict[i])), delay_dict[i], '--o', label='node%d'%i)
-        # if i in v2v_delay_dict.keys():
-        #     ax.plot(np.arange(MAX_FRAMES-len(v2v_delay_dict[i]), MAX_FRAMES), \
-        #         v2v_delay_dict[i], '--o', label='node%d-v2v'%i)
+        np.savetxt(dir+'node%d_delay.txt'%i, delay_dict[i])
 
     plt.xlabel("Frame Number")
     plt.ylabel("Latency (s)")
