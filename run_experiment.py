@@ -74,6 +74,7 @@ def check_exception_in_output():
     print("+checking output")
     if len(output) != 0:
         print('+Error found in logs')
+        os.system('touch '+os.path.dirname(os.path.abspath(__file__)) + "/logs/error.log")
         # sys.exit(1)
     # if output 
 
@@ -93,7 +94,7 @@ def run_analysis(folder, config_params):
 
 
 def main():
-    for i in range(1):
+    for i in range(10):
         kill_mininet()
         clean_output()
         folder = create_folder()
