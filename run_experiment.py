@@ -103,7 +103,7 @@ def run_analysis(folder, config_params):
 
 
 def main():
-    scheds = ['combined', 'random', 'minDist']
+    scheds = ['bwAware', 'random', 'minDist']
     locs = [os.path.dirname(os.path.abspath(__file__)) + "/input/locations/" + x \
         for x in ['28.txt', '49.txt', '95.txt']]
     bw_traces = [os.path.dirname(os.path.abspath(__file__)) + "/input/traces/" + x \
