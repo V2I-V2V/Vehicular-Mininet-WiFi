@@ -16,6 +16,8 @@ result_each_run = {}
 result_per_node = {}
 num_nodes = 6
 
+SCHEDULER = ['minDist', 'bwAware', 'random']
+
 
 def get_per_experiment_stats(result_dir, node_num):
     stats = {}
@@ -39,14 +41,48 @@ def get_all_runs_results(analyze_type, data_dir, frames, key):
         for dir in dirs:
             if key in dir:
                 config = run_experiment.parse_config_from_file(data_dir+dir+'/config.txt')
+                scheduler = config["scheduler"]
+                network = config["network_trace"].split('/')[-1]
+                mobility = config["network_trace"].split('/')[-1]
+                conf_key = dir+'-'+scheduler+'-'+network+'-'+mobility
                 num_nodes = int(config["num_of_nodes"])
                 files = os.listdir(data_dir+dir)
                 if 'all_delay.txt' not in files:           
                     os.system('sudo python3 %s/calc_delay.py %s/ %d %d'%(CODE_DIR, dir, num_nodes, frames))
-                result_each_run[dir] = get_per_experiment_stats(data_dir+dir, num_nodes)
+                result_each_run[conf_key] = get_per_experiment_stats(data_dir+dir, num_nodes)
 
 
 def plot_bar_across_runs():
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    x_positions = np.arange(len(result_each_run.keys()))
+    cnt = 0
+    for k, v in result_each_run.items():
+        print(v['all'])
+        ax.boxplot(v['all'], positions=np.array([x_positions[cnt]]), autorange=True, showfliers=False)
+        cnt += 1
+    # plt.show()
+    plt.savefig('all_runs.png')
+
+
+def plot_bar_based_on_schedule(schedule):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    x_positions = np.arange(len(result_each_run.keys()))
+    ticks = []
+    cnt = 0
+    for k, v in result_each_run.items():
+        print(v['all'])
+        if schedule in k:
+            ticks.append(k)
+            ax.boxplot(v['all'], positions=np.array([x_positions[cnt]]), autorange=True, showfliers=False)
+        cnt += 1
+    # plt.show()
+    plt.xticks(ticks)
+    plt.ylabel('Latency (s)')
+    plt.savefig('%s.png'%schedule)
+
+def plot_bar_compare_schedule(schedule):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     x_positions = np.arange(len(result_each_run.keys()))
@@ -89,6 +125,9 @@ def main():
     get_all_runs_results(analyze_type, data_dir, frames, key)
 
     plot_bar_across_runs()
+
+    for sched in SCHEDULER:
+        plot_bar_based_on_schedule(sched)
 
     calculate_per_node_std()
 
