@@ -38,6 +38,16 @@ def get_distance(p1, p2):
     return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
 
+def get_counts(assignment):
+    counts = {}
+    for helper in assignment:
+        if helper not in counts:
+            counts[helper] = 1
+        else:
+            counts[helper] += 1
+    return counts
+
+
 def is_in_range(tx_position, rx_position, tx_coverage):
     '''
         Check if a rx is in the coverage of a tx
@@ -207,17 +217,11 @@ def get_v2i_bws(assignment, bws):
 
 def wwan_bw_sched(num_of_helpees, num_of_helpers, bws, is_one_to_one=False):
     print("Using the bw sched")
-    print(bws)
     scores = {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     for assignment in assignments:
         bw = 0
-        counts = {}
-        for helper in assignment:
-            if helper not in counts:
-                counts[helper] = 1
-            else:
-                counts[helper] += 1
+        counts = get_counts(assignment)
         for helpee, helper in enumerate(assignment):
             bw += bws[helper] / (counts[helper] + 1)
         scores[get_id_from_assignment(assignment)] = bw
@@ -259,16 +263,15 @@ def get_interference_counts(assignment, routing_tables):
     return interference_counts
 
 
-def route_sched(num_of_helpees, num_of_helpers, routing_tables):
+def route_sched(num_of_helpees, num_of_helpers, routing_tables, is_one_to_one=False):
     print("Using the routeAware sched")
     scores = {}
-    for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
-        print(assignment)
+    assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
+    for assignment in assignments:
         sum_interference_count = 0
         for interference_count in get_interference_counts(assignment, routing_tables):
             sum_interference_count += interference_count
         scores[get_id_from_assignment(assignment)] = 0 - sum_interference_count
-    print(scores)
     sorted_scores = sorted(scores.items(), key=lambda item: -item[1]) # decreasing order
     return get_assignment_from_id(sorted_scores[0][0])
 
@@ -277,7 +280,8 @@ def get_bw_scores(assignment, v2i_bws):
     scores = []
     for helpee, helper in enumerate(assignment):
         score = 1
-        if 5 < v2i_bws[helpee] < 25:
+        counts = get_counts(assignment)
+        if 5 < v2i_bws[helpee] / (counts[helper] + 1) < 25:
             score = (v2i_bws[helpee] - 5) / 20
         elif v2i_bws[helpee] <= 5:
             score = 0
@@ -302,10 +306,11 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
     return scores
 
 
-def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables):
+def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables, is_one_to_one=False):
     print("Using the combined sched")
     scores = {}
-    for assignment in find_all_one_to_one(num_of_helpees, num_of_helpers):
+    assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
+    for assignment in assignments:
         # distances = get_distances(assignment, positions)
         v2i_bws = get_v2i_bws(assignment, bws)
         interference_counts = get_interference_counts(assignment, routing_tables)
@@ -326,18 +331,6 @@ def bipartite():
 
 def main():
     print(find_all(3, 3))
-    print("Schedule helpers for helpees")
-    # find_all_one_to_one(3, 5)
-    # min_total_distance_sched(1, 2, [[0, 0], [1, 1], [2, 2]])
-    # assignment = coverage_aware_sched(2, 2, [[0, 0], [1, 1], [2, 2], [3, 3]], [2, 2, 2, 2])
-    routing_tables = {4: {0: 2, 1: 2, 2: 2, 3: 3, 5: 5}, 2: {0: 0, 1: 1, 3: 3, 4: 4, 5: 5}, 
-                      5: {0: 2, 1: 2, 2: 2, 3: 3, 4: 4}, 3: {0: 0, 1: 1, 2: 2, 4: 4, 5: 5}, 
-                      1: {0: 0, 2: 2, 3: 3, 4: 2, 5: 2}, 0: {1: 1, 2: 2, 3: 3, 4: 2, 5: 2}}
-    # assignment = route_sched(2, 4, routing_tables)
-    positions = [(0, 0), (40, 0), (0, 40), (40, 40), (0, 80), (40, 80)]
-    bws = [10 for x in range(6)]
-    assignment = combined_sched(2, 4, positions, bws, routing_tables)
-    print("Solution:", assignment)
 
 
 if __name__ == "__main__":
