@@ -33,8 +33,15 @@ def init_config():
     return config_params
 
 
-def kill_mininet():
+def kill_mininet(n):
     cmd = "sudo mn -c"
+    for i in range(n):
+        os.system(cmd)
+        print("+" + cmd)
+
+
+def kill_routing():
+    cmd = "sudo pkill olsrd"
     os.system(cmd)
     print("+" + cmd)
 
@@ -61,7 +68,9 @@ def create_folder():
 
 def run_experiment(config_params):
     cmd = "sudo python3 " +  os.path.dirname(os.path.abspath(__file__)) + "/vehicular_perception.py -n " +\
-         config_params["num_of_nodes"] + " -l " + config_params["location_file"] + " --trace " + config_params["network_trace"] + " -p " + config_params["ptcl_config"] + " -s " + config_params["scheduler"] + " --helpee_conf " + config_params["helpee_conf"] +\
+         config_params["num_of_nodes"] + " -l " + config_params["location_file"] + " --trace " +\
+         config_params["network_trace"] + " -p " + config_params["ptcl_config"] + " -s " + config_params["scheduler"] +\
+         " --helpee_conf " + config_params["helpee_conf"] +\
          " -t " + config_params["t"] + " --fps " + config_params["fps"] + " --run_app" + " -r " + config_params["routing"]
     os.system(cmd)
     print("+" + cmd)
@@ -94,14 +103,15 @@ def run_analysis(folder, config_params):
 
 
 def main():
-    for i in range(10):
-        kill_mininet()
+    for i in range(1):
+        kill_mininet(3)
         clean_output()
         folder = create_folder()
         cmd = "mkdir " + folder
         os.system(cmd)
         print("+", cmd)
         config_params = init_config()
+        config_params["scheduler"] = "minDist"
         print(config_params)
         write_config_to_file(config_params, folder + "/config.txt")
         # config_params = parse_config_from_file(folder + "/config.txt")
