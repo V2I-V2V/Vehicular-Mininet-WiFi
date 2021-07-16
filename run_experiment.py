@@ -89,7 +89,7 @@ def check_exception_in_output():
     print("[INFO] checking output")
     if len(output) != 0:
         print('[INFO] Error found in logs')
-        os.system('touch ' + os.path.dirname(os.path.abspath(__file__)) + "/logs/error.log")
+        os.system('echo \"' + output + '\" >> ' + os.path.dirname(os.path.abspath(__file__)) + "/logs/error.log")
         # sys.exit(1)
     # if output 
 
@@ -125,7 +125,7 @@ def main():
                         settings.append((i, sched, loc, bw_trace, helpee_conf))
     # for cnt, setting in enumerate(settings): 
     #     print(cnt, setting)
-    start = 0
+    start = 29
     for setting in settings[start:]:
         i, sched, loc, bw_trace, helpee_conf = setting
         kill_mininet(3)
