@@ -20,6 +20,7 @@ num_nodes = 6
 SCHEDULER = []
 LOC = []
 BW = []
+HELPEE = []
 
 
 def generate_keys(locs, bws, schedulers=None):
@@ -226,7 +227,6 @@ def plot_bar(data, name):
     cnt = 0
     for value in values:
         mean, std = np.mean(value), np.std(value)
-        # print(value)
         x = np.arange(cnt, (cnt+1))
         plt.errorbar(x, mean, yerr=std, capsize=4)
         ax.scatter(x, mean)
