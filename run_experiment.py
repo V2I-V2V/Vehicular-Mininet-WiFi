@@ -85,15 +85,15 @@ def run_experiment(config_params):
 def check_exception_in_output():
     logs = os.path.dirname(os.path.abspath(__file__)) + "/logs/"
     proc = subprocess.Popen("grep -nr \"Traceback\" %s"%logs, stdout=subprocess.PIPE, shell=True)
-    (tb_output, err) = proc.communicate()
-    tb_output = tb_output.decode('utf-8').split('\n')
+    (output, err) = proc.communicate()
+    tb_output = output.decode('utf-8').split('\n')
     proc = subprocess.Popen("grep -nr \"ConnectionResetError:\" %s"%logs, stdout=subprocess.PIPE, shell=True)
     (cr_output, err) = proc.communicate() 
     cr_output = cr_output.decode('utf-8').split('\n')
     print("[INFO] checking output")
     if len(tb_output) != len(cr_output):
         print('[INFO] Error found in logs')
-        os.system('echo \"' + tb_output + '\" > ' + os.path.dirname(os.path.abspath(__file__))\
+        os.system('echo \"' + tb_output.decode('utf-8') + '\" > ' + os.path.dirname(os.path.abspath(__file__))\
                     + "/logs/error.log")
         # sys.exit(1)
     # if output 
