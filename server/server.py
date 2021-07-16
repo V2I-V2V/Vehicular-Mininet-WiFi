@@ -39,7 +39,10 @@ def update_bw(trace_filename):
         cur_time = time.time()
         j = int(cur_time - init_time)
         for i in range(all_bandwidth.shape[1]):
-            bws[i] = v2i_bw_traces[i][j]
+            if j >= all_bandwidth.shape[0]:
+                bws[i] = v2i_bw_traces[i][-1]
+            else:
+                bws[i] = v2i_bw_traces[i][j]
 
 
 def bw_update_thread(trace_filename):
