@@ -27,7 +27,7 @@ default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0'
 default_loc_file = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/location-multihop.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
-time_to_run = 100
+time_to_run = 70
 trace_filename = os.path.dirname(os.path.abspath(__file__)) + "/input/traces/constant.txt"
 routing = 'olsrd'
 no_control = 0
@@ -51,6 +51,7 @@ def replay_trace_thread_on_sta(sta, ifname, thrpt_trace):
     replay_thread = thread(target=replay_trace, args=(sta, ifname, thrpt_trace))
     replay_thread.daemon = True
     replay_thread.start()
+    return replay_thread
 
 
 def create_nodes(net, num_nodes, locations):
@@ -111,6 +112,15 @@ def setup_ip(node, ip, ifname):
     node.setIP(ip, intf=ifname)
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
+
+def kill_application():
+    print("*** Stop server.py and vehicle.py ***")
+    cmd = "kill -9 $(ps aux | grep \"[v]ehicle.py\" | awk {'print $2'})"
+    os.system(cmd)
+    cmd = "kill -9 $(ps aux | grep \"[s]erver.py\" | awk {'print $2'})"
+    os.system(cmd)
+    cmd = "kill -9 $(ps aux | grep \"[d]ynamic.py\" | awk {'print $2'})"
+    os.system(cmd)
 
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
                     save=0):
@@ -189,10 +199,12 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     c1.start()
     s1.start([c1])
 
-
     ### Trace replaying ###
+    replaying_threads = []
     for i in range(num_nodes):
-        replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i])
+        replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i])
+        replaying_threads.append(replaying_thread)
+
 
     ### Configure routing if custom
     if routing == 'custom':
@@ -223,6 +235,12 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
         time.sleep(time_to_run)
     else:
         CLI(net)
+
+    mobility_thread.join()
+    for replaying_thread in replaying_threads:
+        replaying_thread.join()
+    
+    kill_application()
 
     info("*** Stopping network\n")
     net.stop()
