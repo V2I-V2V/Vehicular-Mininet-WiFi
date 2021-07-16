@@ -97,8 +97,6 @@ def plot_dict_data_cdf(dict, name):
 
 def plot_based_on_setting():
     all_keys = generate_keys(LOC, BW, SCHEDULER)
-    for key in all_keys:
-        node_result = calculate_per_node_std([key[0], key[1], key[2]])
 
     result = construct_result_based_on_keys(all_keys)
     # print(result)
@@ -197,7 +195,7 @@ def plot_bar_compare_schedule(schedules):
     plt.savefig('analysis-results/schedule_compare.png')
 
 
-def calculate_per_node_std(setting):
+def calculate_per_node_mean(setting):
     print("Setting: %s" % str(setting))
     node_result = {}
     for k, v in result_each_run.items():
@@ -207,9 +205,9 @@ def calculate_per_node_std(setting):
             for i in range(num_nodes):
                 node_latency = v[i] 
                 if i in node_result.keys():
-                    node_result[i].append(np.std(node_latency))
+                    node_result[i].append(np.mean(node_latency))
                 else:
-                    node_result[i] = [np.std(node_latency)]
+                    node_result[i] = [np.mean(node_latency)]
    
     # print(node_result)
     return node_result
@@ -224,18 +222,20 @@ def plot_bar(data, name):
     values = data.values()
     cnt = 0
     for value in values:
+        mean, std = np.mean(value), np.std(value)
         # print(value)
-        x = np.arange(cnt*(len(value)), (cnt+1)*len(value))
-        ax.bar(x, value)
+        x = np.arange(cnt, (cnt+1))
+        plt.errorbar(x, mean, yerr=std, capsize=4)
+        ax.scatter(x, mean)
         cnt += 1
     
-    plt.ylabel('Variance')
+    plt.ylabel('Average Latency (s)')
     plt.savefig('analysis-results/%s-per-node.png'%name)
 
 def repeat_exp_analysis():
     all_keys = generate_keys(LOC, BW, SCHEDULER)
     for key in all_keys:
-        node_result = calculate_per_node_std([key[0], key[1], key[2]])
+        node_result = calculate_per_node_mean(key)
         # print("node results")
         # print(node_result)
         plot_bar(node_result, str(key))
