@@ -25,15 +25,16 @@ HELPEE = []
 
 
 
-def generate_keys(locs, bws, schedulers=None):
+def generate_keys(locs, bws, helpees, schedulers=None):
     keys = []
     for l in locs:
         for b in bws:
-            if schedulers is not None:
-                for s in schedulers:
-                    keys.append((l,b,s))
-            else:
-                keys.append((l,b))
+            for h in helpees:
+                if schedulers is not None:
+                    for s in schedulers:
+                        keys.append((l,b,s,h))
+                else:
+                    keys.append((l,b,h))
     return keys
 
 
@@ -45,7 +46,6 @@ def check_keys_matched(key, file_key):
     return matched
 
 
-    
 
 def construct_result_based_on_keys(keys):
     result = {}
@@ -66,7 +66,7 @@ def find_data_with_partial_keys(partial_keys, data):
     for k,v in data.items():
         matched = check_keys_matched(partial_keys, k)
         if matched:
-            result[k] = v['all']
+            result[k] = v
     return result
 
 def plot_dict_data_box(dict, name, idx):
@@ -96,16 +96,16 @@ def plot_dict_data_cdf(dict, name, idx):
 
 
 def plot_based_on_setting():
-    # all_keys = generate_keys(LOC, BW, SCHEDULER)
+    all_keys = generate_keys(LOC, BW, HELPEE, SCHEDULER)
 
-    # result = construct_result_based_on_keys(all_keys)
-    # print(result)
+    result = construct_result_based_on_keys(all_keys)
+    print(result)
     for loc in LOC:
         for bw in BW:
             for helpee in HELPEE:
-                partial_results = find_data_with_partial_keys([loc, bw, helpee], result_each_run)
-                plot_dict_data_box(partial_results, str([loc, bw, helpee]), 1)
-                plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 1)
+                partial_results = find_data_with_partial_keys((loc, bw, helpee), result)
+                plot_dict_data_box(partial_results, str([loc, bw, helpee]), 2)
+                plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 2)
 
 
 def plot_based_on_setting_multi():
@@ -113,7 +113,7 @@ def plot_based_on_setting_multi():
         for bw in BW:
             for helpee in HELPEE:
                 for sched in SCHEDULER:
-                    partial_results = find_data_with_partial_keys([loc, bw, helpee, sched],result_each_run)
+                    partial_results = find_data_with_partial_keys((loc, bw, helpee, sched),result_each_run)
                     plot_dict_data_box(partial_results, str([loc, bw, helpee, sched]), 3)
                     plot_dict_data_cdf(partial_results, str([loc, bw, helpee, sched]), 3)
                     
