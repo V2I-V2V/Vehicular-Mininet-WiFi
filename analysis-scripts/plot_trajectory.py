@@ -17,11 +17,10 @@ fig = plt.figure(figsize=(7,7))
 ax = fig.add_subplot(111)
 
 for i in range(int(traj.shape[1]/2)):
-    # ax.plot(traj[:,2*i], traj[:,2*i+1], label='node%d'%i)
-    ax.scatter([traj[:,2*i][0]], [traj[:,2*i+1][0]], s=184, label='node%d'%i)
-    ax.scatter(traj[:,2*i], traj[:,2*i+1], s=84, label='node%d'%i)
-    print(traj[:,2*i+1][-1])
-    # ax.scatter(traj[:,2*i][-1], traj[:,2*i+1][-1])
+    ax.plot(traj[:,2*i], traj[:,2*i+1], label='node%d'%i)
+    trajs[i] = traj[:,2*i:2*i+2]
+for i in range(int(traj.shape[1]/2)):
+    ax.scatter([traj[:,2*i][0]], [traj[:,2*i+1][0]], s=34)
     trajs[i] = traj[:,2*i:2*i+2]
 # plt.xlim([-10, 50])
 # plt.ylim([-10, 100])

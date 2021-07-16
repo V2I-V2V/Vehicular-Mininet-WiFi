@@ -81,6 +81,7 @@ def plot_dict_data_box(dict, name):
         plt.boxplot(dict[k], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False) # TODO: select part of the tail
         cnt += 1
     plt.xticks(range(0, len(ticks)), ticks, fontsize=10)
+    plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/%s.png'%name)
 
 def plot_dict_data_cdf(dict, name):
@@ -192,6 +193,7 @@ def plot_bar_compare_schedule(schedules):
         ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
 
+    ax.set_xticklabels(schedules)
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/schedule_compare.png')
 
