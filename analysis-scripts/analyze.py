@@ -78,9 +78,10 @@ def plot_dict_data_box(dict, name):
     x_positions = np.arange(len(result_each_run.keys()))
     cnt = 0
     for k in labels:
-        plt.boxplot(dict[k], positions=np.array([x_positions[cnt]]), autorange=True, showfliers=False) # TODO: select part of the tail
+        plt.boxplot(dict[k], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False) # TODO: select part of the tail
         cnt += 1
     plt.xticks(range(0, len(ticks)), ticks, fontsize=10)
+    plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/%s.png'%name)
 
 def plot_dict_data_cdf(dict, name):
@@ -152,8 +153,9 @@ def plot_bar_across_runs():
     x_positions = np.arange(len(result_each_run.keys()))
     cnt = 0
     for k, v in result_each_run.items():
-        ax.boxplot(v['all'], positions=np.array([x_positions[cnt]]), autorange=True, showfliers=False)
+        ax.boxplot(v['all'], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
+    plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/all_runs.png')
 
 
@@ -166,7 +168,7 @@ def plot_bar_based_on_schedule(schedule):
     for k, v in result_each_run.items():
         if schedule in k:
             ticks.append(k)
-            ax.boxplot(v['all'], positions=np.array([x_positions[cnt]]), autorange=True, showfliers=False)
+            ax.boxplot(v['all'], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
     # ax.set_xticklabels(ticks)
     plt.ylabel('Latency (s)')
@@ -188,9 +190,10 @@ def plot_bar_compare_schedule(schedules):
                     schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
     
     for schedule in schedule_data.keys():
-        ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]]), autorange=True, showfliers=False)
+        ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
 
+    ax.set_xticklabels(schedules)
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/schedule_compare.png')
 
