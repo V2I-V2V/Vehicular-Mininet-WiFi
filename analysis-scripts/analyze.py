@@ -23,6 +23,8 @@ BW = []
 HELPEE = []
 
 
+
+
 def generate_keys(locs, bws, schedulers=None):
     keys = []
     for l in locs:
@@ -36,7 +38,6 @@ def generate_keys(locs, bws, schedulers=None):
 
 
 def check_keys_matched(key, file_key):
-    # file_key = file_key[14:]
     matched = True
     for k_element in key:
         if k_element not in file_key:
@@ -65,49 +66,57 @@ def find_data_with_partial_keys(partial_keys, data):
     for k,v in data.items():
         matched = check_keys_matched(partial_keys, k)
         if matched:
-            result[k] = v
+            result[k] = v['all']
     return result
 
-def plot_dict_data_box(dict, name):
+def plot_dict_data_box(dict, name, idx):
     plt.figure()
     labels, data = dict.keys(), dict.values()
     ticks = []
     for label in labels:
-        ticks.append(label[2])
-    # print('Boxplot data')
-    # print(data)
+        ticks.append(label[idx])
     x_positions = np.arange(len(result_each_run.keys()))
     cnt = 0
     for k in labels:
-        plt.boxplot(dict[k], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False) # TODO: select part of the tail
+        plt.boxplot(dict[k], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
     plt.xticks(range(0, len(ticks)), ticks, fontsize=10)
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/%s.png'%name)
 
-def plot_dict_data_cdf(dict, name):
+def plot_dict_data_cdf(dict, name, idx):
     plt.figure()
     labels, data = list(dict.keys()), list(dict.values())
-    print(labels)
     ticks = []
     for label_idx in range(len(labels)):
-        ticks.append(labels[label_idx][2])
-        sns.ecdfplot(data[label_idx], label=labels[label_idx][2])
+        ticks.append(labels[label_idx][idx])
+        sns.ecdfplot(data[label_idx], label=labels[label_idx][idx])
     plt.legend()
     plt.savefig('analysis-results/%s-cdf.png'%name)
 
 
 def plot_based_on_setting():
-    all_keys = generate_keys(LOC, BW, SCHEDULER)
+    # all_keys = generate_keys(LOC, BW, SCHEDULER)
 
-    result = construct_result_based_on_keys(all_keys)
+    # result = construct_result_based_on_keys(all_keys)
     # print(result)
     for loc in LOC:
         for bw in BW:
-            partial_results = find_data_with_partial_keys([loc, bw], result)
-            plot_dict_data_box(partial_results, str([loc, bw]))
-            plot_dict_data_cdf(partial_results, str([loc, bw]))
-            
+            for helpee in HELPEE:
+                partial_results = find_data_with_partial_keys([loc, bw, helpee], result_each_run)
+                plot_dict_data_box(partial_results, str([loc, bw, helpee]), 1)
+                plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 1)
+
+
+def plot_based_on_setting_multi():
+    for loc in LOC:
+        for bw in BW:
+            for helpee in HELPEE:
+                for sched in SCHEDULER:
+                    partial_results = find_data_with_partial_keys([loc, bw, helpee, sched],result_each_run)
+                    plot_dict_data_box(partial_results, str([loc, bw, helpee, sched]), 3)
+                    plot_dict_data_cdf(partial_results, str([loc, bw, helpee, sched]), 3)
+                    
 
 
 
@@ -119,7 +128,7 @@ def get_per_experiment_stats(result_dir, node_num):
     return stats
 
 
-def get_all_runs_results(analyze_type, data_dir, frames, key):
+def get_all_runs_results(analyze_type, data_dir, frames, key, have_multi=False):
     global num_nodes
     if analyze_type == 'single':
         config = run_experiment.parse_config_from_file(data_dir+'/config.txt')
@@ -134,13 +143,20 @@ def get_all_runs_results(analyze_type, data_dir, frames, key):
                 scheduler = config["scheduler"]
                 network = config["network_trace"].split('/')[-1][:-4]
                 mobility = config["location_file"].split('/')[-1][:-4]
+                helpee = config["helpee_conf"].split('/')[-1][:-4]
                 if scheduler not in SCHEDULER:
                     SCHEDULER.append(scheduler)
                 if network not in BW:
                     BW.append(network)
                 if mobility not in LOC:
                     LOC.append(mobility)
-                conf_key = (dir, scheduler, network, mobility)
+                if helpee not in HELPEE:
+                    HELPEE.append(helpee)
+                if have_multi:
+                    is_multi = config["multi"]
+                    conf_key = (dir, scheduler, network, mobility, is_multi, helpee)
+                else:
+                    conf_key = (dir, scheduler, network, mobility, helpee)
                 num_nodes = int(config["num_of_nodes"])
                 files = os.listdir(data_dir+dir)
                 if 'all_delay.txt' not in files:           
@@ -253,6 +269,7 @@ def main():
     # parser.add_argument('-n', '--num_nodes', default=6, type=int, help="number of nodes")
     parser.add_argument('-f', '--frames', default=80, type=int, help='number of frames considered')
     parser.add_argument('-k', '--keys', default='data-', type=str, help='key on data dir')
+    parser.add_argument('-m', '--multi', default=False, type=bool, help='compare multi helper')
 
     args = parser.parse_args()
 
@@ -260,10 +277,11 @@ def main():
     data_dir = args.data_dir
     frames = args.frames
     key = args.keys
+    have_multi = args.multi
 
     os.system('mkdir analysis-results/')
 
-    get_all_runs_results(analyze_type, data_dir, frames, key)
+    get_all_runs_results(analyze_type, data_dir, frames, key, have_multi)
 
     plot_bar_across_runs()
 
@@ -276,6 +294,9 @@ def main():
 
     # calculate_per_node_std()
     repeat_exp_analysis()
+
+    if have_multi:
+        plot_based_on_setting_multi()
 
 
 if __name__ == '__main__':
