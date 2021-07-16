@@ -89,7 +89,7 @@ def check_exception_in_output():
     print("[INFO] checking output")
     if len(output) != 0:
         print('[INFO] Error found in logs')
-        os.system('echo \"' + output + '\" >> ' + os.path.dirname(os.path.abspath(__file__)) + "/logs/error.log")
+        os.system('echo \"' + output + '\" > ' + os.path.dirname(os.path.abspath(__file__)) + "/logs/error.log")
         # sys.exit(1)
     # if output 
 
