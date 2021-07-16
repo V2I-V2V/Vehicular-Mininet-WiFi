@@ -92,6 +92,7 @@ def plot_dict_data_cdf(dict, name, idx):
         ticks.append(labels[label_idx][idx])
         sns.ecdfplot(data[label_idx], label=labels[label_idx][idx])
     plt.legend()
+    plt.ylabel('CDF')
     plt.savefig('analysis-results/%s-cdf.png'%name)
 
 
@@ -165,7 +166,7 @@ def get_all_runs_results(analyze_type, data_dir, frames, key, have_multi=False):
 
 
 def plot_bar_across_runs():
-    fig = plt.figure()
+    fig = plt.figure(figsize=(50, 8))
     ax = fig.add_subplot(111)
     x_positions = np.arange(len(result_each_run.keys()))
     cnt = 0
@@ -252,7 +253,7 @@ def plot_bar(data, name):
     plt.savefig('analysis-results/%s-per-node.png'%name)
 
 def repeat_exp_analysis():
-    all_keys = generate_keys(LOC, BW, SCHEDULER)
+    all_keys = generate_keys(LOC, BW, HELPEE, SCHEDULER)
     for key in all_keys:
         node_result = calculate_per_node_mean(key)
         # print("node results")
