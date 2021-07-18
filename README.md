@@ -5,10 +5,10 @@ Scripts to run mininet-wifi experiments on vehicular perception.
 
 ```
 git clone https://github.com/intrig-unicamp/mininet-wifi.git ~/mininet-wifi
-pip3 install -r requirements.txt
-cp mininet-scripts/install.sh ~/mininet-wifi/util/install.sh # this install.sh has been modified to work with only python3
+pip3 install -r requirement.txt
 cd ~/mininet-wifi
 git checkout 66a20d80063b83111df950762d260774a38d620a
+cp ~/Vehicular-Mininet-WiFi/mininet-scripts/install.sh ~/mininet-wifi/util/install.sh # this install.sh has been modified to work with only python3
 sudo util/install.sh -Wlnfv
 ```
 

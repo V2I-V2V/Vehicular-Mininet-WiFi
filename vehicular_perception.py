@@ -27,6 +27,7 @@ default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0'
 default_loc_file = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/location-multihop.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
+tx_power = 25
 time_to_run = 70
 trace_filename = os.path.dirname(os.path.abspath(__file__)) + "/input/traces/constant.txt"
 routing = 'olsrd'
@@ -71,6 +72,7 @@ def create_adhoc_links(net, node, ifname):
     channel_num = 5
     net.addLink(node, cls=adhoc, intf=ifname, ssid='adhocNet', \
                 mode='g', channel=channel_num, **kwargs)
+    node.setTxPower(tx_power)
 
 
 def create_wired_links(net, node, switch, bw):
@@ -329,6 +331,9 @@ if __name__ == '__main__':
     
     if '-r' in sys.argv:
         routing = sys.argv[sys.argv.index('-r')+1]
+    
+    if '--power' in sys.argv:
+        tx_power = int(sys.argv[sys.argv.index('--power')+1])
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
