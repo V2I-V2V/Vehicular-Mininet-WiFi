@@ -28,7 +28,7 @@ def find_all(num_of_helpees, num_of_helpers):
         last_assignments = get_assignments(n - 1)
         for i in range(len(last_assignments)):
             for j in range(num_of_helpers):
-                assignments.append((j + num_of_helpees,) + last_assignments[i])
+                assignments.append(last_assignments[i] + (j + num_of_helpees,))
         return assignments
 
     return get_assignments(num_of_helpees)

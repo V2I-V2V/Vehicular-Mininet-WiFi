@@ -23,6 +23,7 @@ REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 sys.stderr = sys.stdout
 
+curr_connected_vehicles = 0
 conn_lock = threading.Lock()
 init_time = 0
 bws = {}
@@ -98,6 +99,21 @@ class SchedThread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
+    def ready_to_schedule(self, scheduler_mode):
+        if curr_connected_vehicles == 0:
+            return False
+        elif scheduler_mode == "minDist" or scheduler_mode == "bwAware":
+            return len(location_map) == curr_connected_vehicles
+        elif scheduler_mode == 'routeAware':
+            return len(route_map.keys()) == curr_connected_vehicles
+        elif scheduler_mode == 'combined':
+            return (len(location_map) == curr_connected_vehicles) and \
+                (len(location_map) == curr_connected_vehicles)
+        elif scheduler_mode == 'random' or scheduler_mode == 'fixed':
+            return True
+        else:
+            return False
+
 
     def run(self):
         global current_assignment
@@ -113,20 +129,20 @@ class SchedThread(threading.Thread):
                     msg = int(real_helpee).to_bytes(2, 'big')
                     if real_helper in client_sockets.keys():
                         client_sockets[real_helper].send(msg)
-            elif len(location_map) == num_vehicles:
+            elif self.ready_to_schedule(scheduler_mode):
                 print(scheduler_mode)
                 positions = []
                 routing_tables = []
                 helper_list = []
                 helpee_count, helper_count = 0, 0
-                for i in range(num_vehicles):
+                for i in range(curr_connected_vehicles):
                     if vehicle_types[i] == HELPEE:
                         helpee_count += 1
                         helper_list.append(HELPEE)
                     else:
                         helper_count += 1
                         helper_list.append(HELPER)
-                if helpee_count == 0:
+                if helpee_count == 0: # skip scheduling if no helpee
                     continue
                 helper_list = np.array(helper_list)
                 mapped_nodes = np.argsort(helper_list)
@@ -289,7 +305,7 @@ class DataConnectionThread(threading.Thread):
 
 
 def main():
-    global init_time
+    global init_time, curr_connected_vehicles
     init_time = time.time()
     HOST = ''
     PORT = 6666
@@ -309,6 +325,7 @@ def main():
     while True:
         server.listen()
         client_socket, client_address = server.accept()
+        curr_connected_vehicles += 1 # add a new vehicle to schedule
         newthread = ControlConnectionThread(client_address, client_socket)
         newthread.daemon = True
         newthread.start()
