@@ -24,6 +24,19 @@ def construct_control_msg_header(msg_payload, msg_type):
 
 
 def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id):
+    """Construct a data message header
+    |---- 4 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|
+    | message length  |    frame id     |    vehicle id   |  message type   |    
+
+    Args:
+        msg_payload (int): length of the msg payload
+        msg_type (int): type of msg
+        frame_id (int): frame id
+        vehicle_id (int): vehicle id
+
+    Returns:
+        headers [bytes]
+    """
     msg_len = len(msg_payload)
     header = msg_len.to_bytes(4, "big") + frame_id.to_bytes(2, "big") \
                 + vehicle_id.to_bytes(2, "big") + msg_type.to_bytes(2, 'big')
