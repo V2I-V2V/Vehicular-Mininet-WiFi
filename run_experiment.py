@@ -114,6 +114,9 @@ def run_analysis(folder, config_params):
 
 
 def main():
+    print("This is juat a template on running experiments. Please do not direcly call\
+             python3 run_experiment.py. Exiting.....")
+    sys.exit(1)
     scheds = ['bwAware', 'random', 'minDist']
     locs = [os.path.dirname(os.path.abspath(__file__)) + "/input/locations/" + x \
         for x in [ 'location-multihop.txt', '106.txt', '5.txt']]
