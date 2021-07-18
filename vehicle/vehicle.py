@@ -277,10 +277,6 @@ class ServerControlThread(threading.Thread):
                 elif if_not_assigned_as_helper(helpee_id):
                     print("Not assigned as helper.. " + str(time.time()))
                 else:
-                    # if current_helpee_id == helpee_id:
-                    #     # print("already helping node " + str(current_helpee_id))
-                    #     pass
-                    # else:
                     print("[Helper get assignment from server] helpee_id: " +\
                                 str(helpee_id) + ' ' + str(time.time()))
                     print(self_loc)
@@ -394,10 +390,9 @@ class VehicleDataRecvThread(threading.Thread):
         helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
                                                             config.server_data_port)
         while True and not self._is_closed:
-            header_len = 10
             data = b''
-            header_to_recv = header_len
-            while len(data) < header_len:
+            header_to_recv = message.DATA_MSG_HEADER_LEN
+            while len(data) < message.DATA_MSG_HEADER_LEN:
                 data_recv = self.client_socket.recv(header_to_recv)
                 data += data_recv
                 if len(data_recv) <= 0:
@@ -407,11 +402,8 @@ class VehicleDataRecvThread(threading.Thread):
                     return
                 header_to_recv -= len(data_recv)
                 v2v_recved_bytes += len(data_recv)
-            msg_len = int.from_bytes(data[0:4], "big")
-            frame_id = int.from_bytes(data[4:6], "big")
-            v_id = int.from_bytes(data[6:8], "big")
-            type = int.from_bytes(data[8:10], "big")
-            to_send = header_len
+            msg_len, frame_id, v_id, type = message.parse_data_msg_header(data)
+            to_send = message.DATA_MSG_HEADER_LEN
             sent = 0
             while sent < to_send:
                 sent_len = helper_relay_server_sock.send(data[sent:])
@@ -463,8 +455,6 @@ class VehicleDataSendThread(threading.Thread):
                 oxts = oxts_data_buffer[curr_frame_id]
                 curr_frame_id += 1
                 frame_lock.release()
-                # pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]),
-                #                                 PCD_ENCODE_LEVEL, PCD_QB)
                 print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
                          + str(current_helper_id) + ' ' + str(time.time()), flush=True)
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
