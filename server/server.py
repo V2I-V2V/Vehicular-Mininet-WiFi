@@ -63,12 +63,15 @@ parser.add_argument('-s', '--scheduler', default='minDist', type=str,
 parser.add_argument('-t', '--trace_filename', default='', type=str, help='trace file to use')
 parser.add_argument('-d', '--data_save', default=0, type=int, 
                     help='whether to save undecoded pcds')
+parser.add_argument('-m', '--multi', default=1, type=int, 
+                    help='whether to use one-to-many assignment')
 
 args = parser.parse_args()
 trace_filename = args.trace_filename
 scheduler_mode = args.scheduler
 fixed_assignment = ()
 save = args.data_save
+is_one_to_one = 1 - args.multi
 if args.fixed_assignment is not None:
     scheduler_mode = "fixed"
     fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
@@ -158,16 +161,16 @@ class SchedThread(threading.Thread):
                             routing_table[original_to_new[k]] = original_to_new[v]
                     routing_tables.append(routing_table)
                 if scheduler_mode == 'combined':
-                    assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables)
+                    assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, is_one_to_one)
                 elif scheduler_mode == 'minDist':
-                    assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions)
+                    assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions, is_one_to_one)
                 elif scheduler_mode == 'bwAware':
-                    assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws)
+                    assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
                 elif scheduler_mode == 'routeAware':
-                    assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables)
+                    assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
-                    assignment = scheduling.random_sched(helpee_count, helper_count, random_seed)
+                    assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 for cnt, node in enumerate(assignment):
                     real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]

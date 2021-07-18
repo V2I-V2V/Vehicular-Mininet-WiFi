@@ -123,16 +123,16 @@ def kill_application():
     os.system(cmd)
 
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
-                    save=0):
+                    save=0, is_one_to_many=1):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 %s/server/server.py -f %s -n %d -t %s -d %d > %s/logs/server.log 2>&1 &"\
-             % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, CODE_DIR)
+        server_cmd = "python3 %s/server/server.py -f %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 %s/server/server.py -s %s -n %d -t %s -d %d > %s/logs/server.log 2>&1 &"\
-             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, CODE_DIR)
+        server_cmd = "python3 %s/server/server.py -s %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, CODE_DIR)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
@@ -164,7 +164,7 @@ def run_custom_routing(nodes):
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
                 enable_tcpdump=False, run_app=False, scheduler="minDist",
-                helpee_conf=None, fps=1, save=0, mininet_replay_mob=False):
+                helpee_conf=None, fps=1, save=0, mininet_replay_mob=False, is_one_to_many=1):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     
     info("*** Creating nodes\n")
@@ -213,7 +213,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### Run application ###
     if run_app is True:
         info("\n*** Running vehicuar server\n")
-        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save)
+        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save, is_one_to_many)
     
     ### Collect tcpdump trace ###
     if enable_tcpdump is True:
@@ -265,6 +265,7 @@ if __name__ == '__main__':
     enable_tcpdump = False
     run_app = False
     data_save = 0 # by default, dont save pcd
+    is_one_to_many = 1
     scheduler = 'minDist'
     fps = 1
     helpee_conf_file = os.path.dirname(os.path.abspath(__file__)) + '/input/helpee_conf/helpee-nodes.txt'
@@ -329,9 +330,12 @@ if __name__ == '__main__':
     
     if '-r' in sys.argv:
         routing = sys.argv[sys.argv.index('-r')+1]
+    
+    if '--multi' in sys.argv:
+        is_one_to_many = int(sys.argv[sys.argv.index('--multi') + 1])
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
             enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
             helpee_conf=helpee_conf_file, fps=fps, save=data_save,\
-            mininet_replay_mob=mininet_mob_replay) 
+            mininet_replay_mob=mininet_mob_replay, is_one_to_many=is_one_to_many) 
