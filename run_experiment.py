@@ -29,7 +29,7 @@ def init_config():
     config_params = {"num_of_nodes": "6", "location_file": input_path + "/locations/location-mindist-bw.txt",
                      "network_trace": input_path + "/traces/trace-mindist-bw.txt", "ptcl_config": input_path + "/pcds/pcd-data-config.txt",
                      "scheduler": "minDist", "fps": "10", "t": "70", "helpee_conf": input_path + "/helpee_conf/helpee-nodes.txt",
-                     "routing": "custom", "frames": "300"}
+                     "routing": "custom", "frames": "300", "one_to_many": '1'}
     return config_params
 
 
@@ -77,7 +77,8 @@ def run_experiment(config_params):
          config_params["num_of_nodes"] + " -l " + config_params["location_file"] + " --trace " +\
          config_params["network_trace"] + " -p " + config_params["ptcl_config"] + " -s " + config_params["scheduler"] +\
          " --helpee_conf " + config_params["helpee_conf"] +\
-         " -t " + config_params["t"] + " --fps " + config_params["fps"] + " --run_app" + " -r " + config_params["routing"]
+         " -t " + config_params["t"] + " --fps " + config_params["fps"] + " --run_app" + " -r " + config_params["routing"] +\
+         " --multi " + config_params["one_to_many"]
     os.system(cmd)
     print("+" + cmd)
 
@@ -114,6 +115,9 @@ def run_analysis(folder, config_params):
 
 
 def main():
+    print("This is juat a template on running experiments. Please do not direcly call\
+             python3 run_experiment.py. Exiting.....")
+    sys.exit(1)
     scheds = ['bwAware', 'random', 'minDist']
     locs = [os.path.dirname(os.path.abspath(__file__)) + "/input/locations/" + x \
         for x in [ 'location-multihop.txt', '106.txt', '5.txt']]

@@ -19,6 +19,7 @@ TYPE_PCD = 0
 TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
+NODE_LEFT_TIMEOUT = 2.0
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 sys.stderr = sys.stdout
@@ -87,8 +88,10 @@ num_vehicles = args.num_vehicles
 location_map = {}
 route_map = {} # map v_id to the vechile's routing table
 node_seq_nums = {}
+node_last_recv_timestamp = {}
 client_sockets = {}
 vehicle_types = {} # 0 for helpee, 1 for helper
+current_connected_vids = []
 pcds = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
 oxts = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
 curr_processed_frame = 0
@@ -102,16 +105,26 @@ class SchedThread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
+
+    def check_if_loc_map_complete(self, vids):
+        return set(vids).issubset(set(location_map.keys()))
+    
+    def check_if_route_map_conplete(self, vids):
+        return set(vids).issubset(set(route_map.keys()))
+
+
     def ready_to_schedule(self, scheduler_mode):
-        if curr_connected_vehicles == 0:
+        global current_connected_vids
+        current_connected_vids = check_current_connected_vehicles()
+        if len(current_connected_vids) < 2:
             return False
         elif scheduler_mode == "minDist" or scheduler_mode == "bwAware":
-            return len(location_map) == curr_connected_vehicles
+            return self.check_if_loc_map_complete(current_connected_vids)
         elif scheduler_mode == 'routeAware':
-            return len(route_map.keys()) == curr_connected_vehicles
+            return self.check_if_route_map_conplete(current_connected_vids)
         elif scheduler_mode == 'combined':
-            return (len(location_map) == curr_connected_vehicles) and \
-                (len(location_map) == curr_connected_vehicles)
+            return self.check_if_loc_map_complete(current_connected_vids) and \
+                self.check_if_route_map_conplete(current_connected_vids)
         elif scheduler_mode == 'random' or scheduler_mode == 'fixed':
             return True
         else:
@@ -138,7 +151,7 @@ class SchedThread(threading.Thread):
                 routing_tables = []
                 helper_list = []
                 helpee_count, helper_count = 0, 0
-                for i in range(curr_connected_vehicles):
+                for i in current_connected_vids:
                     if vehicle_types[i] == HELPEE:
                         helpee_count += 1
                         helper_list.append(HELPEE)
@@ -148,7 +161,7 @@ class SchedThread(threading.Thread):
                 if helpee_count == 0: # skip scheduling if no helpee
                     continue
                 helper_list = np.array(helper_list)
-                mapped_nodes = np.argsort(helper_list)
+                mapped_nodes = np.array(current_connected_vids)[np.argsort(helper_list)]
                 print(mapped_nodes)
                 original_to_new = {}
                 for cnt, mapped_node_id in enumerate(mapped_nodes):
@@ -178,11 +191,6 @@ class SchedThread(threading.Thread):
                     print("send %d to node %d" % (real_helpee, real_helper))
                     msg = int(real_helpee).to_bytes(2, 'big')
                     client_sockets[real_helper].send(msg)
-                # for node_num in range(0, helpee_count+helper_count):
-                #     if node_num not in assignment:
-                #         # print("send %d to node %d" % (65535, node_num))
-                #         msg = int(65535).to_bytes(2, 'big')
-                #         client_sockets[node_num].send(msg)
             time.sleep(0.2)
 
 
@@ -199,6 +207,7 @@ class ControlConnectionThread(threading.Thread):
         # print("Connection from : ", self.client_address)
         data = self.client_socket.recv(2)
         vehicle_id = int.from_bytes(data, "big")
+        node_last_recv_timestamp[vehicle_id] = time.time()
         client_sockets[vehicle_id] = self.client_socket
         header, payload = message.recv_msg(self.client_socket,\
                                         message.TYPE_CONTROL_MSG)
@@ -220,8 +229,19 @@ class ControlConnectionThread(threading.Thread):
                 print(route_map)
                 vehicle_types[v_id] = v_type
                 node_seq_nums[v_id] = seq_num
+            node_last_recv_timestamp[v_id] = time.time()
             header, payload = message.recv_msg(self.client_socket, message.TYPE_CONTROL_MSG)
         self.client_socket.close()
+
+
+def check_current_connected_vehicles():
+    curr_connected_vehicles = []
+    for v_id, last_ts in sorted(node_last_recv_timestamp.items()):
+        curr_ts = time.time()
+        if curr_ts - last_ts < NODE_LEFT_TIMEOUT: 
+            # node are still reachable from the server, either helpee or helper
+            curr_connected_vehicles.append(v_id)
+    return curr_connected_vehicles
 
 
 def server_recv_data(client_socket, client_addr):
