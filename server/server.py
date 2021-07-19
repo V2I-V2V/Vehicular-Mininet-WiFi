@@ -175,7 +175,7 @@ class SchedThread(threading.Thread):
                                 routing_table[original_to_new[k]] = original_to_new[v]
                         routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
                 if scheduler_mode == 'combined':
-                    assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, is_one_to_one)
+                    assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, route_map, is_one_to_one)
                 elif scheduler_mode == 'minDist':
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions, is_one_to_one)
                 elif scheduler_mode == 'bwAware':
