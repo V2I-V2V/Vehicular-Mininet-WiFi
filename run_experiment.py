@@ -33,7 +33,7 @@ def init_config():
     return config_params
 
 
-def kill_mininet(n):·
+def kill_mininet(n):
     cmd = "sudo mn -c"
     for i in range(n):
         os.system(cmd)

@@ -135,7 +135,6 @@ def send(socket, data, id, type):
     while hender_sent < len(header):
         bytes_sent = socket.send(header[hender_sent:])
         hender_sent += bytes_sent
-    # assert hender_sent == len(header)
     total_sent = 0
     send_start = time.time()
     while total_sent < msg_len:
