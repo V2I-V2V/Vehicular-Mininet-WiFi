@@ -19,7 +19,7 @@ TYPE_PCD = 0
 TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
-NODE_LEFT_TIMEOUT = 2.0
+NODE_LEFT_TIMEOUT = 0.5
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 sys.stderr = sys.stdout
@@ -267,6 +267,7 @@ def server_recv_data(client_socket, client_addr):
                 (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
         assert len(msg) == msg_size
         t_elasped = time.time() - t_recv_start
+        node_last_recv_timestamp[v_id] = time.time()
         if frame_id >= MAX_FRAMES:
             continue
         if data_type == TYPE_PCD:
