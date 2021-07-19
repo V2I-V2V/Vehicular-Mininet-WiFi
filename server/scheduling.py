@@ -301,7 +301,11 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
         path_nodes = set(routing_path)
         min_neighbor_map = get_valid_neighbor_map(neighbor_map, nodes_on_routes, path_nodes, assignment, routing_tables)
         min_interference_count = get_path_interference_count(routing_path, min_neighbor_map)
-        scores.append(1 - (interference_count - min_interference_count) / (max_interference_count - min_interference_count))
+        if max_interference_count != min_interference_count:
+            score = 1 - (interference_count - min_interference_count) / (max_interference_count - min_interference_count)
+        else:
+            score = 1
+        scores.append(score)
         # print(1 - (interference_count - min_interference_count) / (max_interference_count - min_interference_count), interference_count, max_interference_count, min_interference_count)
     return scores
 

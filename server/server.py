@@ -148,7 +148,7 @@ class SchedThread(threading.Thread):
             elif self.ready_to_schedule(scheduler_mode):
                 print(scheduler_mode)
                 positions = []
-                routing_tables = []
+                routing_tables = {}
                 helper_list = []
                 helpee_count, helper_count = 0, 0
                 for i in current_connected_vids:
@@ -162,17 +162,18 @@ class SchedThread(threading.Thread):
                     continue
                 helper_list = np.array(helper_list)
                 mapped_nodes = np.array(current_connected_vids)[np.argsort(helper_list)]
-                print(mapped_nodes)
+                print("mapped nodes " + str(mapped_nodes))
                 original_to_new = {}
                 for cnt, mapped_node_id in enumerate(mapped_nodes):
                     original_to_new[mapped_node_id] = cnt
-                for cnt, mapped_node_id in enumerate(mapped_nodes):
                     positions.append(location_map[mapped_node_id])
-                    routing_table = {}
-                    if mapped_node_id in route_map.keys():
-                        for k, v in route_map[mapped_node_id].items():
-                            routing_table[original_to_new[k]] = original_to_new[v]
-                    routing_tables.append(routing_table)
+                if scheduler_mode == 'combined' and scheduler_mode == 'routeAware':
+                    for cnt, mapped_node_id in enumerate(mapped_nodes):
+                        routing_table = {}
+                        if mapped_node_id in route_map.keys():
+                            for k, v in route_map[mapped_node_id].items():
+                                routing_table[original_to_new[k]] = original_to_new[v]
+                        routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
                 if scheduler_mode == 'combined':
                     assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, is_one_to_one)
                 elif scheduler_mode == 'minDist':
@@ -180,7 +181,7 @@ class SchedThread(threading.Thread):
                 elif scheduler_mode == 'bwAware':
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
                 elif scheduler_mode == 'routeAware':
-                    assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
+                    assignment = scheduling.route_sched(helpee_count, helper_count, route_map, is_one_to_one)
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
@@ -207,7 +208,7 @@ class ControlConnectionThread(threading.Thread):
         # print("Connection from : ", self.client_address)
         data = self.client_socket.recv(2)
         vehicle_id = int.from_bytes(data, "big")
-        node_last_recv_timestamp[vehicle_id] = time.time()
+        # node_last_recv_timestamp[vehicle_id] = time.time()
         client_sockets[vehicle_id] = self.client_socket
         header, payload = message.recv_msg(self.client_socket,\
                                         message.TYPE_CONTROL_MSG)
