@@ -119,12 +119,12 @@ class SchedThread(threading.Thread):
         if len(current_connected_vids) < 2:
             return False
         elif scheduler_mode == "minDist" or scheduler_mode == "bwAware":
-            return self.check_if_loc_map_complete(self, current_connected_vids)
+            return self.check_if_loc_map_complete(current_connected_vids)
         elif scheduler_mode == 'routeAware':
-            return self.check_if_route_map_conplete(self, current_connected_vids)
+            return self.check_if_route_map_conplete(current_connected_vids)
         elif scheduler_mode == 'combined':
-            return self.check_if_loc_map_complete(self, current_connected_vids) and \
-                self.check_if_route_map_conplete(self, current_connected_vids)
+            return self.check_if_loc_map_complete(current_connected_vids) and \
+                self.check_if_route_map_conplete(current_connected_vids)
         elif scheduler_mode == 'random' or scheduler_mode == 'fixed':
             return True
         else:
