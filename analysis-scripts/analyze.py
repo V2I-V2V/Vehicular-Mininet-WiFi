@@ -233,6 +233,24 @@ def calculate_per_node_mean(setting):
     # print(node_result)
     return node_result
 
+def calculate_per_node_per_frame_mean(setting):
+    frame_result = {}
+    for k, v in result_each_run.items():
+        matched = check_keys_matched(setting, k)
+        if matched:
+            for i in range(num_nodes):
+                node_latency = v[i]
+                if i in frame_result.keys():
+                    frame_result[i] = np.vstack((frame_result[i], node_latency))
+                else:
+                    frame_result[i] = node_latency
+    frame_mean = {}
+    frame_std = {}
+    for node, v in frame_result.items():
+        frame_mean[node] = np.mean(v, axis=0)
+        frame_std[node] = np.std(v, axis=0)
+    return frame_mean, frame_std
+
 
 def plot_bar(data, name):
     if len(data.values()) == 0:
@@ -252,10 +270,32 @@ def plot_bar(data, name):
     plt.ylabel('Average Latency (s)')
     plt.savefig('analysis-results/%s-per-node.png'%name)
 
+
+def plot_per_frame(mean, std, name):
+    total_num = len(mean.keys())
+    cnt = 1
+    fig = plt.figure(figsize=(30, 18))
+    for k in mean.keys():
+        ax = fig.add_subplot(total_num, 1, cnt)
+        m, s = mean[k], std[k]
+        frame_idx = np.arange(len(m))
+        ax.errorbar(frame_idx, m, fmt = 'o', yerr=s, capsize=2, label='node%d'%k)
+        ax.legend()
+        cnt += 1
+    fig.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
+    plt.ylabel('Average Latency (s)')
+    plt.xlabel('Frame Number')
+    # plt.legend()
+    plt.tight_layout()
+    plt.savefig('analysis-results/%s-frame-node.png'%(name))
+
 def repeat_exp_analysis():
     all_keys = generate_keys(LOC, BW, HELPEE, SCHEDULER)
     for key in all_keys:
         node_result = calculate_per_node_mean(key)
+        frame_mean, frame_std = calculate_per_node_per_frame_mean(key)
+        plot_per_frame(frame_mean, frame_std, str(key))
         # print("node results")
         # print(node_result)
         plot_bar(node_result, str(key))
@@ -265,7 +305,7 @@ def repeat_exp_analysis():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--type', default="single", type=str, help="analyze type")
+    parser.add_argument('-t', '--type', default="multi", type=str, help="analyze type")
     parser.add_argument('-d', '--data_dir', default="~/v2x/", type=str, help="data directory")
     # parser.add_argument('-n', '--num_nodes', default=6, type=int, help="number of nodes")
     parser.add_argument('-f', '--frames', default=80, type=int, help='number of frames considered')

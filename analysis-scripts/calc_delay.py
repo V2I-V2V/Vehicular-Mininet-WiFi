@@ -51,6 +51,7 @@ def get_helper_receive_ts(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
         helper_receive_ts = {}
+        helper_receive_throughput = {}
         for line in lines:
             if line.startswith("[Received a full frame/oxts]"):
                 parse = line.split()
