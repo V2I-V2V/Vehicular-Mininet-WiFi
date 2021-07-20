@@ -57,6 +57,7 @@ self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
 pcd_data_buffer = []
 oxts_data_buffer = []
+e2e_frame_latency = []
 
 def self_loc_update_thread():
     """Thread to update self location every 100ms
@@ -128,8 +129,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
 
 def send(socket, data, id, type):
     msg_len = len(data)
-    header = msg_len.to_bytes(4, "big") + id.to_bytes(2, "big") \
-                + vehicle_id.to_bytes(2, "big") + type.to_bytes(2, 'big')
+    header = message.construct_data_msg_header(data, type, id, vehicle_id)
     print("[send header] vehicle %d, frame %d, data len: %d" % (vehicle_id, id, msg_len))
     hender_sent = 0
     while hender_sent < len(header):
@@ -170,8 +170,15 @@ def v2i_data_send_thread():
             #                                 PCD_ENCODE_LEVEL, PCD_QB)
             # TODO: maybe compress the frames beforehand, change encode to another thread
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
+            send_start_t = time.time()
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
+            # recv ack
+            ack = v2i_data_socket.recv(2)
+            frame_latency = time.time() - send_start_t
+            print("[recv ack from server] %f"%frame_latency)
+            e2e_frame_latency.append(frame_latency)
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
+            ack = v2i_data_socket.recv(2)
             print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()))
             t_elapsed = time.time() - t_start
             if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
@@ -401,7 +408,7 @@ class VehicleDataRecvThread(threading.Thread):
                     return
                 header_to_recv -= len(data_recv)
                 v2v_recved_bytes += len(data_recv)
-            msg_len, frame_id, v_id, type = message.parse_data_msg_header(data)
+            msg_len, frame_id, v_id, type, ts = message.parse_data_msg_header(data)
             to_send = message.DATA_MSG_HEADER_LEN
             sent = 0
             while sent < to_send:
@@ -423,6 +430,9 @@ class VehicleDataRecvThread(threading.Thread):
                 helper_relay_server_sock.send(data)
             t_elasped = time.time() - t_start
             est_v2v_thrpt = msg_len/t_elasped/1000000.0
+            # recv and relay ack from server
+            ack = helper_relay_server_sock.recv(2)
+            self.client_socket.send(ack)
             if self._is_closed:
                 return
             if type == TYPE_PCD:
@@ -456,8 +466,14 @@ class VehicleDataSendThread(threading.Thread):
                 frame_lock.release()
                 print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
                          + str(current_helper_id) + ' ' + str(time.time()), flush=True)
+                send_t = time.time()
                 send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
+                ack = self.v2v_data_send_sock.recv(2)
+                frame_latency = time.time() - send_t
+                print("[recv ack from helper relay] %f"%frame_latency)
+                e2e_frame_latency.append(frame_latency)
                 send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
+                ack = self.v2v_data_send_sock.recv(2)
                 t_elapsed = time.time() - t_start
                 if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
                     time.sleep(1/FRAMERATE - t_elapsed)

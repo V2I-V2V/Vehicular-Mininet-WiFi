@@ -20,8 +20,10 @@ np.set_printoptions(precision=3)
 sender_ts_dict = {}
 helper_ts_dict = {}
 receiver_ts_dict = {}
+receiver_throughput = {}
 for i in range(num_nodes):
     receiver_ts_dict[i] = []
+    receiver_throughput[i] = []
 delay_dict = {}
 v2v_delay_dict = {}
 
@@ -42,8 +44,10 @@ def get_receiver_ts(filename):
             if line.startswith("[Full frame recved]"):
                 parse = line.split()
                 sender_id = int(parse[4][:-1])
+                thrpt = float(parse[8])
                 ts = float(parse[-1])
                 receiver_ts_dict[sender_id].append(ts)
+                receiver_throughput[sender_id].append([ts, thrpt])
         f.close()
 
 
@@ -51,7 +55,6 @@ def get_helper_receive_ts(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
         helper_receive_ts = {}
-        helper_receive_throughput = {}
         for line in lines:
             if line.startswith("[Received a full frame/oxts]"):
                 parse = line.split()
@@ -124,11 +127,25 @@ def main():
     for i in range(num_nodes):
         ax.plot(np.arange(0, len(delay_dict[i])), delay_dict[i], '--o', label='node%d'%i)
         np.savetxt(dir+'node%d_delay.txt'%i, delay_dict[i])
+        np.savetxt(dir+'node%d_thrpt.txt'%i, np.array(receiver_throughput[i]))
 
     plt.xlabel("Frame Number")
     plt.ylabel("Latency (s)")
     plt.legend()
     plt.savefig(dir+'latency-frame.png')
+
+    fig = plt.figure(figsize=(18,12))
+    for i in range(num_nodes):
+        ax = fig.add_subplot(num_nodes, 1, i+1)
+        ax.plot(np.array(receiver_throughput[i])[:,0] -np.array(receiver_throughput[i])[0][0], np.array(receiver_throughput[i])[:,1], '--o', label='node%d'%i)
+        ax.legend()
+        ax.set_ylim(0, 220)
+    fig.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
+    plt.ylabel('Throughput (Mbps)')
+    plt.xlabel('Time (s)')
+    plt.tight_layout()
+    plt.savefig(dir+'thrpt.png')
 
     print(delay_all.shape)
     fig = plt.figure()
