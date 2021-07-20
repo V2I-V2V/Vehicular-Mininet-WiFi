@@ -21,7 +21,7 @@ def read_traces(num_nodes):
 def process_traces(traces, helpee_conf_file):
     disconnect_dict = {}
     disconnect_conf = np.loadtxt(helpee_conf_file, dtype=float)
-    if disconnect_conf.ndim == 1:
+    if disconnect_conf.ndim == 1 and len(disconnect_conf) > 0:
         # nodes_id = disconnect_conf.reshape(-1,1)
         disconnect_dict[disconnect_conf[0]] = disconnect_conf[1:].tolist()
         return disconnect_dict
