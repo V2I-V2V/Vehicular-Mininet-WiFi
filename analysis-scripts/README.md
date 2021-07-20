@@ -7,6 +7,7 @@ Assume the `Vehicular-Mininet-WiFi` is put at home directory.
 ```
 python3 ~/Vehicular-Mininet-WiFi/analysis-scripts/analyze.py -d <data_dir> -f <frame_considered_in_analysis> -k <key_in_data_folder>
 ```
+This will generate a `analysis-results/` directory with figures (in the path where you executed the script).
 
 Explaining options:
 

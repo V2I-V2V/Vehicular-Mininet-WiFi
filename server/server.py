@@ -91,6 +91,8 @@ node_seq_nums = {}
 node_last_recv_timestamp = {}
 client_sockets = {}
 vehicle_types = {} # 0 for helpee, 1 for helper
+received_bytes = {}
+node_latency = {}
 current_connected_vids = []
 pcds = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
 oxts = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
@@ -245,34 +247,58 @@ def check_current_connected_vehicles():
     return curr_connected_vehicles
 
 
+def throughput_calc():
+    time.sleep(6)
+    while True:
+        for k, v in received_bytes.items():
+            thrpt = v*8.0/1000000
+            received_bytes[k] = 0
+            print("[Node %d thrpt] %f" %(k, thrpt))
+        time.sleep(1.0)
+
+
+def update_node_latency_dict(node_id, latency):
+    if node_id in node_latency.keys():
+        node_latency[node_id].append(latency)
+    else:
+        node_latency[node_id] = [latency]
+
+
 def server_recv_data(client_socket, client_addr):
     conn_lock.acquire()
     print("Connect data channel from: ", client_addr)
     data = client_socket.recv(2)
     assert len(data) == 2
     vehicle_id = int.from_bytes(data, "big")
+    if vehicle_id not in received_bytes.keys():
+        received_bytes[vehicle_id] = 0
     print("Get sender id %d" % vehicle_id, flush=True)
     conn_lock.release()
 
     while True:
-        t_recv_start = time.time()
-        header, msg = message.recv_msg(client_socket, message.TYPE_DATA_MSG)
+        header, msg, throughput, elapsed_t = message.recv_msg(client_socket, message.TYPE_DATA_MSG)
         if header == b'' and msg == b'':
             print("[Helper relay closed]")
             client_socket.close()
             return
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
-        msg_size, frame_id, v_id, data_type = message.parse_data_msg_header(header)
+        msg_size, frame_id, v_id, data_type, ts = message.parse_data_msg_header(header)
+        received_bytes[vehicle_id] += msg_size
         print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
                 (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
         assert len(msg) == msg_size
-        t_elasped = time.time() - t_recv_start
+        latency = time.time() - ts
+        print("[receive header] node %d latency %f" % (v_id, latency))
+        # send back a ACK back
+        client_socket.send(frame_id.to_bytes(2, 'big'))
+
         node_last_recv_timestamp[v_id] = time.time()
         if frame_id >= MAX_FRAMES:
             continue
         if data_type == TYPE_PCD:
-            print("[Full frame recved] from %d, id %d throughput: %f MB/s %d time: %f" % 
-                        (v_id, frame_id, msg_size/1000000.0/t_elasped, msg_size, time.time()), flush=True)
+            update_node_latency_dict(v_id, latency)    
+            print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
+                        (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
             pcds[v_id][frame_id] = msg
         elif data_type == TYPE_OXTS:
             print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
@@ -347,6 +373,8 @@ def main():
     data_channel_thread.start()
     data_process_thread = threading.Thread(target=merge_data_when_ready)
     data_process_thread.start()
+    # thrpt_calc_thread = threading.Thread(target=throughput_calc)
+    # thrpt_calc_thread.start()
     while True:
         server.listen()
         client_socket, client_address = server.accept()

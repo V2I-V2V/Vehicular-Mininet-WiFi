@@ -1,10 +1,13 @@
+import time
+import struct
+
 TYPE_CONTROL_MSG = 0
 TYPE_DATA_MSG = 1
 TYPE_LOCATION = 0
 TYPE_ASSIGNMENT = 1
 TYPE_ROUTE = 2
 CONTROL_MSG_HEADER_LEN = 6
-DATA_MSG_HEADER_LEN = 10
+DATA_MSG_HEADER_LEN = 18
 
 def construct_control_msg_header(msg_payload, msg_type):
     """ Construct a control message header
@@ -25,9 +28,9 @@ def construct_control_msg_header(msg_payload, msg_type):
 
 def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id):
     """Construct a data message header
-    |---- 4 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|
-    | message length  |    frame id     |    vehicle id   |  message type   |    
-
+    |---- 4 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 8 bytes ----|
+    | message length  |    frame id     |    vehicle id   |  message type   |    timestamp    |
+ 
     Args:
         msg_payload (int): length of the msg payload
         msg_type (int): type of msg
@@ -38,8 +41,11 @@ def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id):
         headers [bytes]
     """
     msg_len = len(msg_payload)
+    encoded_ts = struct.pack('!d', time.time())
+    
     header = msg_len.to_bytes(4, "big") + frame_id.to_bytes(2, "big") \
-                + vehicle_id.to_bytes(2, "big") + msg_type.to_bytes(2, 'big')
+                + vehicle_id.to_bytes(2, "big") + msg_type.to_bytes(2, 'big') \
+                + encoded_ts
     return header
 
 
@@ -85,20 +91,49 @@ def recv_msg(socket, type, is_udp=False):
             data_recv = socket.recv(header_to_recv)
             header += data_recv
             if len(data_recv) <= 0:
-                print("[Socket closed]")
-                return b'', b''
+                if type == TYPE_DATA_MSG:
+                    return b'', b'', 0.0, 0.0
+                else:
+                    return b'', b''
             header_to_recv -= len(data_recv)
         msg_payload_size = int.from_bytes(header[0:4], "big")
         payload = b''
         to_recv = msg_payload_size
+        start_time = time.time()
+        #### TODO recv 4000 each time, discard interval and data with 0.0s,
+        #### calculate throughput based on first chunk that >0.0s
+        buffer_drained = False
+        thrpt_cnt_bytes = 0
+        first_buffer_empty_recv_time = 0.0
         while len(payload) < msg_payload_size:
-            data_recv = socket.recv(65536 if to_recv > 65536 else to_recv)
-            if len(data_recv) <= 0:
+            recv_s = time.time()
+            data_recv = socket.recv(4000 if to_recv > 4000 else to_recv)
+            recv_elapsed = time.time() - recv_s
+            # print("recv take %f"%recv_elapsed)
+            if buffer_drained is False and recv_elapsed > 0.0003:
+                start_time = time.time()
+                buffer_drained = True
+                first_buffer_empty_recv_time = recv_elapsed
+            if buffer_drained:
+                thrpt_cnt_bytes += len(data_recv)
+            if len(data_recv) < 0:
                 print("[Socket closed]")
-                return b'', b''
+                if type == TYPE_DATA_MSG:
+                    return b'', b'', 0.0, 0.0
+                else:
+                    return b'', b''
             payload += data_recv
             to_recv = msg_payload_size - len(payload)
-        return header, payload
+        elapsed_time = first_buffer_empty_recv_time + (time.time() - start_time)
+        if type == TYPE_DATA_MSG:
+            # print("bytes account %d"%thrpt_cnt_bytes)
+            if thrpt_cnt_bytes > 0:
+                throughput = thrpt_cnt_bytes*8.0/1000000/elapsed_time
+            else:
+                throughput = 4000*8/1000000/elapsed_time
+            return header, payload, throughput, elapsed_time
+        else:
+            return header, payload
 
 
 def parse_control_msg_header(data):
@@ -112,7 +147,8 @@ def parse_data_msg_header(data):
     frame_id = int.from_bytes(data[4:6], "big")
     v_id = int.from_bytes(data[6:8], "big")
     type = int.from_bytes(data[8:10], "big")
-    return payload_size, frame_id, v_id, type
+    ts = struct.unpack('!d', data[10:18])[0]
+    return payload_size, frame_id, v_id, type, ts
 
 
 def vehicle_parse_location_packet_data(data):
