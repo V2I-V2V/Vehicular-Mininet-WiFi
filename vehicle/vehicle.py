@@ -402,8 +402,11 @@ class VehicleDataRecvThread(threading.Thread):
     def relay_ack_thread(self):
         while not self._is_closed:
             # recv and relay ack from server
-            ack = self.helper_relay_server_sock.recv(2)
-            self.client_socket.send(ack)
+            try:
+                ack = self.helper_relay_server_sock.recv(2)
+                self.client_socket.send(ack)
+            except:
+                print("[Helpee already closed] skip relaying acks")
 
     def run(self):
         global v2v_recved_bytes
