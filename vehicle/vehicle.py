@@ -464,6 +464,7 @@ class VehicleDataSendThread(threading.Thread):
     def __init__(self, helper_ip, helper_port):
         threading.Thread.__init__(self)
         self.v2v_data_send_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.v2v_data_send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 16384)
         self.v2v_data_send_sock.connect((helper_ip, helper_port))
         # self.v2v_data_send_sock.setblocking(False)
         # self.v2v_data_send_sock.settimeout(1.0/FRAMERATE)
