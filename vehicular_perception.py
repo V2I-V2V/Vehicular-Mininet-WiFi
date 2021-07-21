@@ -322,7 +322,7 @@ if __name__ == '__main__':
         # print(config.num_helpee)
     
     if '--save_data' in sys.argv:
-        data_save = 0
+        data_save = 1
 
     if '-t' in sys.argv:
         time_to_run = int(sys.argv[sys.argv.index('-t')+1])

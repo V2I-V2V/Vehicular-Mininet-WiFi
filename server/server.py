@@ -120,14 +120,14 @@ class SchedThread(threading.Thread):
         current_connected_vids = check_current_connected_vehicles()
         if len(current_connected_vids) < 2:
             return False
-        elif scheduler_mode == "minDist" or scheduler_mode == "bwAware":
+        elif scheduler_mode == "minDist" or scheduler_mode == "bwAware" or scheduler_mode == 'random':
             return self.check_if_loc_map_complete(current_connected_vids)
         elif scheduler_mode == 'routeAware':
             return self.check_if_route_map_conplete(current_connected_vids)
         elif scheduler_mode == 'combined':
             return self.check_if_loc_map_complete(current_connected_vids) and \
                 self.check_if_route_map_conplete(current_connected_vids)
-        elif scheduler_mode == 'random' or scheduler_mode == 'fixed':
+        elif scheduler_mode == 'fixed':
             return True
         else:
             return False
@@ -294,7 +294,10 @@ def server_recv_data(client_socket, client_addr):
         #     continue
         if data_type == TYPE_PCD:
             # send back a ACK back
-            client_socket.send(frame_id.to_bytes(2, 'big'))
+            try:
+                client_socket.send(frame_id.to_bytes(2, 'big'))
+            except:
+                print("[Helper relay closed]")
             update_node_latency_dict(v_id, latency)    
             print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
                         (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
