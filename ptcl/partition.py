@@ -21,6 +21,16 @@ def simple_partition(pcd, range, sample_rate=16):
     return partitioned_pcd
 
 
+def layered_partition(pcd, ranges):
+    xy_square = np.square(pcd[:, :2])
+    dist_to_center = np.sum(xy_square, axis=1)
+    mask1 = dist_to_center <= (ranges[0] * ranges[0])
+    mask2 = ((ranges[0] * ranges[0]) < dist_to_center) * (dist_to_center <= (ranges[1] * ranges[1]))
+    mask3 = ((ranges[1] * ranges[1]) < dist_to_center) * (dist_to_center <= (ranges[2] * ranges[2]))
+    mask4 = (ranges[2] * ranges[2]) < dist_to_center
+    return pcd[mask1], pcd[mask2], pcd[mask3], pcd[mask4]
+
+
 if __name__ == "__main__":
     for i in range(len(PCD_DIR)):
         pcd = np.fromfile(PCD_DIR[i]+sys.argv[1], dtype=np.float32).reshape([-1, 4])
