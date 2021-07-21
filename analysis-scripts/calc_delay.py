@@ -22,18 +22,26 @@ helper_ts_dict = {}
 receiver_ts_dict = {}
 receiver_throughput = {}
 for i in range(num_nodes):
-    receiver_ts_dict[i] = []
+    receiver_ts_dict[i] = {}
     receiver_throughput[i] = []
 delay_dict = {}
 v2v_delay_dict = {}
 
 def get_sender_ts(filename):
-    sender_ts = []
+    sender_ts = {}
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
-            if line.startswith("[V2"):
-                sender_ts.append(float(line.split()[-1]))
+            if line.startswith("[V2I"):
+                parse = line.split()
+                ts = float(parse[-1])
+                frame = int(parse[-2])
+                sender_ts[frame] = ts
+            elif line.startswith("[V2V"):
+                parse = line.split()
+                ts = float(parse[-1])
+                frame = int(parse[-5])
+                sender_ts[frame] = ts
     return sender_ts
 
 
@@ -44,10 +52,12 @@ def get_receiver_ts(filename):
             if line.startswith("[Full frame recved]"):
                 parse = line.split()
                 sender_id = int(parse[4][:-1])
+                frame = int(parse[6])
                 thrpt = float(parse[8])
                 ts = float(parse[-1])
-                receiver_ts_dict[sender_id].append(ts)
+                # receiver_ts_dict[sender_id].append(ts)
                 receiver_throughput[sender_id].append([ts, thrpt])
+                receiver_ts_dict[sender_id][frame] = ts
         f.close()
 
 
@@ -78,6 +88,14 @@ def get_server_ass(filename):
                 # receiver_ts_dict[sender_id].append(ts)
         f.close()
 
+def calculate_latency(sender_ts_dict, receiver_ts_dict):
+    delay_dict = {}
+    for k, v in receiver_ts_dict.items():
+        delay_dict[k] = v - sender_ts_dict[k]
+    return delay_dict
+    
+
+
 def main():
     for i in range(num_nodes):
         sender_ts_dict[i] = get_sender_ts(dir + 'logs/node%d.log'%i)
@@ -88,34 +106,33 @@ def main():
     # print(len(receiver_ts_dict[0]))
     delay_all = np.empty((frames,))
     for i in range(num_nodes):
-        print(len(receiver_ts_dict[i]))
-        print(len(sender_ts_dict[i]))
-        if len(sender_ts_dict[i]) > len(receiver_ts_dict[i]):
-            print(i)
-            sender_ts_dict[i] = np.array(sender_ts_dict[i][:len(receiver_ts_dict[i])])
-        elif len(sender_ts_dict[i]) < len(receiver_ts_dict[i]):
-            receiver_ts_dict[i] = np.array(receiver_ts_dict[i][:len(sender_ts_dict[i])])
-        delay_dict[i] = np.array(receiver_ts_dict[i][:frames]) - np.array(sender_ts_dict[i][:frames])
+        # print(len(receiver_ts_dict[i]))
+        # print(len(sender_ts_dict[i]))
+        # if len(sender_ts_dict[i]) > len(receiver_ts_dict[i]):
+        #     print(i)
+        #     sender_ts_dict[i] = np.array(sender_ts_dict[i][:len(receiver_ts_dict[i])])
+        # elif len(sender_ts_dict[i]) < len(receiver_ts_dict[i]):
+        #     receiver_ts_dict[i] = np.array(receiver_ts_dict[i][:len(sender_ts_dict[i])])
+        delay_dict[i] = calculate_latency(sender_ts_dict[i], receiver_ts_dict[i])
+        # delay_dict[i] = np.array(receiver_ts_dict[i][:frames]) - np.array(sender_ts_dict[i][:frames])
         print(len(delay_dict[i]))
         if i == 0:
-            delay_all = delay_dict[i]
+            delay_all = np.fromiter(delay_dict[i].values(), dtype=float)
+            print(delay_all)
         else:
-            delay_all = np.concatenate((delay_all, delay_dict[i]))
-        print(delay_dict[i][delay_dict[i]<0])
-        print(receiver_ts_dict[i][0])
-        print(receiver_ts_dict[i][-1])
-        # if len(helper_ts_dict[i].values()) > 0:
-        #     for helpee, ts in helper_ts_dict[i].items():
-        #         v2v_delay_dict[helpee] = np.array(ts) - np.array(sender_ts_dict[helpee][-len(ts):])
-        #         print(np.array(v2v_delay_dict[helpee]))
+            delay = np.fromiter(delay_dict[i].values(), dtype=float)
+            delay_all = np.concatenate((delay_all, delay))
+        # print(receiver_ts_dict[i][0])
+        # print(receiver_ts_dict[i][-1])
+
         
     
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_axisbelow(True)
     for i in range(num_nodes):
-        sns.ecdfplot(delay_dict[i], label='node%d'%i)
-    plt.xlim([0, 0.5])
+        sns.ecdfplot(np.fromiter(delay_dict[i].values(), dtype=float), label='node%d'%i)
+    # plt.xlim([0, 0.5])
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
     plt.legend()
@@ -125,8 +142,8 @@ def main():
     ax = fig.add_subplot(111)
     ax.set_axisbelow(True)
     for i in range(num_nodes):
-        ax.plot(np.arange(0, len(delay_dict[i])), delay_dict[i], '--o', label='node%d'%i)
-        np.savetxt(dir+'node%d_delay.txt'%i, delay_dict[i])
+        ax.plot(delay_dict[i].keys(), delay_dict[i].values(), '--o', label='node%d'%i)
+        np.savetxt(dir+'node%d_delay.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
         np.savetxt(dir+'node%d_thrpt.txt'%i, np.array(receiver_throughput[i]))
 
     plt.xlabel("Frame Number")
@@ -134,18 +151,18 @@ def main():
     plt.legend()
     plt.savefig(dir+'latency-frame.png')
 
-    fig = plt.figure(figsize=(18,12))
-    for i in range(num_nodes):
-        ax = fig.add_subplot(num_nodes, 1, i+1)
-        ax.plot(np.array(receiver_throughput[i])[:,0] -np.array(receiver_throughput[i])[0][0], np.array(receiver_throughput[i])[:,1], '--o', label='node%d'%i)
-        ax.legend()
-        ax.set_ylim(0, 220)
-    fig.add_subplot(111, frameon=False)
-    plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
-    plt.ylabel('Throughput (Mbps)')
-    plt.xlabel('Time (s)')
-    plt.tight_layout()
-    plt.savefig(dir+'thrpt.png')
+    # fig = plt.figure(figsize=(18,12))
+    # for i in range(num_nodes):
+    #     ax = fig.add_subplot(num_nodes, 1, i+1)
+    #     ax.plot(np.array(receiver_throughput[i])[:,0] -np.array(receiver_throughput[i])[0][0], np.array(receiver_throughput[i])[:,1], '--o', label='node%d'%i)
+    #     ax.legend()
+    #     ax.set_ylim(0, 220)
+    # fig.add_subplot(111, frameon=False)
+    # plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
+    # plt.ylabel('Throughput (Mbps)')
+    # plt.xlabel('Time (s)')
+    # plt.tight_layout()
+    # plt.savefig(dir+'thrpt.png')
 
     print(delay_all.shape)
     fig = plt.figure()
@@ -154,7 +171,7 @@ def main():
     sns.ecdfplot(delay_all)
     # plt.xlim([0, 0.5])
     np.savetxt(dir+'all_delay.txt', delay_all)
-    print(len(delay_all[delay_all <= 0]))
+    # print(len(delay_all[delay_all <= 0]))
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
     # plt.legend()
