@@ -5,10 +5,10 @@ Scripts to run mininet-wifi experiments on vehicular perception.
 
 ```
 git clone https://github.com/intrig-unicamp/mininet-wifi.git ~/mininet-wifi
-pip3 install -r requirements.txt
-cp mininet-scripts/install.sh ~/mininet-wifi/util/install.sh # this install.sh has been modified to work with only python3
+pip3 install -r requirement.txt
 cd ~/mininet-wifi
 git checkout 66a20d80063b83111df950762d260774a38d620a
+cp ~/Vehicular-Mininet-WiFi/mininet-scripts/install.sh ~/mininet-wifi/util/install.sh # this install.sh has been modified to work with only python3
 sudo util/install.sh -Wlnfv
 ```
 
@@ -30,13 +30,51 @@ As a quick fix, you can copy my config to your olsrd configuration directory by
 sudo cp config/olsrd.conf /etc/olsrd/
 ```
 
+## Use simple custom routing
 
-## Try a simple exmaple
+### Static
+First, compile the `simple-route.c` by
 ```
-sudo python3 sta_ap_mode.py
+cd routing
+make
+```
+And then start a simple adhoc topogy without routing by
+
+```
+python3 routing/adhoc.py
 ```
 
-This script setup 2 APs and 2STAs (each one associated with one ap). A wired connection is created between the 2APs.
+From mininet CLI, first verify that sta1 cannot ping sta3 (because thery are out of wireless range and require a intermidiate hop sta2 to route):
+
+```
+sta1 ping sta3
+PING 10.0.0.3 (10.0.0.3) 56(84) bytes of data.
+From 10.0.0.1 icmp_seq=1 Destination Host Unreachable
+From 10.0.0.1 icmp_seq=2 Destination Host Unreachable
+From 10.0.0.1 icmp_seq=3 Destination Host Unreachable
+From 10.0.0.1 icmp_seq=4 Destination Host Unreachable
+From 10.0.0.1 icmp_seq=5 Destination Host Unreachable
+```
+
+Then type `xterm sta1 sta3` to open two xterm terminals. Execute below command in the corresponding xtem terminal.
+
+In sta1 terminal, execute
+```
+./routing/simple-route add to 10.0.0.3 dev sta1-wlan0 via 10.0.0.2
+```
+In sta3 terminal, execute
+```
+./routing/simple-route add to 10.0.0.1 dev sta3-wlan0 via 10.0.0.2
+```
+
+Now try `sta1 ping sta3` and it should work. You can also verify the routing change by looking at the output of `route -n` before/after execute the `simple-route` command.
+
+For more information about the usage of `routing/simple-route.c`, refer to `routing/README.md`.
+
+
+### Dynamic Routing
+
+Add the argument `-r custom` when running `vehicular_perception.py`. See optional arguments in the next section.
 
 
 ## Use the `vehicular_perception.py` script
@@ -66,14 +104,33 @@ sudo python3 vehicular_perception.py -n 6 -p input/pcds/pcd-data-config.txt -l i
 ```
 
 
-Several options:
+Required arguments:
 
-* Enable pcap trace: `--collect-traffic`
-* Plot nodes: `--plot`
-* Start the vehicular application: `--run_app`
-* Read point cloud data from custom directory: `-p <pcd_config_file>`
-* Read a location file: `-l <location_file>`. File format [sta1_x sta1_y sta2_x, sta2_y ...]
-* Fix assignment: `-s fixed <assignment_file> <assignment_index>`. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`
+* `-n`: Number of nodes (vehicles), must be `<= 6`.
+
+Optional arguments:
+
+* `--run_app`: Start the vehicular application.
+* `-l <location_file>`: Read a location file trace. File format [sta1_x sta1_y sta2_x, sta2_y ...]. If not specified, `input/locations/location-example.txt` will be used.
+* `--trace <network_trace>`: V2I network trace for each node. File format [node0_bw node1_bw ...]. If not specified, each node will begin with 100Mbps V2I bw and not change.
+* `-p <pcd_data_file>`: pcd data file to locate each node's point cloud data. If not specified, default pcd data file configuration file `input/pcds/pcd-data-config.txt` will be used.
+
+
+Optional arguments:
+
+* `-r <routing_algorithm>`: Support `olsrd` and `custom`. Other input will make nodes run no routing algorithm.
+* `-s <scheduler>`: Scheduler algorithm used by `server/server.py`. Default scheduler scheme is `minDist`. If you want to use fixed assignment mode, see next bullet.
+* `-s fixed <assignment_file> <assignment_index>`: Fix assignment mode. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`
+* `--power <tx_power>`: Set tx power (dBm) for all the nodes, support [0, 20].
+* `--fps <fps>`: Framerate of `vechile.py`,  default value is 1
+* `--no_control`: Disable control messages of `vehicle.py`. 
+* `-t <time_in_seconds>`: Total emulation time of the script. Default is 100 s.
+* `--no_control`: Disable vehicle control messages. Make sure the scheduler scheme (e.g. fixed assignment) will not require node to send control messages, otherwise the behavior will be undefined.
+* `--helpee_conf <helpee_conf_file>`: You can specify which nodes are helpees by providing a configuration file. Default helpee_conf file is `input/helpee_conf/helpee-nodes.txt` (0 and 1 are helpee nodes). This will be updated later to just read the bw traces and determine which node is helpee.
+* `--collect-traffic`: Enable pcap trace.
+* `--save-data`: Save undecoded point cloud. 
+* `--plot`: Plot nodes.
+
 
 ## Run experiments over the emulated network
 
@@ -139,3 +196,11 @@ py net.get('h3').cmd('ifconfig h3-eth0 10.3')
 py net.addStation('sta4', ip6='fe80::3', position='120,10,0')
 py sta4.setAdhocMode(intf='sta4-wlan0')
 ```
+
+
+## Try a simple exmaple
+```
+sudo python3 sta_ap_mode.py
+```
+
+This script setup 2 APs and 2STAs (each one associated with one ap). A wired connection is created between the 2APs.

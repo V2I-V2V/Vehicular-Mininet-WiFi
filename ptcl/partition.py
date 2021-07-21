@@ -1,0 +1,47 @@
+import numpy as np
+import sys
+import time
+
+PCD_DIR = ['../DeepGTAV-data/object-0227-1/velodyne_2/', \
+'../DeepGTAV-data/object-0227-1/alt_perspective/0022786/velodyne_2/',\
+'../DeepGTAV-data/object-0227-1/alt_perspective/0037122/velodyne_2/',\
+'../DeepGTAV-data/object-0227-1/alt_perspective/0191023/velodyne_2/',\
+'../DeepGTAV-data/object-0227-1/alt_perspective/0399881/velodyne_2/',\
+'../DeepGTAV-data/object-0227-1/alt_perspective/0735239/velodyne_2/']
+
+def simple_partition(pcd, range, sample_rate=16):
+    xy_square = np.square(pcd[:, :2])
+    dist_to_center = np.sum(xy_square, axis=1)
+    in_range_mask = dist_to_center <= (range*range)
+    out_of_range_mask = dist_to_center > (range*range)
+    partitioned_pcd = pcd[in_range_mask]
+    out_of_range_points = pcd[out_of_range_mask]
+    sampled = out_of_range_points[::sample_rate,]
+    partitioned_pcd = np.vstack((partitioned_pcd, sampled))
+    return partitioned_pcd
+
+
+def layered_partition(pcd, ranges):
+    xy_square = np.square(pcd[:, :2])
+    dist_to_center = np.sum(xy_square, axis=1)
+    mask1 = dist_to_center <= (ranges[0] * ranges[0])
+    mask2 = ((ranges[0] * ranges[0]) < dist_to_center) * (dist_to_center <= (ranges[1] * ranges[1]))
+    mask3 = ((ranges[1] * ranges[1]) < dist_to_center) * (dist_to_center <= (ranges[2] * ranges[2]))
+    mask4 = (ranges[2] * ranges[2]) < dist_to_center
+    return pcd[mask1], pcd[mask2], pcd[mask3], pcd[mask4]
+
+
+if __name__ == "__main__":
+    for i in range(len(PCD_DIR)):
+        pcd = np.fromfile(PCD_DIR[i]+sys.argv[1], dtype=np.float32).reshape([-1, 4])
+        t_s = time.time()
+        partitioned_pcd = simple_partition(pcd, 20, sample_rate=16)
+        t_elapsed = time.time() - t_s
+        print(t_elapsed)
+        print(pcd.shape)
+        print(partitioned_pcd.shape)
+        print(partitioned_pcd.shape[0]/pcd.shape[0])
+        # with open('original.bin', 'w') as f:
+        #     pcd.tofile(f)
+        with open('sample%d.bin'%i, 'w') as f:
+            partitioned_pcd.tofile(f)

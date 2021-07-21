@@ -6,6 +6,7 @@ from mn_wifi.link import wmediumd, adhoc, Intf
 from mn_wifi.cli import CLI
 from mn_wifi.net import Mininet_wifi
 from mn_wifi.wmediumdConnector import interference
+from mn_wifi.replaying import ReplayingMobility
 from threading import Thread as thread
 import numpy as np
 import time
@@ -14,38 +15,44 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils
 
 # global default values
-vehicle_data_dir = ['../DeepGTAV-data/object-0227-1/', 
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0022786/',
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0037122/',
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0191023/',
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0399881/',
-                    '../DeepGTAV-data/object-0227-1/alt_perspective/0735239/']
+vehicle_data_dir = ['~/DeepGTAV-data/object-0227-1/', 
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0022786/',
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0037122/',
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0191023/',
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0399881/',
+                    '~/DeepGTAV-data/object-0227-1/alt_perspective/0735239/']
 default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0', \
                 '320.134, 854.744, 0', '296.692, 832.28, 0', '290.943, 881.713, 0', \
                 '313.943, 891.713, 0', '312.943, 875.713, 0']
-default_loc_file="input/object-0227-loc.txt"
+default_loc_file = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/location-multihop.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
-v2i_bw_traces = {}
-trace_filename = ''
-
+v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
+tx_power = 25
+time_to_run = 70
+trace_filename = os.path.dirname(os.path.abspath(__file__)) + "/input/traces/constant.txt"
+routing = 'olsrd'
+no_control = 0
+CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
     time.sleep(8)
-    for throughput in trace:
+    for throughput_idx in range(min(len(trace), time_to_run-20)):
         start_t = time.time()
-        if throughput == 0:
-            throughput += 0.001
-        intf.config(bw=throughput)
+        if trace[throughput_idx] == 0:
+            trace[throughput_idx] += 0.001
+        intf.config(bw=trace[throughput_idx])
         elapsed_t = time.time() - start_t
         sleep_t = 1.0 - elapsed_t
-        time.sleep(sleep_t)
+        if sleep_t > 0:
+            time.sleep(sleep_t)
 
 
 def replay_trace_thread_on_sta(sta, ifname, thrpt_trace):
     replay_thread = thread(target=replay_trace, args=(sta, ifname, thrpt_trace))
     replay_thread.daemon = True
     replay_thread.start()
+    return replay_thread
 
 
 def create_nodes(net, num_nodes, locations):
@@ -60,32 +67,47 @@ def create_nodes(net, num_nodes, locations):
 
 def create_adhoc_links(net, node, ifname):
     kwargs = dict()
-    kwargs['proto'] = 'olsrd'
+    if routing == 'olsrd':
+        kwargs['proto'] = 'olsrd'
     channel_num = 5
     net.addLink(node, cls=adhoc, intf=ifname, ssid='adhocNet', \
                 mode='g', channel=channel_num, **kwargs)
+    node.setTxPower(tx_power)
 
 
 def create_wired_links(net, node, switch, bw):
     net.addLink(node, switch, cls=TCLink, bw=bw, delay='10ms')
 
+def read_location_traces(loc_file):
+    loc_trace = np.loadtxt(loc_file)
+    if loc_trace.ndim == 1:
+        loc_trace = loc_trace.reshape(1, -1)
+    return loc_trace
 
-# TODO: think about imlementing this
-def config_mobility(net, stations, loc_file):
-    pass
-    #     net.startMobility(time=0, mob_rep=1, reverse=False)
-    #     p1_start, p2_start, p1_end, p2_end = dict(), dict(), dict(), dict()
-    #     if '-c' not in args:
-    #         p1_start = {'position': '286.116,832.733,0.0'}
-    #         p2_start = {'position': '280.225,891.726,0.0'}
-    #         p1_end = {'position': '257.905,907.762,0.0'}
-    #         p2_end = {'position': '284.816,879.443,0.0'}
+def config_mobility_mininet_replay(net, stations, loc_file, plot=True):
+    net.isReplaying = True
+    loc_trace = read_location_traces(loc_file)
+    print('\nUse mininet replay mobility')
+    for sta_idx in range(len(stations)):
+        stations[sta_idx].p = []
+    for time_i in range(loc_trace.shape[0]):
+        for sta_idx in range(len(stations)):
+            pos = float(loc_trace[time_i][2*sta_idx]), float(loc_trace[time_i][2*sta_idx+1]), 0.0
+            stations[sta_idx].p.append(pos)
 
-    #     net.mobility(stations[0], 'start', time=50, **p1_start)
-    #     net.mobility(stations[1], 'start', time=50, **p2_start)
-    #     net.mobility(stations[0], 'stop', time=60, **p1_end)
-    #     net.mobility(stations[1], 'stop', time=60, **p2_end)
-    #     net.stopMobility(time=61)
+def config_mobility(net, stations, loc_file, plot=False):
+    loc_trace = read_location_traces(loc_file)
+    time.sleep(8)
+    print("\nstart update location at %f" % time.time())
+    for time_i in range(min(loc_trace.shape[0], 450)):
+        # print("update location for stas")
+        for station_idx in range(len(stations)):
+            stations[station_idx].setPosition('%f,%f,0'%(loc_trace[time_i][2*station_idx], \
+                                                     loc_trace[time_i][2*station_idx+1]))
+            if enable_plot:
+                stations[station_idx].update_2d()
+        time.sleep(0.1)
+    print("\nfinish update location at %f" % time.time())
 
 
 def setup_ip(node, ip, ifname):
@@ -93,22 +115,32 @@ def setup_ip(node, ip, ifname):
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
 
-def run_application(server, stations, scheduler, assignment_str):
+def kill_application():
+    print("*** Stop server.py and vehicle.py ***")
+    cmd = "kill -9 $(ps aux | grep \"[v]ehicle.py\" | awk {'print $2'})"
+    os.system(cmd)
+    cmd = "kill -9 $(ps aux | grep \"[s]erver.py\" | awk {'print $2'})"
+    os.system(cmd)
+    cmd = "kill -9 $(ps aux | grep \"[d]ynamic.py\" | awk {'print $2'})"
+    os.system(cmd)
+
+def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
+                    save=0, is_one_to_many=1):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 server/server.py -f %s -n %d -t %s > logs/server.log 2>&1 &"\
-                        %(assignment_str, num_nodes, trace_filename)
+        server_cmd = "python3 %s/server/server.py -f %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 server/server.py -s %s -n %d -t %s > logs/server.log 2>&1 &"\
-                        %(scheduler, num_nodes, trace_filename)
+        server_cmd = "python3 %s/server/server.py -s %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, CODE_DIR)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 vehicle/vehicle.py %d %s %s > logs/node%d.log 2>&1 &'% \
-                            (node_num, vehicle_data_dir[node_num], loc_file, node_num)
+        vehicle_app_cmd = 'sleep 8 && python3 %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d > %s/logs/node%d.log 2>&1 &'\
+            % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, CODE_DIR, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
 
@@ -124,9 +156,17 @@ def collect_tcpdump(nodes):
         nodes[node_num].cmd(tcpdump_cmds[node_num])
 
 
+def run_custom_routing(nodes):
+    routing_cmds = []
+    for node_num in range(len(nodes)):
+        routing_cmds.append('sleep 2 && python3 %s/routing/dynamic.py %d > %s/logs/node%d.route 2>&1 &'\
+                            %(CODE_DIR, node_num, CODE_DIR, node_num))
+        nodes[node_num].cmd(routing_cmds[node_num])
+
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
-                enable_tcpdump=False, run_app=False, scheduler="minDist"):
+                enable_tcpdump=False, run_app=False, scheduler="minDist",
+                helpee_conf=None, fps=1, save=0, mininet_replay_mob=False, is_one_to_many=1):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     
     info("*** Creating nodes\n")
@@ -150,10 +190,6 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     if enable_plot:
         net.plotGraph(max_x=400, max_y=1100)
 
-    ### configure mobility ###
-    # TODO: Implement the following function with different mobility model, etc.
-    config_mobility(net, stations, loc_file)
-
     ### assign ip addresses to wired interfaces ###
     info("*** Addressing...\n")
     server.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
@@ -166,13 +202,20 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     s1.start([c1])
 
     ### Trace replaying ###
+    replaying_threads = []
     for i in range(num_nodes):
-        replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i])
+        replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i])
+        replaying_threads.append(replaying_thread)
+
+
+    ### Configure routing if custom
+    if routing == 'custom':
+        run_custom_routing(stations)
 
     ### Run application ###
     if run_app is True:
         info("\n*** Running vehicuar server\n")
-        run_application(server, stations, scheduler, assignment_str)
+        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save, is_one_to_many)
     
     ### Collect tcpdump trace ###
     if enable_tcpdump is True:
@@ -180,9 +223,26 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
         collect_tcpdump(stations)
         server.cmd('tcpdump -nni any -s96 -w pcaps/server.pcap >/dev/null 2>&1 &')
 
+    ### configure mobility ###
+    # TODO: Implement the following function with different mobility model, etc.
+    if mininet_replay_mob:
+        config_mobility_mininet_replay(net, stations, loc_file)
+        ReplayingMobility(net)
+    else:
+        mobility_thread = thread(target=config_mobility, args=(net, stations, loc_file, enable_plot))
+        mobility_thread.start()
+
     info("*** Running CLI\n")
-    # CLI(net)
-    time.sleep(30)
+    if run_app:
+        time.sleep(time_to_run)
+    else:
+        CLI(net)
+
+    mobility_thread.join()
+    for replaying_thread in replaying_threads:
+        replaying_thread.join()
+    
+    kill_application()
 
     info("*** Stopping network\n")
     net.stop()
@@ -194,8 +254,8 @@ if __name__ == '__main__':
     # take argument number of nodes:
     if '-n' in sys.argv:
         num_nodes = int(sys.argv[sys.argv.index('-n')+1])
-        if num_nodes > 6:
-            print("Not supported node num, plz use 6 nodes for now!")
+        if num_nodes > 6 and '--run_app' in sys.argv:
+            print("Not supported node num to run application, plz use 6 nodes for now!")
             sys.exit()
 
     ### define default values ###
@@ -206,7 +266,15 @@ if __name__ == '__main__':
     enable_plot = False
     enable_tcpdump = False
     run_app = False
+    data_save = 0 # by default, dont save pcd
+    is_one_to_many = 1
     scheduler = 'minDist'
+    fps = 1
+    helpee_conf_file = os.path.dirname(os.path.abspath(__file__)) + '/input/helpee_conf/helpee-nodes.txt'
+    mininet_mob_replay = False
+
+    if '--replay-mobility' in sys.argv:
+        mininet_mob_replay = True
 
     if '-p' in sys.argv:
         pcd_config_file = sys.argv[sys.argv.index('-p')+1]
@@ -226,6 +294,8 @@ if __name__ == '__main__':
         loc_filename = sys.argv[sys.argv.index('-l')+1]
         loc_file=loc_filename
         locs = np.loadtxt(loc_filename)
+        if locs.ndim > 1:
+            locs = locs[0]
         sta_locs = utils.produce_3d_location_arr(locs)
         print(sta_locs)
     
@@ -244,7 +314,33 @@ if __name__ == '__main__':
 
     if '--run_app' in sys.argv:
         run_app = True
+        if '--fps' in sys.argv:
+            fps = int(sys.argv[sys.argv.index('--fps')+1])
+
+    if '--helpee_conf' in sys.argv:
+        helpee_conf_file = sys.argv[sys.argv.index('--helpee_conf')+1]
+        # print(config.num_helpee)
+    
+    if '--save_data' in sys.argv:
+        data_save = 1
+
+    if '-t' in sys.argv:
+        time_to_run = int(sys.argv[sys.argv.index('-t')+1])
+
+    if '--no_control' in sys.argv:
+        no_control = 1
+    
+    if '-r' in sys.argv:
+        routing = sys.argv[sys.argv.index('-r')+1]
+    
+    if '--power' in sys.argv:
+        tx_power = int(sys.argv[sys.argv.index('--power')+1])
+
+    if '--multi' in sys.argv:
+        is_one_to_many = int(sys.argv[sys.argv.index('--multi') + 1])
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
-            enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler)  
+            enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
+            helpee_conf=helpee_conf_file, fps=fps, save=data_save,\
+            mininet_replay_mob=mininet_mob_replay, is_one_to_many=is_one_to_many) 

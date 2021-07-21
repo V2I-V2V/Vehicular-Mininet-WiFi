@@ -3,6 +3,7 @@ import numpy as np
 import math
 import os
 import random
+import config
 
 def random_number(start, end):
     return (end - start) * random.random() + start
@@ -17,9 +18,22 @@ def read_traces(num_nodes):
     return traces
 
 
-def process_traces(traces):
-    disconnect_dict = {0: [2.1], 1: [2.1]}
-    # disconnect_dict ={0: [2.1]}
+def process_traces(traces, helpee_conf_file):
+    disconnect_dict = {}
+    disconnect_conf = np.loadtxt(helpee_conf_file, dtype=float)
+    if disconnect_conf.ndim == 1 and len(disconnect_conf) > 0:
+        # nodes_id = disconnect_conf.reshape(-1,1)
+        disconnect_dict[disconnect_conf[0]] = disconnect_conf[1:].tolist()
+        return disconnect_dict
+    elif disconnect_conf.shape[0] == 0:
+        return disconnect_dict
+    nodes_id = np.array(disconnect_conf[0])
+    for i in range(len(nodes_id)):
+        disconnect_dict[nodes_id[i]] = disconnect_conf[1:, i].tolist()
+        # if nodes_id[i] not in disconnect_dict:
+        #     disconnect_dict[nodes_id[i]] = [disconnect_conf[]]
+        # else:
+        #     disconnect_dict[nodes_id[i]].append()
     print("Process traces and get the disconneted timestamps of each node")
     return disconnect_dict
 
@@ -33,6 +47,8 @@ def produce_3d_location_arr(location):
 
 def produce_assignment_str(assignment):
     assignment_str = ""
+    if type(assignment) is np.int64:
+        return str(assignment)
     for i in assignment:
         assignment_str = assignment_str + str(i) + ' '
     return assignment_str

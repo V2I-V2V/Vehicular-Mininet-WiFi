@@ -26,12 +26,14 @@ def read_pointcloud(pointcloud_filename):
     pcd_data = pcd_file.read()
     return pcd_data
 
+
 def read_all_oxts(oxts_dir):
     all_oxts = []
     for i in range(config.MAX_FRAMES):
         oxts_f_name = oxts_dir + "%06d.txt"%i
         all_oxts.append(read_oxts(oxts_f_name))
     return all_oxts
+
 
 def read_oxts(oxts_filename):
     oxts_file = open(oxts_filename, 'rb')
@@ -40,18 +42,21 @@ def read_oxts(oxts_filename):
 
 
 def dracoEncode(points, cl, qb):
+    if points.shape[0] == 0:
+        points = np.zeros((1, 4))
+        # print("empty data to encode!")
+        # return b'', 0
     encode_buf = TrakoDracoPy.encode_point_cloud_to_buffer(points[:,:3].flatten(), position=True, 
         sequential=False, remove_duplicates=False, quantization_bits=qb, compression_level=cl,
         quantization_range=-1, quantization_origin=None, create_metadata=False)
     ratio = len(encode_buf) / (12.0 * points.shape[0])
     return encode_buf, ratio
 
+
 def dracoDecode(pc_encoded):
+    if len(pc_encoded) == 0:
+        return np.empty((0,3))
     decode_buf = TrakoDracoPy.decode_point_cloud_buffer(pc_encoded)
     pc = np.asarray(decode_buf.points).astype(np.float32).reshape([-1,3])
     return pc
     
-
-def compress_pointcloud(compression_level, pointcloud):
-    # TODO
-    pass

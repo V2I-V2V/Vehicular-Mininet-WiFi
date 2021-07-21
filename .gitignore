@@ -9,3 +9,7 @@ __pycache__/*
 compression.py
 *.pcap
 *.png
+routing/simple-route
+mininet-scripts/
+*.route
+run_experiment_ruiyang.py
