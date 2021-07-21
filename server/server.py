@@ -326,8 +326,9 @@ def merge_data_when_ready():
             points_oxts_secondary = []
             for i in range(1, num_vehicles):
                 pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
-                pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
-                points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
+                if pcl.shape[0] != 0:
+                    pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
+                    points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
                 if save:
                     with open('%s/output/node%d_%d.bin'%(REPO_DIR, i, curr_processed_frame), 'wb') as f:
                         f.write(pcds[i][curr_processed_frame])
