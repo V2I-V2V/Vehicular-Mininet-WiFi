@@ -290,21 +290,21 @@ def server_recv_data(client_socket, client_addr):
         latency = time.time() - ts
         print("[receive header] node %d latency %f" % (v_id, latency))
         node_last_recv_timestamp[v_id] = time.time()
-        if frame_id >= MAX_FRAMES:
-            continue
+        # if frame_id >= MAX_FRAMES:
+        #     continue
         if data_type == TYPE_PCD:
             # send back a ACK back
             client_socket.send(frame_id.to_bytes(2, 'big'))
             update_node_latency_dict(v_id, latency)    
             print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
                         (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
-            pcds[v_id][frame_id] = msg
+            pcds[v_id][frame_id%MAX_FRAMES] = msg
         elif data_type == TYPE_OXTS:
             print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
-            oxts[v_id][frame_id] = [float(x) for x in msg.split()]
+            oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
         
-        if len(pcds[v_id][frame_id]) > 0 and len(oxts[v_id][frame_id]) > 0:
-            data_ready_matrix[v_id][frame_id] = 1
+        if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
+            data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
         
 
 def merge_data_when_ready():
