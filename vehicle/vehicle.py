@@ -57,7 +57,8 @@ self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
 pcd_data_buffer = []
 oxts_data_buffer = []
-e2e_frame_latency = []
+e2e_frame_latency = {}
+frame_sent_time = {}
 
 def self_loc_update_thread():
     """Thread to update self location every 100ms
@@ -136,62 +137,67 @@ def send(socket, data, id, type):
         bytes_sent = socket.send(header[hender_sent:])
         hender_sent += bytes_sent
     total_sent = 0
-    send_start = time.time()
     while total_sent < msg_len:
         try:
             bytes_sent = socket.send(data[total_sent:])
-            # TODO: check how much bytes sent each time exactly
             print("[Sedning Data] Sent %d bytes" % bytes_sent)
             total_sent += bytes_sent
-            if bytes_sent == 0:
-                raise RuntimeError("socket connection broken")
+            # if bytes_sent == 0:
+            #     raise RuntimeError("socket connection broken")
         except:
             print('[Send error]')
-            # socket.close()
-            # return
-    send_time = time.time() - send_start
-    print('send takes %f'%send_time)
+            return False
+    return True
 
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
     """
     global curr_frame_id
+    ack_recv_thread = threading.Thread(target=v2i_ack_recv_thread)
+    ack_recv_thread.start()
     while connection_state == "Connected":
         t_start = time.time()
         frame_lock.acquire()
-        if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
-            and curr_frame_id < len(oxts_data_buffer):
-            curr_f_id = curr_frame_id
-            pcd = pcd_data_buffer[curr_f_id]
-            oxts = oxts_data_buffer[curr_f_id]
-            curr_frame_id += 1
+        # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
+        #     and curr_frame_id < len(oxts_data_buffer):
+        curr_f_id = curr_frame_id
+        data_f_id = curr_f_id % config.MAX_FRAMES
+        pcd = pcd_data_buffer[data_f_id]
+        oxts = oxts_data_buffer[data_f_id]
+        curr_frame_id += 1
+        frame_lock.release()
+        # TODO: maybe compress the frames beforehand, change encode to another thread
+        t_s = time.time()
+        print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(t_s), flush=True)
+        frame_sent_time[curr_f_id] = time.time()
+        send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
+        send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
+        print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-t_s))
+        t_elapsed = time.time() - t_start
+        if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
+            print("capture finished, sleep %f" % (1.0/FRAMERATE-t_elapsed))
+            time.sleep(1.0/FRAMERATE-t_elapsed)
+        elif capture_finished and (1.0/FRAMERATE-t_elapsed) < 0:
+            passed_frames = int((t_elapsed-1/FRAMERATE) * FRAMERATE)
+            frame_lock.acquire()
+            curr_frame_id += passed_frames
             frame_lock.release()
-            # pcd, _ = ptcl.pointcloud.dracoEncode(np.frombuffer(pcd, dtype='float32').reshape([-1,4]), 
-            #                                 PCD_ENCODE_LEVEL, PCD_QB)
-            # TODO: maybe compress the frames beforehand, change encode to another thread
-            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(time.time()), flush=True)
-            send_start_t = time.time()
-            send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
-            # recv ack
-            ack = v2i_data_socket.recv(2)
-            frame_latency = time.time() - send_start_t
-            print("[recv ack from server] %f"%frame_latency)
-            e2e_frame_latency.append(frame_latency)
-            send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
-            ack = v2i_data_socket.recv(2)
-            print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()))
-            t_elapsed = time.time() - t_start
-            if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
-                print("capture finished, sleep %f" % (1.0/FRAMERATE-t_elapsed))
-                time.sleep(1.0/FRAMERATE-t_elapsed)
-        elif curr_frame_id >= config.MAX_FRAMES:
-            curr_frame_id = 0
-            print('[Max frame reached] finished ' + str(time.time()))
-            frame_lock.release()
-            # return
-        else:
-            frame_lock.release()
+        # elif curr_frame_id >= config.MAX_FRAMES:
+        #     curr_frame_id = 0
+        #     print('[Max frame reached] finished ' + str(time.time()))
+        #     frame_lock.release()
+        #     # return
+        # else:
+        #     frame_lock.release()
 
+
+def v2i_ack_recv_thread():
+    while True:
+        ack = v2i_data_socket.recv(2)
+        frame_id = int.from_bytes(ack, 'big')
+        frame_latency = time.time() - frame_sent_time[frame_id]
+        print("[Recv ack from server] frame %d, latency %f"%(frame_id, frame_latency))
+        e2e_frame_latency[frame_id] = frame_latency
 
 
 def is_helper_recv():
@@ -389,12 +395,22 @@ class VehicleDataRecvThread(threading.Thread):
         self.client_socket = helpee_socket
         self.client_address = helpee_addr
         self._is_closed = False
+        self.helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
+                                                            config.server_data_port)
     
+
+    def relay_ack_thread(self):
+        while not self._is_closed:
+            # recv and relay ack from server
+            ack = self.helper_relay_server_sock.recv(2)
+            self.client_socket.send(ack)
 
     def run(self):
         global v2v_recved_bytes
-        helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
-                                                            config.server_data_port)
+        # helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
+        #                                                     config.server_data_port)
+        ack_relay_thread = threading.Thread(target=self.relay_ack_thread)
+        ack_relay_thread.start()
         while True and not self._is_closed:
             data = b''
             header_to_recv = message.DATA_MSG_HEADER_LEN
@@ -404,15 +420,15 @@ class VehicleDataRecvThread(threading.Thread):
                 if len(data_recv) <= 0:
                     print("[Helpee closed]")
                     self._is_closed = True
-                    helper_relay_server_sock.close()
+                    self.helper_relay_server_sock.close()
                     return
                 header_to_recv -= len(data_recv)
                 v2v_recved_bytes += len(data_recv)
-            msg_len, frame_id, v_id, type, ts = message.parse_data_msg_header(data)
+            msg_len, frame_id, v_id, type, _ = message.parse_data_msg_header(data)
             to_send = message.DATA_MSG_HEADER_LEN
             sent = 0
             while sent < to_send:
-                sent_len = helper_relay_server_sock.send(data[sent:])
+                sent_len = self.helper_relay_server_sock.send(data[sent:])
                 sent += sent_len
             to_recv = msg_len
             curr_recv_bytes = 0
@@ -422,17 +438,14 @@ class VehicleDataRecvThread(threading.Thread):
                 if len(data) <= 0:
                     print("[Helpee closed]")
                     self._is_closed = True
-                    helper_relay_server_sock.close()
+                    self.helper_relay_server_sock.close()
                     break
                 curr_recv_bytes += len(data)
                 to_recv -= len(data)
                 v2v_recved_bytes += len(data)
-                helper_relay_server_sock.send(data)
+                self.helper_relay_server_sock.send(data)
             t_elasped = time.time() - t_start
             est_v2v_thrpt = msg_len/t_elasped/1000000.0
-            # recv and relay ack from server
-            ack = helper_relay_server_sock.recv(2)
-            self.client_socket.send(ack)
             if self._is_closed:
                 return
             if type == TYPE_PCD:
@@ -449,43 +462,65 @@ class VehicleDataSendThread(threading.Thread):
         threading.Thread.__init__(self)
         self.v2v_data_send_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.v2v_data_send_sock.connect((helper_ip, helper_port))
+        # self.v2v_data_send_sock.setblocking(False)
+        # self.v2v_data_send_sock.settimeout(1.0/FRAMERATE)
         self.is_helper_alive = True
+        self.ack_recv_thread = threading.Thread(target=self.ack_recv_thread, args=())
     
     
     def run(self):
         global curr_frame_id
+        self.ack_recv_thread.start()
         while self.is_helper_alive:
             t_start = time.time()
             frame_lock.acquire()
-            if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
-                and curr_frame_id < len(oxts_data_buffer):
-                curr_f_id = curr_frame_id
-                pcd = pcd_data_buffer[curr_frame_id]
-                oxts = oxts_data_buffer[curr_frame_id]
-                curr_frame_id += 1
+            # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
+            #     and curr_frame_id < len(oxts_data_buffer):
+            curr_f_id = curr_frame_id
+            pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
+            oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
+            curr_frame_id += 1
+            frame_lock.release()
+            print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
+                    + str(current_helper_id) + ' ' + str(time.time()), flush=True)
+            frame_sent_time[curr_f_id] = time.time()
+            if_send_success = send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
+            if not if_send_success:
+                print("send not in time!!")
+            if_send_success = send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
+            t_elapsed = time.time() - t_start
+            if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
+                time.sleep(1/FRAMERATE - t_elapsed)
+            elif capture_finished and (1/FRAMERATE - t_elapsed) <= 0:
+                print('Sending passed %f'%t_elapsed)
+                passed_frames = int((t_elapsed-1/FRAMERATE)*FRAMERATE)
+                frame_lock.acquire()
+                curr_frame_id += passed_frames
                 frame_lock.release()
-                print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
-                         + str(current_helper_id) + ' ' + str(time.time()), flush=True)
-                send_t = time.time()
-                send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
-                ack = self.v2v_data_send_sock.recv(2)
-                frame_latency = time.time() - send_t
-                print("[recv ack from helper relay] %f"%frame_latency)
-                e2e_frame_latency.append(frame_latency)
-                send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
-                ack = self.v2v_data_send_sock.recv(2)
-                t_elapsed = time.time() - t_start
-                if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
-                    time.sleep(1/FRAMERATE - t_elapsed)
-            elif curr_frame_id >= config.MAX_FRAMES:
-                curr_frame_id = 0
-                frame_lock.release()
-                print('[Max frame reached] finished ' + str(time.time()))
-                # break
-            else:
-                frame_lock.release()
+            # elif curr_frame_id >= config.MAX_FRAMES:
+            #     curr_frame_id = 0
+            #     frame_lock.release()
+            #     print('[Max frame reached] finished ' + str(time.time()))
+            #     # break
+            # else:
+            #     frame_lock.release()
         print("[Change helper] close the prev conn thread " + str(time.time()))
         self.v2v_data_send_sock.close()
+
+
+    def ack_recv_thread(self):
+        while self.is_helper_alive:
+            try:
+                # recv acknowledgement from server
+                ack = self.v2v_data_send_sock.recv(2)
+                frame_id = int.from_bytes(ack, 'big')
+                recv_time = time.time()
+                frame_latency = recv_time - frame_sent_time[frame_id]
+                print("[Recv ack from helper relay] frame %d latency %f"%(frame_id,frame_latency))
+                e2e_frame_latency[frame_id] = frame_latency
+            except Exception as e:
+                # socket might be closed since helper change
+                print('[Helper changed] not recv ACK from prev helper anymore')
 
 
     def stop(self):

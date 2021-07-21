@@ -289,13 +289,12 @@ def server_recv_data(client_socket, client_addr):
         assert len(msg) == msg_size
         latency = time.time() - ts
         print("[receive header] node %d latency %f" % (v_id, latency))
-        # send back a ACK back
-        client_socket.send(frame_id.to_bytes(2, 'big'))
-
         node_last_recv_timestamp[v_id] = time.time()
         if frame_id >= MAX_FRAMES:
             continue
         if data_type == TYPE_PCD:
+            # send back a ACK back
+            client_socket.send(frame_id.to_bytes(2, 'big'))
             update_node_latency_dict(v_id, latency)    
             print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
                         (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
