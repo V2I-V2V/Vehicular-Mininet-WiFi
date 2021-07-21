@@ -294,7 +294,10 @@ def server_recv_data(client_socket, client_addr):
         #     continue
         if data_type == TYPE_PCD:
             # send back a ACK back
-            client_socket.send(frame_id.to_bytes(2, 'big'))
+            try:
+                client_socket.send(frame_id.to_bytes(2, 'big'))
+            except:
+                print("[Helper relay closed]")
             update_node_latency_dict(v_id, latency)    
             print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
                         (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
