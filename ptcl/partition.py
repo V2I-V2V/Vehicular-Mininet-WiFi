@@ -1,8 +1,8 @@
 import numpy as np
 import sys, os
 import time
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import pointcloud
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# import ptcl.pointcloud
 
 PCD_DIR = ['../DeepGTAV-data/object-0227-1/velodyne_2/', \
 '../DeepGTAV-data/object-0227-1/alt_perspective/0022786/velodyne_2/',\
@@ -59,11 +59,11 @@ if __name__ == "__main__":
         partitioned_pcd = simple_partition(pcd, 20, sample_rate=16)
         partitioned_pcd = pcd
         print("ptcl shape " + str(partitioned_pcd.shape))
-        pc, _ = pointcloud.dracoEncode(partitioned_pcd, 10, 12)
+        pc, _ = ptcl.pointcloud.dracoEncode(partitioned_pcd, 10, 12)
         print("Encoded size:", len(pc))
         partitioned_pcd = simple_partition_no_sample(pcd, 20)
         print("sampled shape " + str(partitioned_pcd.shape))
-        pc, _ = pointcloud.dracoEncode(partitioned_pcd, 10, 12)    
+        pc, _ = ptcl.pointcloud.dracoEncode(partitioned_pcd, 10, 12)    
         print("Encoded size:", len(pc))
         partitioned_pcd, partitioned_pcd_1, partitioned_pcd2, partitioned_pcd3 = layered_partition(pcd, [5, 8, 15])
         print("layered shape " + str(partitioned_pcd.shape))
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         print(pcd.shape)
         print(partitioned_pcd.shape)
         print(partitioned_pcd.shape[0]/pcd.shape[0])
-        pcd, _ = pointcloud.dracoEncode(partitioned_pcd, 10, 12)
+        pcd, _ = ptcl.pointcloud.dracoEncode(partitioned_pcd, 10, 12)
         print(len(pcd))
         # with open('original.bin', 'w') as f:
         #     pcd.tofile(f)
