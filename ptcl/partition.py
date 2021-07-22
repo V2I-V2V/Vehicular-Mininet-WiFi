@@ -24,11 +24,19 @@ def simple_partition(pcd, range, sample_rate=16):
 def layered_partition(pcd, ranges):
     xy_square = np.square(pcd[:, :2])
     dist_to_center = np.sum(xy_square, axis=1)
+    masks = []
     mask1 = dist_to_center <= (ranges[0] * ranges[0])
-    mask2 = ((ranges[0] * ranges[0]) < dist_to_center) * (dist_to_center <= (ranges[1] * ranges[1]))
-    mask3 = ((ranges[1] * ranges[1]) < dist_to_center) * (dist_to_center <= (ranges[2] * ranges[2]))
-    mask4 = (ranges[2] * ranges[2]) < dist_to_center
-    return pcd[mask1], pcd[mask2], pcd[mask3], pcd[mask4]
+    mask2 = (ranges[-1] * ranges[-1]) < dist_to_center
+    if len(ranges) == 1:
+        return pcd[mask1], pcd[mask2]
+    masks.append(mask1)
+    # print(ranges)
+    for cnt, range in enumerate(ranges[1:]):
+        # print(cnt, range)
+        masks.append(((ranges[cnt] * ranges[cnt]) < dist_to_center) * (dist_to_center <= (ranges[cnt + 1] * ranges[cnt + 1])))
+    masks.append(mask2)
+    # print(masks)
+    return [pcd[mask] for mask in masks]
 
 
 if __name__ == "__main__":
