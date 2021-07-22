@@ -149,6 +149,8 @@ def get_encoded_frame(frame_id, metric):
 
 def get_latency(e2e_frame_latency):
     recent_latency = 0
+    if len(e2e_frame_latency) == 0:
+        return 0
     recent_latencies = sorted(e2e_frame_latency.items(), key=lambda item: -item[0])
     cnt = 0
     for id, latency in recent_latencies:
@@ -644,7 +646,7 @@ def main():
     t_start = time.time()
     sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
     t_elapsed = time.time() - t_start
-    print("read and encode takes %f" % t_elapsed)
+    print("read and encode takes %f" % t_elapsed, flush=True)
     curr_timestamp = time.time()
     v2i_control_thread = ServerControlThread()
     v2i_control_thread.start()
