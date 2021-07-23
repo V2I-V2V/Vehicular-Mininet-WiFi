@@ -25,6 +25,7 @@ for i in range(num_nodes):
     receiver_ts_dict[i] = {}
     receiver_throughput[i] = []
 delay_dict = {}
+delay_dict_ts = {}
 v2v_delay_dict = {}
 
 def get_sender_ts(filename):
@@ -89,41 +90,39 @@ def get_server_ass(filename):
         f.close()
 
 def calculate_latency(sender_ts_dict, receiver_ts_dict):
-    delay_dict = {}
+    delay_dict, delay_dict_ts = {}, {}
     for k, v in receiver_ts_dict.items():
         delay_dict[k] = v - sender_ts_dict[k]
-    return delay_dict
+        delay_dict_ts[sender_ts_dict[k]] = v - sender_ts_dict[k]
+    return delay_dict, delay_dict_ts
     
+
+def construct_ts_latency_array(delay_dict_ts):
+    ts, delay = [], []
+    for i in sorted(delay_dict_ts.keys()):
+        ts.append(i)
+        delay.append(delay_dict_ts[i])
+    ts = np.array(ts) - np.min(ts)
+    delay = np.array(delay)
+    return ts, delay
 
 
 def main():
     for i in range(num_nodes):
         sender_ts_dict[i] = get_sender_ts(dir + 'logs/node%d.log'%i)
         helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
-        # print(helper_ts_dict)
-    # print(sender_ts_dict)
     get_receiver_ts(dir + 'logs/server.log')
-    # print(len(receiver_ts_dict[0]))
     delay_all = np.empty((frames,))
     for i in range(num_nodes):
-        # print(len(receiver_ts_dict[i]))
-        # print(len(sender_ts_dict[i]))
-        # if len(sender_ts_dict[i]) > len(receiver_ts_dict[i]):
-        #     print(i)
-        #     sender_ts_dict[i] = np.array(sender_ts_dict[i][:len(receiver_ts_dict[i])])
-        # elif len(sender_ts_dict[i]) < len(receiver_ts_dict[i]):
-        #     receiver_ts_dict[i] = np.array(receiver_ts_dict[i][:len(sender_ts_dict[i])])
-        delay_dict[i] = calculate_latency(sender_ts_dict[i], receiver_ts_dict[i])
-        # delay_dict[i] = np.array(receiver_ts_dict[i][:frames]) - np.array(sender_ts_dict[i][:frames])
-        print(len(delay_dict[i]))
+        delay_dict[i], delay_dict_ts[i] = calculate_latency(sender_ts_dict[i], receiver_ts_dict[i])
+        # print(len(delay_dict[i]))
         if i == 0:
             delay_all = np.fromiter(delay_dict[i].values(), dtype=float)
-            print(delay_all)
+            # print(delay_all)
         else:
             delay = np.fromiter(delay_dict[i].values(), dtype=float)
             delay_all = np.concatenate((delay_all, delay))
-        # print(receiver_ts_dict[i][0])
-        # print(receiver_ts_dict[i][-1])
+
 
         
     
@@ -138,17 +137,20 @@ def main():
     plt.legend()
     plt.savefig(dir+'latency-cdf.png')
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(12, 6))
     ax = fig.add_subplot(111)
     ax.set_axisbelow(True)
     for i in range(num_nodes):
-        ax.plot(delay_dict[i].keys(), delay_dict[i].values(), '--o', label='node%d'%i)
+        # plot time series data
+        ts, delay = construct_ts_latency_array(delay_dict_ts[i])
+        ax.plot(ts, delay, '--o', label='node%d'%i)
         np.savetxt(dir+'node%d_delay.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
         np.savetxt(dir+'node%d_thrpt.txt'%i, np.array(receiver_throughput[i]))
 
-    plt.xlabel("Frame Number")
+    plt.xlabel("Time (s)")
     plt.ylabel("Latency (s)")
     plt.legend()
+    plt.tight_layout()
     plt.savefig(dir+'latency-frame.png')
 
     # fig = plt.figure(figsize=(18,12))
@@ -164,7 +166,6 @@ def main():
     # plt.tight_layout()
     # plt.savefig(dir+'thrpt.png')
 
-    print(delay_all.shape)
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_axisbelow(True)
