@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 def get_sender_ts(filename):
     sender_ts = {}
@@ -15,11 +16,14 @@ def get_sender_ts(filename):
                 ts = float(parse[-1])
                 frame = int(parse[-5])
                 sender_ts[frame] = ts
-            elif line.startswith("latency:"):
+            elif line.startswith("frame id:"):
                 num_chunks = int(parse[-1])
+                frame = int(parse[2])
                 encode_choice[frame] = num_chunks
+            elif line.startswith("read and encode takes"):
+                encode_t = math.ceil(float(parse[-1]))
                 
-    return sender_ts, encode_choice
+    return sender_ts, encode_choice, encode_t
 
 
 def get_receiver_ts(filename):
@@ -59,7 +63,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf):
     sender_ts_dict, encode_choice_dict = {}, {}
     latency_dict = {}
     for i in range(num_nodes):
-        sender_ts_dict[i], encode_choice_dict[i] = get_sender_ts(dir + '/logs/node%d.log'%i)
+        sender_ts_dict[i], encode_choice_dict[i], encode_t = get_sender_ts(dir + '/logs/node%d.log'%i)
         latency_dict[i] = {}
     receiver_ts_dict, receiver_thrpt = get_receiver_ts(dir + '/logs/server.log')
     # calculate delay
