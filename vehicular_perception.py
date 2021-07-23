@@ -129,17 +129,17 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 %s/server/server.py -f %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
+        server_cmd = "python3 -u %s/server/server.py -f %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
              % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 %s/server/server.py -s %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
+        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
              % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, CODE_DIR)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d > %s/logs/node%d.log 2>&1 &'\
+        vehicle_app_cmd = 'sleep 8 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d > %s/logs/node%d.log 2>&1 &'\
             % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, CODE_DIR, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
