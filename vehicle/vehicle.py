@@ -220,7 +220,8 @@ def v2i_data_send_thread():
             print("capture finished, sleep %f" % (1.0/FRAMERATE-t_elapsed))
             time.sleep(1.0/FRAMERATE-t_elapsed)
         elif capture_finished and (1.0/FRAMERATE-t_elapsed) < 0:
-            passed_frames = int((t_elapsed-1/FRAMERATE) * FRAMERATE)
+            passed_frames = int(t_elapsed * FRAMERATE)
+            print('Sending V2I passed %f'%t_elapsed)
             frame_lock.acquire()
             curr_frame_id += passed_frames
             frame_lock.release()
@@ -541,7 +542,7 @@ class VehicleDataSendThread(threading.Thread):
                 time.sleep(1/FRAMERATE - t_elapsed)
             elif capture_finished and (1/FRAMERATE - t_elapsed) <= 0:
                 print('Sending passed %f'%t_elapsed)
-                passed_frames = int((t_elapsed-1/FRAMERATE)*FRAMERATE)
+                passed_frames = int(t_elapsed*FRAMERATE)
                 frame_lock.acquire()
                 curr_frame_id += passed_frames
                 frame_lock.release()

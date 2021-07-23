@@ -8,6 +8,7 @@ import matplotlib
 matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 import seaborn as sns
+from util import *
 
 font = {'family' : 'DejaVu Sans',
         'size'   : 15}
@@ -133,7 +134,6 @@ def get_all_runs_results(analyze_type, data_dir, frames, key, have_multi=False):
     global num_nodes
     if analyze_type == 'single':
         config = run_experiment.parse_config_from_file(data_dir+'/config.txt')
-        # frames = int(config[""])
         num_nodes = int(config["num_of_nodes"])
         os.system('sudo python3 %s/calc_delay.py %d %s %d'%(CODE_DIR, num_nodes, data_dir, frames))
     elif analyze_type == 'multi':
@@ -162,8 +162,8 @@ def get_all_runs_results(analyze_type, data_dir, frames, key, have_multi=False):
                 files = os.listdir(data_dir+dir)
                 if 'all_delay.txt' not in files:           
                     os.system('sudo python3 %s/calc_delay.py %s/ %d %d'%(CODE_DIR, dir, num_nodes, frames))
-                result_each_run[conf_key] = get_per_experiment_stats(data_dir+dir, num_nodes)
-
+                # result_each_run[conf_key] = get_per_experiment_stats(data_dir+dir, num_nodes)
+                result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes, config["helpee_conf"])
 
 def plot_bar_across_runs():
     fig = plt.figure(figsize=(50, 8))
@@ -196,21 +196,28 @@ def plot_bar_based_on_schedule(schedule):
 def plot_bar_compare_schedule(schedules):
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    x_positions = np.arange(len(result_each_run.keys()))
+    x_positions = np.arange(len(schedules))
     cnt = 0
     schedule_data = {}
+    schedule_helpee_data, schedule_helper_data = {}, {}
     for schedule in schedules:
         for k, v in result_each_run.items():
             if schedule in k:
                 if schedule not in schedule_data.keys():
                     schedule_data[schedule] = v['all']
+                    schedule_helpee_data[schedule] = v['helpee']
+                    schedule_helper_data[schedule] = v['helper']
                 else:
                     schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
-    
+                    schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
+                    schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
     for schedule in schedule_data.keys():
-        ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
+        ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-0.2]), whis=(5, 95), autorange=True, showfliers=False)
+        ax.boxplot(schedule_helpee_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
+        ax.boxplot(schedule_helper_data[schedule], positions=np.array([x_positions[cnt]+0.2]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
-
+    
+    ax.set_xticks(x_positions)
     ax.set_xticklabels(schedules)
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/schedule_compare.png')
@@ -224,7 +231,7 @@ def calculate_per_node_mean(setting):
         if matched:
             print(k)
             for i in range(num_nodes):
-                node_latency = v[i] 
+                node_latency = np.array(sorted(v[i].values()))[:, 0]
                 if i in node_result.keys():
                     node_result[i].append(np.mean(node_latency))
                 else:
@@ -294,8 +301,8 @@ def repeat_exp_analysis():
     all_keys = generate_keys(LOC, BW, HELPEE, SCHEDULER)
     for key in all_keys:
         node_result = calculate_per_node_mean(key)
-        frame_mean, frame_std = calculate_per_node_per_frame_mean(key)
-        plot_per_frame(frame_mean, frame_std, str(key))
+        # frame_mean, frame_std = calculate_per_node_per_frame_mean(key)
+        # plot_per_frame(frame_mean, frame_std, str(key))
         # print("node results")
         # print(node_result)
         plot_bar(node_result, str(key))
