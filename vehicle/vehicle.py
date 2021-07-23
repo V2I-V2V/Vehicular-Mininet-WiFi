@@ -138,12 +138,17 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
 
 def get_encoded_frame(frame_id, metric):
     encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
+    cnt = 1
     if metric < 0.5:
         encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
+        cnt += 1
     if metric < 0.3:
         encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
+        cnt += 1
     if metric < 0.1:
         encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
+        cnt += 1
+    print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(cnt))
     return encoded_frame
 
 
