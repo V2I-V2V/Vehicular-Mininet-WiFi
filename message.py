@@ -106,16 +106,16 @@ def recv_msg(socket, type, is_udp=False):
         thrpt_cnt_bytes = 0
         first_buffer_empty_recv_time = 0.0
         while len(payload) < msg_payload_size:
-            recv_s = time.time()
-            data_recv = socket.recv(4000 if to_recv > 4000 else to_recv)
-            recv_elapsed = time.time() - recv_s
-            # print("recv take %f"%recv_elapsed)
-            if buffer_drained is False and recv_elapsed > 0.0003:
-                start_time = time.time()
-                buffer_drained = True
-                first_buffer_empty_recv_time = recv_elapsed
-            if buffer_drained:
-                thrpt_cnt_bytes += len(data_recv)
+            # recv_s = time.time()
+            data_recv = socket.recv(65536 if to_recv > 65536 else to_recv)
+            # recv_elapsed = time.time() - recv_s
+            # # print("recv take %f"%recv_elapsed)
+            # if buffer_drained is False and recv_elapsed > 0.0003:
+            #     start_time = time.time()
+            #     buffer_drained = True
+            #     first_buffer_empty_recv_time = recv_elapsed
+            # if buffer_drained:
+            #     thrpt_cnt_bytes += len(data_recv)
             if len(data_recv) < 0:
                 print("[Socket closed]")
                 if type == TYPE_DATA_MSG:
@@ -130,7 +130,7 @@ def recv_msg(socket, type, is_udp=False):
             if thrpt_cnt_bytes > 0:
                 throughput = thrpt_cnt_bytes*8.0/1000000/elapsed_time
             else:
-                throughput = 4000*8/1000000/elapsed_time
+                throughput = msg_payload_size*8.0/1000000/elapsed_time
             return header, payload, throughput, elapsed_time
         else:
             return header, payload
