@@ -212,12 +212,12 @@ def plot_bar_compare_schedule(schedules):
                     schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
                     schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
     for schedule in schedule_data.keys():
-        ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-2]), whis=(5, 95), autorange=True, showfliers=False)
+        ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-0.2]), whis=(5, 95), autorange=True, showfliers=False)
         ax.boxplot(schedule_helpee_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
         ax.boxplot(schedule_helper_data[schedule], positions=np.array([x_positions[cnt]+0.2]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
     
-    ax.set_xticks(np.arange(len(schedules)))
+    ax.set_xticks(x_positions)
     ax.set_xticklabels(schedules)
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/schedule_compare.png')
