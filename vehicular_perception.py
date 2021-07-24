@@ -36,7 +36,7 @@ CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
-    time.sleep(8)
+    time.sleep(13)
     for throughput_idx in range(min(len(trace), time_to_run-20)):
         start_t = time.time()
         if trace[throughput_idx] == 0:
@@ -97,7 +97,7 @@ def config_mobility_mininet_replay(net, stations, loc_file, plot=True):
 
 def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
-    time.sleep(8)
+    time.sleep(13)
     print("\nstart update location at %f" % time.time())
     for time_i in range(min(loc_trace.shape[0], 450)):
         # print("update location for stas")
@@ -139,7 +139,7 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 8 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d > %s/logs/node%d.log 2>&1 &'\
+        vehicle_app_cmd = 'sleep 3 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d > %s/logs/node%d.log 2>&1 &'\
             % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, CODE_DIR, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)

@@ -36,7 +36,7 @@ def update_bw(trace_filename):
         v2i_bw_traces[i] = all_bandwidth[:, i]
     for i in range(all_bandwidth.shape[1]):
         bws[i] = v2i_bw_traces[i][0]
-    time.sleep(8)
+    time.sleep(13)
     while True:
         cur_time = time.time()
         j = int(cur_time - init_time)
@@ -118,6 +118,14 @@ class SchedThread(threading.Thread):
     def ready_to_schedule(self, scheduler_mode):
         global current_connected_vids
         current_connected_vids = check_current_connected_vehicles()
+        print("Current connected vehicles " + str(current_connected_vids))
+        helpee_count, helper_count = 0, 0
+        for i in current_connected_vids:
+            if vehicle_types[i] == HELPEE:
+                helpee_count += 1
+            else:
+                helper_count += 1
+        print("Helpers: %d helpees: %d %f"%(helper_count, helpee_count, time.time()))
         if len(current_connected_vids) < 2:
             return False
         elif scheduler_mode == "minDist" or scheduler_mode == "bwAware" or scheduler_mode == 'random':
@@ -136,7 +144,7 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
-            print(location_map, flush=True)
+            print("loc:" + str(location_map), flush=True)
             if scheduler_mode == 'fixed':
                 assignment = fixed_assignment
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
@@ -187,7 +195,7 @@ class SchedThread(threading.Thread):
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
-                print("Assignment: " + str(assignment) + ' ' + str(time.time()))
+                print("Assignment: " + str(assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
                 for cnt, node in enumerate(assignment):
                     real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
                     current_assignment[real_helper] = real_helpee
@@ -210,6 +218,7 @@ class ControlConnectionThread(threading.Thread):
         # print("Connection from : ", self.client_address)
         data = self.client_socket.recv(2)
         vehicle_id = int.from_bytes(data, "big")
+        vehicle_types[vehicle_id] = HELPER
         # node_last_recv_timestamp[vehicle_id] = time.time()
         client_sockets[vehicle_id] = self.client_socket
         header, payload = message.recv_msg(self.client_socket,\
@@ -289,7 +298,7 @@ def server_recv_data(client_socket, client_addr):
         assert len(msg) == msg_size
         latency = time.time() - ts
         print("[receive header] node %d latency %f" % (v_id, latency))
-        node_last_recv_timestamp[v_id] = time.time()
+        # node_last_recv_timestamp[v_id] = time.time()
         # if frame_id >= MAX_FRAMES:
         #     continue
         if data_type == TYPE_PCD:

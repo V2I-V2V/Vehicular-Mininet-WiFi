@@ -52,6 +52,7 @@ connection_state = "Connected"
 current_helpee_id = 65535
 current_helper_id = 65535
 curr_timestamp = 0.0
+last_frame_sent_ts = 0.0
 vehicle_locs = mobility.read_locations(LOCATION_FILE)
 self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
@@ -69,9 +70,6 @@ def self_loc_update_thread():
         self_loc = loc
         time.sleep(0.1)
 
-loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
-loction_update_thread.daemon = True
-loction_update_thread.start()
 
 
 vehicle_seq_dict = {} # store other vehicle's highest seq
@@ -152,7 +150,7 @@ def send(socket, data, id, type):
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
     """
-    global curr_frame_id
+    global curr_frame_id, last_frame_sent_ts
     ack_recv_thread = threading.Thread(target=v2i_ack_recv_thread)
     ack_recv_thread.start()
     while connection_state == "Connected":
@@ -167,12 +165,12 @@ def v2i_data_send_thread():
         curr_frame_id += 1
         frame_lock.release()
         # TODO: maybe compress the frames beforehand, change encode to another thread
-        t_s = time.time()
-        print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(t_s), flush=True)
+        last_frame_sent_ts = time.time()
+        print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
         frame_sent_time[curr_f_id] = time.time()
         send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
         send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
-        print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-t_s))
+        print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
         t_elapsed = time.time() - t_start
         if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
             print("capture finished, sleep %f" % (1.0/FRAMERATE-t_elapsed))
@@ -357,8 +355,8 @@ class VehicleControlThread(threading.Thread):
                         print("[Helpee get helper assignment] helper_id: "\
                             + str(helper_id) + ' ' + str(time.time()), flush=True)
                         helper_ip = "10.0.0." + str(helper_id+2)   
-                        current_helper_id = helper_id
-                        new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port)
+                        # current_helper_id = helper_id
+                        new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port, helper_id)
                         new_send_thread.daemon = True
                         new_send_thread.start()
                         if len(helper_data_send_thread) != 0:
@@ -462,19 +460,22 @@ class VehicleDataSendThread(threading.Thread):
         Used when helpee get assignment and connect to the helper node
     """
 
-    def __init__(self, helper_ip, helper_port):
+    def __init__(self, helper_ip, helper_port, helper_id):
+        global current_helper_id
         threading.Thread.__init__(self)
         self.v2v_data_send_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.v2v_data_send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 16384)
-        self.v2v_data_send_sock.connect((helper_ip, helper_port))
-        # self.v2v_data_send_sock.setblocking(False)
-        # self.v2v_data_send_sock.settimeout(1.0/FRAMERATE)
-        self.is_helper_alive = True
-        self.ack_recv_thread = threading.Thread(target=self.ack_recv_thread, args=())
-    
+        try:
+            self.v2v_data_send_sock.connect((helper_ip, helper_port))
+            self.is_helper_alive = True
+            self.ack_recv_thread = threading.Thread(target=self.ack_recv_thread, args=())
+            current_helper_id = helper_id
+        except:
+            print('[Connection to helper failed]')
+
     
     def run(self):
-        global curr_frame_id
+        global curr_frame_id, last_frame_sent_ts
         self.ack_recv_thread.start()
         while self.is_helper_alive:
             t_start = time.time()
@@ -565,18 +566,18 @@ def check_connection_state(disconnect_timestamps):
         t_start = time.time()
         if connection_state == "Connected" and not control_msg_disabled:
             # print("Connected to server...")
-            if vehicle_id not in disconnect_timestamps.keys():
-                v2i_control_socket_lock.acquire()
-                wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
-                                    control_seq_num) 
-                control_seq_num += 1
-                v2i_control_socket_lock.release()
-                v2i_control_socket_lock.acquire()
-                wwan.send_route(HELPER, vehicle_id, 
-                                route.table_to_bytes(route.get_routes(vehicle_id)), 
-                                v2i_control_socket, control_seq_num)
-                control_seq_num += 1
-                v2i_control_socket_lock.release()
+            # if vehicle_id not in disconnect_timestamps.keys():
+            v2i_control_socket_lock.acquire()
+            wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
+                                control_seq_num) 
+            control_seq_num += 1
+            v2i_control_socket_lock.release()
+            v2i_control_socket_lock.acquire()
+            wwan.send_route(HELPER, vehicle_id, 
+                            route.table_to_bytes(route.get_routes(vehicle_id)), 
+                            v2i_control_socket, control_seq_num)
+            control_seq_num += 1
+            v2i_control_socket_lock.release()
         elif connection_state == "Disconnected" and not control_msg_disabled:
             # print("Disconnected to server... broadcast " + str(time.time()))
             v2i_control_socket_lock.acquire()
@@ -609,7 +610,13 @@ def main():
     sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
     t_elapsed = time.time() - t_start
     print("read and encode takes %f" % t_elapsed)
+    # explicitly sync on encoding
+    if t_elapsed < 10:
+        time.sleep(10-t_elapsed)
     curr_timestamp = time.time()
+    loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
+    loction_update_thread.daemon = True
+    loction_update_thread.start()
     v2i_control_thread = ServerControlThread()
     v2i_control_thread.start()
     v2v_control_thread = VehicleControlThread()
