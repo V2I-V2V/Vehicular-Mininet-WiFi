@@ -119,17 +119,17 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         pcd_f_name = pcd_data_path + "%06d.bin"%i
         raw_pcd = ptcl.pointcloud.read_pointcloud(pcd_f_name)
         pcd_np = np.frombuffer(raw_pcd, dtype=np.float32).reshape([-1,4])
-        # partitioned = ptcl.partition.simple_partition(pcd_np, 20)
-        partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
-        encodeds = []
-        for partition in partitions:
-            encoded, ratio = ptcl.pointcloud.dracoEncode(partition, 10, 8)
-            encodeds.append(encoded)
+        partitioned = ptcl.partition.simple_partition(pcd_np, 20)
+        # partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
+        # encodeds = []
+        # for partition in partitions:
+        #     encoded, ratio = ptcl.pointcloud.dracoEncode(partition, 10, 8)
+        #     encodeds.append(encoded)
         # pcd, _ = ptcl.pointcloud.dracoEncode(partitions[0], PCD_ENCODE_LEVEL, PCD_QB)
-        # pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
-        #                                     PCD_ENCODE_LEVEL, PCD_QB)
-        # pcd_data_buffer.append(pcd)
-        pcd_data_buffer.append(encodeds)
+        pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
+                                            PCD_ENCODE_LEVEL, PCD_QB)
+        pcd_data_buffer.append(pcd)
+        # pcd_data_buffer.append(encodeds)
         # print(partitions[0].shape)
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
