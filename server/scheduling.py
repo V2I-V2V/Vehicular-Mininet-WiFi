@@ -245,6 +245,9 @@ def wwan_bw_distance_sched(num_of_helpees, num_of_helpers, bws, positions, p):
 
 def get_path_interference_count(routing_path, valid_neighbor_map):
     interference_count = 0
+    if len(routing_path) == 0:
+        # if routing path empty (no valid path), return a large intererence cnt
+        return 65535
     for node in routing_path:
         count = len(valid_neighbor_map[node])
         interference_count += count

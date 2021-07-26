@@ -55,7 +55,10 @@ def get_routing_path(helpee, helper, routing_tables):
     # find the path from a helpee to a helper
     i = helpee
     routing_path = [i]
-    while i != helper and i in routing_tables.keys():
+    while i != helper:
+        if i not in routing_tables.keys() or helper not in routing_tables[i].keys():
+            # cannot reach destination, return an empty array
+            return []
         i = routing_tables[i][helper]
         routing_path.append(i)
     return routing_path
@@ -63,7 +66,10 @@ def get_routing_path(helpee, helper, routing_tables):
 
 def get_num_hops(helpee, helper, routing_tables):
     # find the number of hops from a helpee to a helper
-    return len(get_routing_path(helpee, helper, routing_tables)) - 1
+    if len(get_routing_path(helpee, helper, routing_tables)) == 0:
+        return 65535 # a large number
+    else:
+        return len(get_routing_path(helpee, helper, routing_tables)) - 1
 
 
 def get_neighbors(node, routing_tables):

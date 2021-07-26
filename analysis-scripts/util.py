@@ -29,6 +29,7 @@ def get_sender_ts(filename):
 def get_receiver_ts(filename):
     receiver_throughput = {}
     receiver_ts_dict = {}
+    server_node_dict = {'time':[], 'helper_num': [], 'helpee_num': []}
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -44,8 +45,15 @@ def get_receiver_ts(filename):
                     receiver_ts_dict[sender_id] = {}
                 receiver_throughput[sender_id].append([ts, thrpt])
                 receiver_ts_dict[sender_id][frame] = ts
+            elif line.startswith("Helpers:"):
+                parse = line.split()
+                helper_cnt, helpee_cnt, ts = int(parse[1]), int(parse[3]), float(parse[-1])
+                server_node_dict['time'].append(ts)
+                server_node_dict['helper_num'].append(helper_cnt)
+                server_node_dict['helpee_num'].append(helpee_cnt)
+                
         f.close()
-    return receiver_ts_dict, receiver_throughput
+    return receiver_ts_dict, receiver_throughput, server_node_dict
 
 
 def get_helpees(helpee_conf):
@@ -65,7 +73,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf):
     for i in range(num_nodes):
         sender_ts_dict[i], encode_choice_dict[i], encode_t = get_sender_ts(dir + '/logs/node%d.log'%i)
         latency_dict[i] = {}
-    receiver_ts_dict, receiver_thrpt = get_receiver_ts(dir + '/logs/server.log')
+    receiver_ts_dict, receiver_thrpt, server_helper_dict = get_receiver_ts(dir + '/logs/server.log')
     # calculate delay
     all_delay = []
     helpee_delay = []

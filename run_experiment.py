@@ -112,8 +112,10 @@ def move_output(folder):
 def run_analysis(folder, config_params):
     cmd = "sudo python3 " + os.path.dirname(os.path.abspath(__file__)) \
         + "/analysis-scripts/calc_delay.py " + folder + '/ ' +  config_params["num_of_nodes"] \
-        + ' ' + config_params["frames"] + ' >/dev/null'
+        + ' ' + config_params["helpee_conf"] + ' >/dev/null'
     os.system(cmd)
+    # plot traj and v2i bw
+    cmd = "python3 "
 
 
 def main():
