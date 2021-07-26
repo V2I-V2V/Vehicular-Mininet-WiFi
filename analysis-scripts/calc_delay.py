@@ -115,7 +115,8 @@ def main():
         sender_ts_dict[i], sender_adaptive_choice[i], encode_time  = util.get_sender_ts(dir + 'logs/node%d.log'%i)
         # sender_ts_dict[i] = get_sender_ts(dir + 'logs/node%d.log'%i)
         helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
-    get_receiver_ts(dir + 'logs/server.log')
+    receiver_ts_dict, receiver_thrpt, server_node_dict = util.get_receiver_ts(dir + 'logs/server.log')
+    # get_receiver_ts(dir + 'logs/server.log')
     delay_all = np.empty((300,))
     for i in range(num_nodes):
         delay_dict[i], delay_dict_ts[i] = calculate_latency(sender_ts_dict[i], receiver_ts_dict[i])
@@ -156,29 +157,56 @@ def main():
     plt.savefig(dir+'latency-frame.png')
 
     # plot adaptive encode
-    bw = np.loadtxt(bw_file)
-    fig = plt.figure(figsize=(9, 7))
+    # bw = np.loadtxt(bw_file)
+    # fig = plt.figure(figsize=(9, 7))
+    # for i in range(num_nodes):
+    #     ax = fig.add_subplot(num_nodes, 1, i+1)
+    #     ax2 = ax.twinx()
+    #     ts, delay = construct_ts_latency_array(delay_dict_ts[i])
+    #     ax.plot(ts, delay, '--', label='node%d-latency'%i)
+    #     encode_levels = []
+    #     for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
+    #         encode_levels.append(v)
+    #     ax.plot(ts, encode_levels, label='encode level')
+    #     ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[encode_time:int(ts[-1]-ts[0])+encode_time, i], label='node%i-bandwidth'%i)
+    #     ax.set_xlabel('Time (s)')
+    #     ax.set_ylabel('Latency (s)')
+    #     ax2.set_ylabel('Bandwidth (Mbps)')
+    #     ax2.set_ylim(-4, 22)
+    #     ax.set_ylim(0, 5)
+    #     ax.legend(loc='upper left')
+    #     ax2.legend()
+
+    # plt.tight_layout()
+    # plt.savefig(dir+'latency-adaptive.png')
+
+
+
+    # Plot helpees, helpers
+    fig = plt.figure(figsize=(9, 10))
+    ax = fig.add_subplot(111)
+    ts = np.array(server_node_dict['time']) - np.min(server_node_dict['time'])
+    ax.plot(ts, server_node_dict['helper_num'], label='# of helpers')
+    ax.plot(ts, server_node_dict['helpee_num'], label='# of helpees')
+    ax.legend()
+    ax.set_ylabel("Number of helpee, helpers")
+
+    ax2 = ax.twinx()
     for i in range(num_nodes):
-        ax = fig.add_subplot(num_nodes, 1, i+1)
-        ax2 = ax.twinx()
-        ts, delay = construct_ts_latency_array(delay_dict_ts[i])
-        ax.plot(ts, delay, '--', label='node%d-latency'%i)
-        encode_levels = []
-        for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
-            encode_levels.append(v)
-        ax.plot(ts, encode_levels, label='encode level')
-        ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[encode_time:int(ts[-1]-ts[0])+encode_time, i], label='node%i-bandwidth'%i)
-        ax.set_xlabel('Time (s)')
-        ax.set_ylabel('Latency (s)')
-        ax2.set_ylabel('Bandwidth (Mbps)')
-        ax2.set_ylim(-4, 22)
-        ax.set_ylim(0, 5)
-        ax.legend(loc='upper left')
-        ax2.legend()
-
+        ts_node, delay = construct_ts_latency_array(delay_dict_ts[i])
+        ts_node = np.array(sorted(delay_dict_ts[i].keys()))-np.min(server_node_dict['time'])
+        # ts_node += 8 # offset timestamp
+        ts_combined = np.concatenate((ts_node, ts[ts>ts_node[-1]]))
+        val_combined = np.concatenate((np.ones(len(ts_node)), np.zeros(len(ts[ts>ts_node[-1]]))))
+        ax2.plot(ts_combined, val_combined+i/50, '--',  label='node %d frame arrival pattern'%i)
+        # ax2.scatter(ts_combined, val_combined+i/50,  label='node %d frame arrival pattern'%i)
+    # ax2.plot(ts[ts>ts_node[-1]], np.zeros(len(ts[ts>ts_node[-1]])))
+    ax2.set_ylabel("Frame Arrival")
+    ax2.set_yticks([-1, 0, 1, 2])
+    ax2.legend(loc='lower right')
+    ax.set_xlabel('Time (s)')
     plt.tight_layout()
-    plt.savefig(dir+'latency-adaptive.png')
-
+    plt.savefig(dir+'dynamic-nodes.png')
 
     # plot node bw
     # fig = plt.figure(figsize=(9, 9))
