@@ -285,8 +285,9 @@ def get_bw_scores(assignment, v2i_bws):
     for helpee, helper in enumerate(assignment):
         score = 1
         counts = get_counts(assignment)
-        if 5 < v2i_bws[helpee] / (counts[helper] + 1) < 25:
-            score = (v2i_bws[helpee] - 5) / 20
+        average_bw = v2i_bws[helpee] / (counts[helper] + 1)
+        if 5 < average_bw < 25:
+            score = (average_bw - 5) / 20
         elif v2i_bws[helpee] <= 5:
             score = 0
         scores.append(score)

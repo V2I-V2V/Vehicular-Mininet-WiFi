@@ -42,6 +42,10 @@ def read_oxts(oxts_filename):
 
 
 def dracoEncode(points, cl, qb):
+    if points.shape[0] == 0:
+        points = np.zeros((1, 4))
+        # print("empty data to encode!")
+        # return b'', 0
     encode_buf = TrakoDracoPy.encode_point_cloud_to_buffer(points[:,:3].flatten(), position=True, 
         sequential=False, remove_duplicates=False, quantization_bits=qb, compression_level=cl,
         quantization_range=-1, quantization_origin=None, create_metadata=False)
@@ -50,6 +54,8 @@ def dracoEncode(points, cl, qb):
 
 
 def dracoDecode(pc_encoded):
+    if len(pc_encoded) == 0:
+        return np.empty((0,3))
     decode_buf = TrakoDracoPy.decode_point_cloud_buffer(pc_encoded)
     pc = np.asarray(decode_buf.points).astype(np.float32).reshape([-1,3])
     return pc
