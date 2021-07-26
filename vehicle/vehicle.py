@@ -206,9 +206,9 @@ def v2i_data_send_thread():
         #     and curr_frame_id < len(oxts_data_buffer):
         curr_f_id = curr_frame_id
         data_f_id = curr_f_id % config.MAX_FRAMES
-        # pcd = pcd_data_buffer[data_f_id]
+        pcd = pcd_data_buffer[data_f_id]
         # pcd = pcd_data_buffer[data_f_id][0]
-        pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+        # pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
         oxts = oxts_data_buffer[data_f_id]
         curr_frame_id += 1
         frame_lock.release()
@@ -531,9 +531,9 @@ class VehicleDataSendThread(threading.Thread):
             # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
             #     and curr_frame_id < len(oxts_data_buffer):
             curr_f_id = curr_frame_id
-            # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
+            pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
-            pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
@@ -659,14 +659,10 @@ def main():
     t_start = time.time()
     sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
     t_elapsed = time.time() - t_start
-<<<<<<< HEAD
-    print("read and encode takes %f" % t_elapsed, flush=True)
-=======
     print("read and encode takes %f" % t_elapsed)
     # explicitly sync on encoding
     if t_elapsed < 10:
         time.sleep(10-t_elapsed)
->>>>>>> master
     curr_timestamp = time.time()
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
     loction_update_thread.daemon = True
