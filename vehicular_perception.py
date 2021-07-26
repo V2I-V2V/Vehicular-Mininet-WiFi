@@ -99,14 +99,22 @@ def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
     time.sleep(13)
     print("\nstart update location at %f" % time.time())
+    # loc_update_logs = []
+    # for station_idx in range(len(stations)):
+    #     log = open('%d.txt'%station_idx, 'w+')
+    #     loc_update_logs.append(log)
     for time_i in range(min(loc_trace.shape[0], 450)):
-        # print("update location for stas")
+        t_s = time.time()
         for station_idx in range(len(stations)):
             stations[station_idx].setPosition('%f,%f,0'%(loc_trace[time_i][2*station_idx], \
                                                      loc_trace[time_i][2*station_idx+1]))
+            # loc_update_logs[station_idx].write(str(time.time())+' '+str(loc_trace[time_i][2*station_idx])\
+            #     + ' ' + str(loc_trace[time_i][2*station_idx+1]) + '\n')
             if enable_plot:
                 stations[station_idx].update_2d()
-        time.sleep(0.1)
+        t_passed = time.time() - t_s
+        if t_passed < 0.1:
+            time.sleep(0.1-t_passed)
     print("\nfinish update location at %f" % time.time())
 
 

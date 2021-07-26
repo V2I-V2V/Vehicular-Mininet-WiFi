@@ -56,6 +56,8 @@ last_frame_sent_ts = 0.0
 vehicle_locs = mobility.read_locations(LOCATION_FILE)
 self_loc_trace = vehicle_locs[vehicle_id]
 self_loc = self_loc_trace[0]
+if len(self_loc_trace) > 5:
+    self_loc = self_loc[5:] # manually sync location update with vechiular_perception.py
 pcd_data_buffer = []
 oxts_data_buffer = []
 e2e_frame_latency = {}
@@ -65,10 +67,14 @@ def self_loc_update_thread():
     """Thread to update self location every 100ms
     """
     global self_loc
-    print("start loc update at %f" % time.time())
+    print("[start loc update] at %f" % time.time())
+    # loc_log = open('%d_v.txt'%vehicle_id, 'w+')
     for loc in self_loc_trace:
+        t_s = time.time()
         self_loc = loc
-        time.sleep(0.1)
+        # loc_log.write(str(time.time()) + ' ' + str(self_loc[0]) + ' ' +str(self_loc[1]) + '\n')
+        t_passed = time.time() - t_s
+        time.sleep(0.1-t_passed)
 
 
 
