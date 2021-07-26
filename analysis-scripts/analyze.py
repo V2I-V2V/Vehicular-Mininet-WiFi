@@ -272,8 +272,10 @@ def plot_bar(data, name):
     x = np.arange(len(data.values()))
     values = data.values()
     cnt = 0
+    print(name)
     for value in values:
         mean, std = np.mean(value), np.std(value)
+        print(std)
         x = np.arange(cnt, (cnt+1))
         plt.errorbar(x, mean, yerr=std, capsize=4)
         ax.scatter(x, mean)
