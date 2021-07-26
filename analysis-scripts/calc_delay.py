@@ -109,14 +109,33 @@ def construct_ts_latency_array(delay_dict_ts):
     delay = np.array(delay)
     return ts, delay
 
+def construct_ts_assignment_array(server_assignments):
+    ts, assignments, assignment_enums = [], [], []
+    for val in server_assignments.values():
+        if val not in assignment_enums:
+            assignment_enums.append(val)
+    for timestamp in sorted(server_assignments.keys()):
+        ts.append(timestamp)
+        assignments.append(assignment_enums.index(server_assignments[timestamp]))
+    ts = np.array(ts) - np.min(ts)
+    assignments = np.array(assignments)
+    return ts, assignments, assignment_enums
+
+def construct_ts_scores_array(scores):
+    ts, dist_scores, bw_scores, intf_scores = [], [], [], []
+    for timestamp, score in scores.items():
+        ts.append(timestamp)
+        dist_scores.append(score[0])
+        bw_scores.append(score[1])
+        intf_scores.append(score[2])
+    ts = np.array(ts) - np.min(ts)
+    return ts, dist_scores, bw_scores, intf_scores
 
 def main():
     for i in range(num_nodes):
         sender_ts_dict[i], sender_adaptive_choice[i], encode_time  = util.get_sender_ts(dir + 'logs/node%d.log'%i)
-        # sender_ts_dict[i] = get_sender_ts(dir + 'logs/node%d.log'%i)
         helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
     receiver_ts_dict, receiver_thrpt, server_node_dict = util.get_receiver_ts(dir + 'logs/server.log')
-    # get_receiver_ts(dir + 'logs/server.log')
     delay_all = np.empty((300,))
     for i in range(num_nodes):
         delay_dict[i], delay_dict_ts[i] = calculate_latency(sender_ts_dict[i], receiver_ts_dict[i])
@@ -138,7 +157,7 @@ def main():
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
     plt.legend()
-    plt.savefig(dir+'latency-cdf.png')
+    plt.savefig(dir+'latency-cdf-each-node.png')
 
     # Plot latency vs. time
     fig = plt.figure(figsize=(12, 6))
@@ -149,12 +168,12 @@ def main():
         ts, delay = construct_ts_latency_array(delay_dict_ts[i])
         ax.plot(ts, delay, '--o', label='node%d'%i)
         np.savetxt(dir+'node%d_delay.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
-        np.savetxt(dir+'node%d_thrpt.txt'%i, np.array(receiver_throughput[i]))
+        np.savetxt(dir+'node%d_thrpt.txt'%i, np.array(receiver_thrpt[i]))
     plt.xlabel("Time (s)")
     plt.ylabel("Latency (s)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(dir+'latency-frame.png')
+    plt.savefig(dir+'latency-over-time.png')
 
     # plot adaptive encode
     # bw = np.loadtxt(bw_file)
@@ -168,7 +187,7 @@ def main():
     #     for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
     #         encode_levels.append(v)
     #     ax.plot(ts, encode_levels, label='encode level')
-    #     ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[encode_time:int(ts[-1]-ts[0])+encode_time, i], label='node%i-bandwidth'%i)
+    #     ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
     #     ax.set_xlabel('Time (s)')
     #     ax.set_ylabel('Latency (s)')
     #     ax2.set_ylabel('Bandwidth (Mbps)')
@@ -179,8 +198,6 @@ def main():
 
     # plt.tight_layout()
     # plt.savefig(dir+'latency-adaptive.png')
-
-
 
     # Plot helpees, helpers
     fig = plt.figure(figsize=(9, 10))
@@ -206,7 +223,31 @@ def main():
     ax2.legend(loc='lower right')
     ax.set_xlabel('Time (s)')
     plt.tight_layout()
-    plt.savefig(dir+'dynamic-nodes.png')
+    plt.savefig(dir+'server-helper-helpee-change.png')
+
+    # plot assignments
+    server_assignments, ts_to_scores = util.get_server_assignments(dir + 'logs/server.log')
+    timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_assignments)
+    print(assignment_enums)
+    fig = plt.figure(figsize=(9, 6))
+    ax = fig.add_subplot(111)
+    ax.plot(timestamps, assignments, color='darkblue', label='assignment')
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Assignment (helpee: helper)')
+    ax.set_yticks(np.arange(0, len(assignment_enums), 1))
+    ax.set_yticklabels(assignment_enums)
+    ax.legend()
+    if len(ts_to_scores) != 0:
+        ts, dist_scores, bw_scores, intf_scores = construct_ts_scores_array(ts_to_scores)
+        ax2 = ax.twinx()
+        ax2.plot(ts, dist_scores, '--', label='dist score')
+        ax2.plot(ts, bw_scores, '--', label='bw score')
+        ax2.plot(ts, intf_scores, '--', label='intf score')
+    ax2.set_ylabel('Score')
+    ax2.legend(loc='lower right')
+    ax2.set_yticks(np.arange(-10, 5))
+    plt.tight_layout()
+    plt.savefig(dir+'assignments.png')
 
     # plot node bw
     # fig = plt.figure(figsize=(9, 9))
@@ -241,7 +282,7 @@ def main():
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
     # plt.legend()
-    plt.savefig(dir+'latency-cdf-all.png')
+    plt.savefig(dir+'latency-cdf.png')
 
 
 if __name__ == '__main__':
