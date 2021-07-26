@@ -311,13 +311,20 @@ def server_recv_data(client_socket, client_addr):
             print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
                         (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
             pcds[v_id][frame_id%MAX_FRAMES] = msg
+            if save:
+                saving_thread = threading.Thread(target=save_ptcl, args=(v_id, frame_id, msg))
+                saving_thread.start()
         elif data_type == TYPE_OXTS:
             print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
             oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
         
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
             data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
-        
+
+def save_ptcl(v_id, frame_id, data):
+    with open('%s/output/node%d_%d.bin'%(REPO_DIR, v_id, frame_id), 'wb') as f:
+        f.write(data)
+        f.close()
 
 def merge_data_when_ready():
     global curr_processed_frame
@@ -335,11 +342,12 @@ def merge_data_when_ready():
             points_oxts_secondary = []
             for i in range(1, num_vehicles):
                 pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
-                pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
-                points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
-                if save:
-                    with open('%s/output/node%d_%d.bin'%(REPO_DIR, i, curr_processed_frame), 'wb') as f:
-                        f.write(pcds[i][curr_processed_frame])
+                if pcl.shape[0] != 0:
+                    pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
+                    points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
+                # if save:
+                #     with open('%s/output/node%d_%d.bin'%(REPO_DIR, i, curr_processed_frame), 'wb') as f:
+                #         f.write(pcds[i][curr_processed_frame])
             merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
             # with open('%s/output/merged_%d.bin'%(REPO_DIR, curr_processed_frame), 'w') as f:
             #     merged_pcl.tofile(f)

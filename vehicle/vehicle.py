@@ -119,10 +119,18 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         pcd_f_name = pcd_data_path + "%06d.bin"%i
         raw_pcd = ptcl.pointcloud.read_pointcloud(pcd_f_name)
         pcd_np = np.frombuffer(raw_pcd, dtype=np.float32).reshape([-1,4])
-        partitioned = ptcl.partition.simple_partition(pcd_np, 20)
-        pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
-                                            PCD_ENCODE_LEVEL, PCD_QB)
-        pcd_data_buffer.append(pcd)
+        # partitioned = ptcl.partition.simple_partition(pcd_np, 20)
+        partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
+        encodeds = []
+        for partition in partitions:
+            encoded, ratio = ptcl.pointcloud.dracoEncode(partition, 10, 8)
+            encodeds.append(encoded)
+        # pcd, _ = ptcl.pointcloud.dracoEncode(partitions[0], PCD_ENCODE_LEVEL, PCD_QB)
+        # pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
+        #                                     PCD_ENCODE_LEVEL, PCD_QB)
+        # pcd_data_buffer.append(pcd)
+        pcd_data_buffer.append(encodeds)
+        # print(partitions[0].shape)
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         t_elapsed = time.time() - t_s
@@ -130,6 +138,38 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         # if (1.0/fps-t_elapsed) > 0:
         #     time.sleep(1.0/fps-t_elapsed)
     capture_finished = True
+
+
+def get_encoded_frame(frame_id, metric):
+    encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
+    cnt = 1
+    if metric < 0.5:
+        encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
+        cnt += 1
+    if metric < 0.3:
+        encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
+        cnt += 1
+    if metric < 0.1:
+        encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
+        cnt += 1
+    print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(cnt))
+    return encoded_frame
+
+
+def get_latency(e2e_frame_latency):
+    recent_latency = 0
+    if len(e2e_frame_latency) == 0:
+        return 0
+    recent_latencies = sorted(e2e_frame_latency.items(), key=lambda item: -item[0])
+    cnt = 0
+    for id, latency in recent_latencies:
+        cnt += 1
+        recent_latency += latency
+        # print(id, latency)
+        if cnt == 10:
+            break
+    recent_latency /= cnt
+    return recent_latency
 
 
 def send(socket, data, id, type):
@@ -166,7 +206,9 @@ def v2i_data_send_thread():
         #     and curr_frame_id < len(oxts_data_buffer):
         curr_f_id = curr_frame_id
         data_f_id = curr_f_id % config.MAX_FRAMES
-        pcd = pcd_data_buffer[data_f_id]
+        # pcd = pcd_data_buffer[data_f_id]
+        # pcd = pcd_data_buffer[data_f_id][0]
+        pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
         oxts = oxts_data_buffer[data_f_id]
         curr_frame_id += 1
         frame_lock.release()
@@ -489,7 +531,9 @@ class VehicleDataSendThread(threading.Thread):
             # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
             #     and curr_frame_id < len(oxts_data_buffer):
             curr_f_id = curr_frame_id
-            pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
+            # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
+            # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
+            pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
@@ -615,10 +659,14 @@ def main():
     t_start = time.time()
     sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
     t_elapsed = time.time() - t_start
+<<<<<<< HEAD
+    print("read and encode takes %f" % t_elapsed, flush=True)
+=======
     print("read and encode takes %f" % t_elapsed)
     # explicitly sync on encoding
     if t_elapsed < 10:
         time.sleep(10-t_elapsed)
+>>>>>>> master
     curr_timestamp = time.time()
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
     loction_update_thread.daemon = True

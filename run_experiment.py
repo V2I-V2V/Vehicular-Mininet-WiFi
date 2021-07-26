@@ -72,13 +72,15 @@ def create_folder():
     return folder
 
 
-def run_experiment(config_params):
+def run_experiment(config_params, is_save_data=False):
     cmd = "sudo python3 " +  os.path.dirname(os.path.abspath(__file__)) + "/vehicular_perception.py -n " +\
          config_params["num_of_nodes"] + " -l " + config_params["location_file"] + " --trace " +\
          config_params["network_trace"] + " -p " + config_params["ptcl_config"] + " -s " + config_params["scheduler"] +\
          " --helpee_conf " + config_params["helpee_conf"] +\
          " -t " + config_params["t"] + " --fps " + config_params["fps"] + " --run_app" + " -r " + config_params["routing"] +\
          " --multi " + config_params["one_to_many"]
+    if is_save_data:
+        cmd += " --save_data 1"
     os.system(cmd)
     print("+" + cmd)
 
