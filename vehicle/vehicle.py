@@ -24,6 +24,9 @@ TYPE_OXTS = 1
 FRAMERATE = 5
 PCD_ENCODE_LEVEL = 10 # point cloud encode level
 PCD_QB = 12 # point cloud quantization bits
+NO_ADAPTIVE_ENCODE = 0
+ADAPTIVE_ENCODE = 1
+ADAPTIVE_ENCODE_FULL_CHUNK = 2
 
 sys.stderr = sys.stdout
 
@@ -37,6 +40,7 @@ parser.add_argument('-c', '--helpee_conf', default=os.path.dirname(os.path.abspa
                     type=str, help='helpee nodes configuration file')
 parser.add_argument('-f', '--fps', default=1, type=int, help='FPS of pcd data')
 parser.add_argument('-n', '--disable_control', default=0, type=int, help='disable control msgs')
+parser.add_argument('--adaptive', default=0, type=int, help="adaptive encoding type (0 for no adaptive encoding, 1 for adaptive, 2 for adaptive but always use full 4 chunks")
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
@@ -47,6 +51,7 @@ OXTS_DATA_PATH = args.data_path + '/oxts/'
 LOCATION_FILE = args.location_file
 HELPEE_CONF = args.helpee_conf
 FRAMERATE = args.fps
+ADAPTIVE_ENCODE_TYPE = args.adaptive
 print('fps ' + str(FRAMERATE))
 connection_state = "Connected"
 current_helpee_id = 65535
@@ -115,25 +120,25 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     """
     global capture_finished
     for i in range(config.MAX_FRAMES):
-        t_s = time.time()
+        # t_s = time.time()
         pcd_f_name = pcd_data_path + "%06d.bin"%i
         raw_pcd = ptcl.pointcloud.read_pointcloud(pcd_f_name)
         pcd_np = np.frombuffer(raw_pcd, dtype=np.float32).reshape([-1,4])
-        partitioned = ptcl.partition.simple_partition(pcd_np, 20)
-        # partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
-        # encodeds = []
-        # for partition in partitions:
-        #     encoded, ratio = ptcl.pointcloud.dracoEncode(partition, 10, 8)
-        #     encodeds.append(encoded)
-        # pcd, _ = ptcl.pointcloud.dracoEncode(partitions[0], PCD_ENCODE_LEVEL, PCD_QB)
-        pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
+        if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
+            partitioned = ptcl.partition.simple_partition(pcd_np, 20)
+            pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
                                             PCD_ENCODE_LEVEL, PCD_QB)
-        pcd_data_buffer.append(pcd)
-        # pcd_data_buffer.append(encodeds)
-        # print(partitions[0].shape)
+            pcd_data_buffer.append(pcd)
+        else:            
+            partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
+            encodeds = []
+            for partition in partitions:
+                encoded, ratio = ptcl.pointcloud.dracoEncode(partition, 10, 8)
+                encodeds.append(encoded)
+            pcd_data_buffer.append(encodeds)
         oxts_f_name = oxts_data_path + "%06d.txt"%i
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
-        t_elapsed = time.time() - t_s
+        # t_elapsed = time.time() - t_s
         # print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
         # if (1.0/fps-t_elapsed) > 0:
         #     time.sleep(1.0/fps-t_elapsed)
@@ -141,19 +146,28 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
 
 
 def get_encoded_frame(frame_id, metric):
-    encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
-    cnt = 1
-    if metric < 0.5:
-        encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
-        cnt += 1
-    if metric < 0.3:
-        encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
-        cnt += 1
-    if metric < 0.1:
-        encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
-        cnt += 1
-    print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(cnt))
+    if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
+        encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
+    elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE:
+        encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
+        cnt = 1
+        if metric < 0.5:
+            encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
+            cnt += 1
+        if metric < 0.3:
+            encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
+            cnt += 1
+        if metric < 0.1:
+            encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
+            cnt += 1
+        print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(cnt))
+    elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE_FULL_CHUNK:
+        encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0] + \
+                        pcd_data_buffer[frame_id % config.MAX_FRAMES][1] + \
+                        pcd_data_buffer[frame_id % config.MAX_FRAMES][2] + \
+                        pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
     return encoded_frame
+    
 
 
 def get_latency(e2e_frame_latency):
@@ -206,9 +220,9 @@ def v2i_data_send_thread():
         #     and curr_frame_id < len(oxts_data_buffer):
         curr_f_id = curr_frame_id
         data_f_id = curr_f_id % config.MAX_FRAMES
-        pcd = pcd_data_buffer[data_f_id]
+        # pcd = pcd_data_buffer[data_f_id]
         # pcd = pcd_data_buffer[data_f_id][0]
-        # pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+        pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
         oxts = oxts_data_buffer[data_f_id]
         curr_frame_id += 1
         frame_lock.release()
@@ -512,7 +526,7 @@ class VehicleDataSendThread(threading.Thread):
         global current_helper_id
         threading.Thread.__init__(self)
         self.v2v_data_send_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.v2v_data_send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 16384)
+        self.v2v_data_send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65536)
         try:
             self.v2v_data_send_sock.connect((helper_ip, helper_port))
             self.is_helper_alive = True
@@ -531,9 +545,9 @@ class VehicleDataSendThread(threading.Thread):
             # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
             #     and curr_frame_id < len(oxts_data_buffer):
             curr_f_id = curr_frame_id
-            pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
+            # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
-            # pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
