@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 # Filename : visualization
-__author__ = 'Xumiao Zhang'
 
 import numpy as np
 import open3d as o3d
@@ -8,7 +7,7 @@ import sys
 
 pcl = np.fromfile(sys.argv[1], dtype=np.float32, count=-1).reshape([-1,4])
 
-count =0
+count = 0
 print(pcl.shape[0])
 # print(pcl[:10])
 for p in pcl:

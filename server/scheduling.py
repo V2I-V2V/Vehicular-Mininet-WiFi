@@ -6,6 +6,7 @@ import itertools
 import math
 import random
 import statistics
+import time
 
 def find_all_one_to_one(num_of_helpees, num_of_helpers):
     '''
@@ -316,7 +317,7 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
 
 def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables, is_one_to_one=False):
     print("Using the combined sched")
-    scores = {}
+    scores, scores_dist, scores_bw, scores_intf = {}, {}, {}, {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     for assignment in assignments:
         # distances = get_distances(assignment, positions)
@@ -326,10 +327,15 @@ def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_table
         bw_scores = get_bw_scores(assignment, v2i_bws)
         interference_scores = get_interference_scores(assignment, interference_counts, routing_tables)
         # print(interference_scores)
+        scores_dist[get_id_from_assignment(assignment)] = statistics.harmonic_mean(distance_scores)
+        scores_bw[get_id_from_assignment(assignment)] = statistics.harmonic_mean(bw_scores)
+        scores_intf[get_id_from_assignment(assignment)] = statistics.harmonic_mean(interference_scores)
         scores[get_id_from_assignment(assignment)] = statistics.harmonic_mean(distance_scores) + statistics.harmonic_mean(bw_scores) + statistics.harmonic_mean(interference_scores)
         # print(assignment, scores[get_id_from_assignment(assignment)], 
         #       statistics.harmonic_mean(distance_scores), statistics.harmonic_mean(bw_scores), statistics.harmonic_mean(interference_scores))
     sorted_scores = sorted(scores.items(), key=lambda item: -item[1]) # decreasing order
+    # print(sorted_scores)
+    print("Scores: ", scores_dist[sorted_scores[0][0]], scores_bw[sorted_scores[0][0]], scores_intf[sorted_scores[0][0]], time.time())
     return get_assignment_from_id(sorted_scores[0][0])
 
 

@@ -12,6 +12,13 @@ cp ~/Vehicular-Mininet-WiFi/mininet-scripts/install.sh ~/mininet-wifi/util/insta
 sudo util/install.sh -Wlnfv
 ```
 
+### Update Kernel to v5.8
+
+```
+bash update_kernel.sh
+```
+After the script, reboot the machine. Check the output of `uname -r`, it should be `5.8.0-050800-generic`.
+
 ## Install routing dependencies
 
 Install BATMAN (-B) routing and OLSR (-O) routing protocol.
@@ -121,7 +128,7 @@ Optional arguments:
 * `-r <routing_algorithm>`: Support `olsrd` and `custom`. Other input will make nodes run no routing algorithm.
 * `-s <scheduler>`: Scheduler algorithm used by `server/server.py`. Default scheduler scheme is `minDist`. If you want to use fixed assignment mode, see next bullet.
 * `-s fixed <assignment_file> <assignment_index>`: Fix assignment mode. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`
-* `--power <tx_power>`: Set tx power (dBm) for all the nodes, support [0, 20].
+* `--power <tx_power>`: Set tx power (dBm) for all the nodes, support [0, 20]. Relationship b/w pwoer and coverage are [here](https://docs.google.com/spreadsheets/d/1pQjaUDc78t3qYAO2gj00q1HPb3gae56G-EdcOuoQAsY/edit#gid=1920952781).
 * `--fps <fps>`: Framerate of `vechile.py`,  default value is 1
 * `--no_control`: Disable control messages of `vehicle.py`. 
 * `-t <time_in_seconds>`: Total emulation time of the script. Default is 100 s.
