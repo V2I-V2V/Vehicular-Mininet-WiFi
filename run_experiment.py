@@ -77,7 +77,7 @@ def run_experiment(config_params, is_save_data=False, is_run_app=True):
          config_params["num_of_nodes"] + " -l " + config_params["location_file"] + " --trace " +\
          config_params["network_trace"] + " -p " + config_params["ptcl_config"] + " -s " + config_params["scheduler"] +\
          " --helpee_conf " + config_params["helpee_conf"] +\
-         " -t " + config_params["t"] + " --fps " + config_params["fps"] + " --run_app" + " -r " + config_params["routing"] +\
+         " -t " + config_params["t"] + " --fps " + config_params["fps"] + " -r " + config_params["routing"] +\
          " --multi " + config_params["one_to_many"] + " --adaptive_encode " + config_params["adaptive_encode"]
     if is_save_data:
         cmd += " --save_data 1"
