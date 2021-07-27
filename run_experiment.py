@@ -3,6 +3,8 @@ import os, sys
 import time
 from datetime import datetime, timedelta
 import subprocess
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from analysis.analyze_single_exp import single_exp_analysis
 
 
 def parse_config_from_file(filename):
@@ -112,12 +114,9 @@ def move_output(folder):
 
 
 def run_analysis(folder, config_params):
-    cmd = "sudo python3 " + os.path.dirname(os.path.abspath(__file__)) \
-        + "/analysis-scripts/calc_delay.py " + folder + '/ ' +  config_params["num_of_nodes"] \
-        + ' ' + config_params["helpee_conf"] + ' >/dev/null'
-    os.system(cmd)
-    # plot traj and v2i bw
-    cmd = "python3 "
+    single_exp_analysis(folder+'/', int(config_params["num_of_nodes"]), config_params["network_trace"], \
+         config_params["location_file"], config_params["helpee_conf"], int(config_params["t"]))
+
 
 
 def main():
