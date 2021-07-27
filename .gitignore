@@ -13,3 +13,9 @@ routing/simple-route
 mininet-scripts/
 *.route
 run_experiment_ruiyang.py
+analysis/plot_time_diff.py
+analysis/plot_cdf_in_one.py
+analysis/calc_v2v_thrpt.py
+analysis/plot_v2i_thrpt.py
+analysis/plot_position.py
+analysis/cal_avg_thrpt.py

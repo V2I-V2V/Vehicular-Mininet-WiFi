@@ -1,10 +1,12 @@
 import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import seaborn as sns
 import matplotlib
 matplotlib.use('AGG')
 import matplotlib.pyplot as plt
-import util
+import analysis.util as util
+import analysis.v2i_bw as v2i_bw, analysis.trajectory as trajectory, analysis.disconnection as disconnection
 
 font = {'family' : 'DejaVu Sans',
         'size'   : 15}
@@ -12,57 +14,8 @@ matplotlib.rc('font', **font)
 
 MAX_FRAMES = 80
 
-dir=sys.argv[1]
-num_nodes = int(sys.argv[2])
-# frames = int(sys.argv[3])
-bw_file = sys.argv[3]
-
 np.set_printoptions(precision=3)
 
-sender_ts_dict = {}
-sender_adaptive_choice = {}
-helper_ts_dict = {}
-receiver_ts_dict = {}
-receiver_throughput = {}
-for i in range(num_nodes):
-    receiver_ts_dict[i] = {}
-    receiver_throughput[i] = []
-delay_dict = {}
-delay_dict_ts = {}
-v2v_delay_dict = {}
-
-def get_sender_ts(filename):
-    sender_ts = {}
-    with open(filename, 'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            if line.startswith("[V2I"):
-                parse = line.split()
-                ts = float(parse[-1])
-                frame = int(parse[-2])
-                sender_ts[frame] = ts
-            elif line.startswith("[V2V"):
-                parse = line.split()
-                ts = float(parse[-1])
-                frame = int(parse[-5])
-                sender_ts[frame] = ts
-    return sender_ts
-
-
-def get_receiver_ts(filename):
-    with open(filename, 'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            if line.startswith("[Full frame recved]"):
-                parse = line.split()
-                sender_id = int(parse[4][:-1])
-                frame = int(parse[6])
-                thrpt = float(parse[8])
-                ts = float(parse[-1])
-                # receiver_ts_dict[sender_id].append(ts)
-                receiver_throughput[sender_id].append([ts, thrpt])
-                receiver_ts_dict[sender_id][frame] = ts
-        f.close()
 
 
 def get_helper_receive_ts(filename):
@@ -80,17 +33,6 @@ def get_helper_receive_ts(filename):
         f.close()
         return helper_receive_ts
 
-def get_server_ass(filename):
-    with open(filename, 'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            if line.startswith("Assignment:"):
-                parse = line.split()
-                helper1 = int(parse[1][1:-1])
-                helper2 = int(parse[2][1:-1])
-                ts = float(parse[-1])
-                # receiver_ts_dict[sender_id].append(ts)
-        f.close()
 
 def calculate_latency(sender_ts_dict, receiver_ts_dict):
     delay_dict, delay_dict_ts = {}, {}
@@ -109,6 +51,7 @@ def construct_ts_latency_array(delay_dict_ts):
     delay = np.array(delay)
     return ts, delay
 
+
 def construct_ts_assignment_array(server_assignments):
     ts, assignments, assignment_enums = [], [], []
     for val in server_assignments.values():
@@ -121,6 +64,7 @@ def construct_ts_assignment_array(server_assignments):
     assignments = np.array(assignments)
     return ts, assignments, assignment_enums
 
+
 def construct_ts_scores_array(scores):
     ts, dist_scores, bw_scores, intf_scores = [], [], [], []
     for timestamp, score in scores.items():
@@ -131,9 +75,30 @@ def construct_ts_scores_array(scores):
     ts = np.array(ts) - np.min(ts)
     return ts, dist_scores, bw_scores, intf_scores
 
-def main():
+
+def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time):
+    # plot node bw
+    v2i_bw.plot_v2i_bw(bw_file, exp_time, num_nodes, dir)
+
+    # plot trajectory
+    trajectory.plot_trajectory(loc_file, dir)
+
+    # plot disconnect trace
+    disconnection.plot_disconnect(helpee_conf, exp_time, num_nodes, dir)
+
+
+    sender_ts_dict = {}
+    sender_adaptive_choice = {}
+    helper_ts_dict = {}
+    receiver_ts_dict = {}
+    receiver_throughput = {}
+    delay_dict = {}
+    delay_dict_ts = {}
     for i in range(num_nodes):
-        sender_ts_dict[i], sender_adaptive_choice[i], encode_time  = util.get_sender_ts(dir + 'logs/node%d.log'%i)
+        receiver_ts_dict[i] = {}
+        receiver_throughput[i] = []
+    for i in range(num_nodes):
+        sender_ts_dict[i], sender_adaptive_choice[i], encode_time = util.get_sender_ts(dir + 'logs/node%d.log'%i)
         helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
     receiver_ts_dict, receiver_thrpt, server_node_dict = util.get_receiver_ts(dir + 'logs/server.log')
     delay_all = np.empty((300,))
@@ -188,28 +153,31 @@ def main():
     plt.savefig(dir+'latency-over-time-each-node.png')
 
     # plot adaptive encode
-    # bw = np.loadtxt(bw_file)
-    # fig = plt.figure(figsize=(9, 7))
-    # for i in range(num_nodes):
-    #     ax = fig.add_subplot(num_nodes, 1, i+1)
-    #     ax2 = ax.twinx()
-    #     ts, delay = construct_ts_latency_array(delay_dict_ts[i])
-    #     ax.plot(ts, delay, '--', label='node%d-latency'%i)
-    #     encode_levels = []
-    #     for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
-    #         encode_levels.append(v)
-    #     ax.plot(ts, encode_levels, label='encode level')
-    #     ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
-    #     ax.set_xlabel('Time (s)')
-    #     ax.set_ylabel('Latency (s)')
-    #     ax2.set_ylabel('Bandwidth (Mbps)')
-    #     ax2.set_ylim(-4, 22)
-    #     ax.set_ylim(0, 5)
-    #     ax.legend(loc='upper left')
-    #     ax2.legend()
+    if len(sender_adaptive_choice[0]) != 0:
+        bw = np.loadtxt(bw_file)
+        fig = plt.figure(figsize=(9, 7))
+        for i in range(num_nodes):
+            ax = fig.add_subplot(num_nodes, 1, i+1)
+            ax2 = ax.twinx()
+            ts, delay = construct_ts_latency_array(delay_dict_ts[i])
+            ax.plot(ts, delay, '--', label='node%d-latency'%i)
+            encode_levels = []
+            for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
+                encode_levels.append(v)
+            ax.plot(ts, encode_levels, label='encode level')
+            while bw.shape[0] < int(ts[-1]-ts[0]):
+                bw = np.vstack((bw, bw[-1]))
+            ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
+            ax.set_xlabel('Time (s)')
+            ax.set_ylabel('Latency (s)')
+            ax2.set_ylabel('Bandwidth (Mbps)')
+            # ax2.set_ylim(-4, 22)
+            # ax.set_ylim(0, 5)
+            ax.legend(loc='upper left')
+            ax2.legend()
 
-    # plt.tight_layout()
-    # plt.savefig(dir+'latency-adaptive.png')
+        plt.tight_layout()
+        plt.savefig(dir+'latency-adaptive.png')
 
     # Plot helpees, helpers
     fig = plt.figure(figsize=(9, 10))
@@ -262,30 +230,7 @@ def main():
         plt.tight_layout()
         plt.savefig(dir+'assignments.png')
 
-    # plot node bw
-    # fig = plt.figure(figsize=(9, 9))
-    # for i in range(num_nodes):
-    #     ax = fig.add_subplot(num_nodes, 1, i+1)
-    #     ax.plot(np.arange(int(ts[-1]-ts[0])), bw[8:int(ts[-1]-ts[0])+8, i], label='node%i'%i)
-    # plt.xlabel('Time (s)')
-    # plt.ylabel('Bandwidth (Mbps)')
-    # plt.tight_layout()
-    # plt.savefig(dir+'node-bw.png')
-
-
-    # fig = plt.figure(figsize=(18,12))
-    # for i in range(num_nodes):
-    #     ax = fig.add_subplot(num_nodes, 1, i+1)
-    #     ax.plot(np.array(receiver_throughput[i])[:,0] -np.array(receiver_throughput[i])[0][0], np.array(receiver_throughput[i])[:,1], '--o', label='node%d'%i)
-    #     ax.legend()
-    #     ax.set_ylim(0, 220)
-    # fig.add_subplot(111, frameon=False)
-    # plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
-    # plt.ylabel('Throughput (Mbps)')
-    # plt.xlabel('Time (s)')
-    # plt.tight_layout()
-    # plt.savefig(dir+'thrpt.png')
-
+    # plot overall delay
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_axisbelow(True)
@@ -299,4 +244,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    dir=sys.argv[1]
+    num_nodes = int(sys.argv[2])
+    bw_file = sys.argv[3]
+    loc_file = sys.argv[4]
+    helpee_conf = sys.argv[5]
+    exp_time = int(sys.argv[6])
+    single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time)
