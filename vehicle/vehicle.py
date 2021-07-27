@@ -659,14 +659,10 @@ def main():
     t_start = time.time()
     sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
     t_elapsed = time.time() - t_start
-<<<<<<< HEAD
-    print("read and encode takes %f" % t_elapsed, flush=True)
-=======
     print("read and encode takes %f" % t_elapsed)
     # explicitly sync on encoding
     if t_elapsed < 10:
         time.sleep(10-t_elapsed)
->>>>>>> master
     curr_timestamp = time.time()
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
     loction_update_thread.daemon = True
