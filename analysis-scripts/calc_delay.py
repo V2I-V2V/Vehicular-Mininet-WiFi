@@ -175,6 +175,18 @@ def main():
     plt.tight_layout()
     plt.savefig(dir+'latency-over-time.png')
 
+    fig = plt.figure(figsize=(9, 12))
+    for i in range(num_nodes):
+        # plot time series data
+        ax = fig.add_subplot(num_nodes,1, i+1)
+        ts, delay = construct_ts_latency_array(delay_dict_ts[i])
+        ax.plot(ts, delay, '--o', label='node%d'%i)
+        ax.legend()
+    plt.xlabel("Time (s)")
+    plt.ylabel("Latency (s)")
+    plt.tight_layout()
+    plt.savefig(dir+'latency-over-time-each-node.png')
+
     # plot adaptive encode
     # bw = np.loadtxt(bw_file)
     # fig = plt.figure(figsize=(9, 7))

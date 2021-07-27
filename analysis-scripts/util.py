@@ -91,7 +91,12 @@ def get_helpees(helpee_conf):
         return np.array([conf[0]])
     else:
         return conf[0]
-    
+
+
+def get_num_frames_within_threshold(node_to_latency, threshold):
+    all_latency = node_to_latency['all']
+    return len(all_latency[all_latency <= threshold])
+
 
 def get_stats_on_one_run(dir, num_nodes, helpee_conf):
     helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee

@@ -1,13 +1,19 @@
-import os, sys
-import numpy as np
 import argparse
+import os
+import sys
+
+import numpy as np
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import run_experiment
+
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 import matplotlib
+
 matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 from util import *
 
 font = {'family' : 'DejaVu Sans',
@@ -17,6 +23,7 @@ matplotlib.rc('font', **font)
 result_each_run = {}
 result_per_node = {}
 num_nodes = 6
+LATENCY_THRESHOLD = 0.2
 
 SCHEDULERS = []
 LOC = []
@@ -199,12 +206,13 @@ def plot_bar_based_on_schedule(schedule):
 
 
 def plot_bar_compare_schedule(schedules):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(12,6))
     ax = fig.add_subplot(111)
     x_positions = np.arange(len(schedules))
     cnt = 0
     schedule_data = {}
     schedule_helpee_data, schedule_helper_data = {}, {}
+    schedule_to_frames_within_threshold = {}
     for schedule in schedules:
         for k, v in result_each_run.items():
             if schedule in k:
@@ -212,10 +220,14 @@ def plot_bar_compare_schedule(schedules):
                     schedule_data[schedule] = v['all']
                     schedule_helpee_data[schedule] = v['helpee']
                     schedule_helper_data[schedule] = v['helper']
+                    schedule_to_frames_within_threshold[schedule] = get_num_frames_within_threshold(v, LATENCY_THRESHOLD)
                 else:
                     schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
                     schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
                     schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
+                    schedule_to_frames_within_threshold[schedule] = \
+                        np.hstack((schedule_to_frames_within_threshold[schedule], \
+                            get_num_frames_within_threshold(v, LATENCY_THRESHOLD)))
     for schedule in schedule_data.keys():
         ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-0.2]), whis=(5, 95), autorange=True, showfliers=False)
         ax.boxplot(schedule_helpee_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
@@ -227,6 +239,17 @@ def plot_bar_compare_schedule(schedules):
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/schedule_compare.png')
 
+    fig = plt.figure(figsize=(12,6))
+    ax = fig.add_subplot(111)
+    cnt = 0
+    for schedule in schedule_data.keys():
+        print(schedule)
+        ax.boxplot(schedule_to_frames_within_threshold[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
+        cnt += 1
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(schedules)
+    plt.ylabel('# of Frame in schedule (%fs)'%LATENCY_THRESHOLD)
+    plt.savefig('analysis-results/schedule_frames_within_latency.png')
 
 def calculate_per_node_mean(setting):
     print("Setting: %s" % str(setting))
@@ -327,6 +350,7 @@ def main():
     ## high level task to anal e.g. compare_scheduler, compare_effect_multi, 
     ## one-help-many can be parsed from config
     parser.add_argument('-m', '--multi', default=False, type=bool, help='compare multi helper')  # delete this arg
+    parser.add_argument('-t', '--threshold', default=0.2, type=float, help='threshold to evaluate a good frame latency')  # delete this arg
 
     args = parser.parse_args()
 
@@ -335,6 +359,8 @@ def main():
     # frames = args.frames
     key = args.prefix
     have_multi = args.multi
+    global LATENCY_THRESHOLD
+    LATENCY_THRESHOLD = args.threshold
 
     # create a analysis-results/ dir under data_dir
     os.system('mkdir %s/analysis-results/'%data_dir)

@@ -12,6 +12,13 @@ cp ~/Vehicular-Mininet-WiFi/mininet-scripts/install.sh ~/mininet-wifi/util/insta
 sudo util/install.sh -Wlnfv
 ```
 
+### Update Kernel to v5.8
+
+```
+bash update_kernel.sh
+```
+After the script, reboot the machine. Check the output of `uname -r`, it should be `5.8.0-050800-generic`.
+
 ## Install routing dependencies
 
 Install BATMAN (-B) routing and OLSR (-O) routing protocol.
