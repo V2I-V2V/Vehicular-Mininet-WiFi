@@ -177,7 +177,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
             ax2.legend()
 
         plt.tight_layout()
-        plt.savefig(dir+'latency-adaptive.png')
+        plt.savefig(dir+'latency-adaptive-decisions.png')
 
     # Plot helpees, helpers
     fig = plt.figure(figsize=(9, 10))
