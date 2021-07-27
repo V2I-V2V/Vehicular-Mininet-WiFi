@@ -14,7 +14,7 @@ def setup_lte():
 
 def setup_p2p_links(vehicle_id, ip, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 16384)
+    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65536)
     client_socket.connect((ip, port))
     # fcntl.fcntl(client_socket, fcntl.F_SETFL, os.O_NONBLOCK)
     # client_socket.setblocking(0)
