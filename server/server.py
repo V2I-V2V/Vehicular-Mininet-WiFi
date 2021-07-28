@@ -27,7 +27,7 @@ sys.stderr = sys.stdout
 curr_connected_vehicles = 0
 conn_lock = threading.Lock()
 init_time = 0
-bws = {}
+bws = {0: 50, 1:50, 2:50, 3:50, 4:50, 5:50}
 
 def update_bw(trace_filename):
     v2i_bw_traces = {}
@@ -38,9 +38,10 @@ def update_bw(trace_filename):
         bws[i] = v2i_bw_traces[i][0]
     time.sleep(13)
     while True:
+        # TODO: this is using too much CPU resources, change it
         cur_time = time.time()
         j = int(cur_time - init_time)
-        for i in range(all_bandwidth.shape[1]):
+        for i in range(all_bandwidth.shape[1]): # for node in num_nodes
             if j >= all_bandwidth.shape[0]:
                 bws[i] = v2i_bw_traces[i][-1]
             else:
@@ -72,6 +73,7 @@ trace_filename = args.trace_filename
 scheduler_mode = args.scheduler
 fixed_assignment = ()
 save = args.data_save
+num_vehicles = args.num_vehicles
 is_one_to_one = 1 - args.multi
 if args.fixed_assignment is not None:
     scheduler_mode = "fixed"
@@ -80,11 +82,10 @@ if args.fixed_assignment is not None:
     print(fixed_assignment)
 else:
     print("Run in %s mode" % scheduler_mode)
-    if scheduler_mode == "bwAware" or scheduler_mode == "combined":
-        bw_update_thread(trace_filename)
-num_vehicles = args.num_vehicles
+    # if scheduler_mode == "bwAware" or scheduler_mode == "combined":
+    #     bw_update_thread(trace_filename)
 
-
+all_bandwidth = np.loadtxt(trace_filename)
 location_map = {}
 route_map = {} # map v_id to the vechile's routing table
 node_seq_nums = {}
@@ -100,6 +101,17 @@ curr_processed_frame = 0
 data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES))
 helper_helpee_socket_map = {}
 current_assignment = {}
+
+def get_bws():
+    curr_time = time.time()
+    if curr_time - init_time < 13: # sync with mininet bw update
+        bw_idx = 0  
+    elif curr_time - init_time > all_bandwidth.shape[0]:
+        bw_idx = int(all_bandwidth.shape[0] - 1)
+    else:
+        bw_idx = int(curr_time - init_time - 13)
+    for i in range(num_vehicles):
+        bws[i] = all_bandwidth[bw_idx][i]
 
 
 class SchedThread(threading.Thread):
@@ -184,17 +196,22 @@ class SchedThread(threading.Thread):
                             for k, v in route_map[mapped_node_id].items():
                                 routing_table[original_to_new[k]] = original_to_new[v]
                         routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
+                sched_start = time.time()
                 if scheduler_mode == 'combined':
+                    get_bws()
                     assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, route_map, is_one_to_one)
                 elif scheduler_mode == 'minDist':
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions, is_one_to_one)
                 elif scheduler_mode == 'bwAware':
+                    get_bws()
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
                 elif scheduler_mode == 'routeAware':
                     assignment = scheduling.route_sched(helpee_count, helper_count, route_map, is_one_to_one)
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
+                sched_end = time.time()
+                print("Sched takes " + str(sched_end-sched_start))
                 print("Assignment: " + str(assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
                 for cnt, node in enumerate(assignment):
                     real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
@@ -292,30 +309,31 @@ def server_recv_data(client_socket, client_addr):
             return
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
         msg_size, frame_id, v_id, data_type, ts = message.parse_data_msg_header(header)
-        received_bytes[vehicle_id] += msg_size
-        print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
-                (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
-        assert len(msg) == msg_size
+        # received_bytes[vehicle_id] += msg_size
+        # print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
+        #         (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
+        # assert len(msg) == msg_size
         latency = time.time() - ts
         print("[receive header] node %d latency %f" % (v_id, latency))
         # node_last_recv_timestamp[v_id] = time.time()
         # if frame_id >= MAX_FRAMES:
         #     continue
         if data_type == TYPE_PCD:
+            print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
+                        (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
             # send back a ACK back
             try:
                 client_socket.send(frame_id.to_bytes(2, 'big'))
             except:
                 print("[Helper relay closed]")
             update_node_latency_dict(v_id, latency)    
-            print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
-                        (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
             pcds[v_id][frame_id%MAX_FRAMES] = msg
             if save:
                 saving_thread = threading.Thread(target=save_ptcl, args=(v_id, frame_id, msg))
+                saving_thread.daemon = True
                 saving_thread.start()
         elif data_type == TYPE_OXTS:
-            print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
+            # print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
             oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
         
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
@@ -391,6 +409,7 @@ def main():
     data_channel_thread.daemon = True
     data_channel_thread.start()
     data_process_thread = threading.Thread(target=merge_data_when_ready)
+    data_process_thread.deamon = True
     data_process_thread.start()
     # thrpt_calc_thread = threading.Thread(target=throughput_calc)
     # thrpt_calc_thread.start()
