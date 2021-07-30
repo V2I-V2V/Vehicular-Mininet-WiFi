@@ -24,6 +24,7 @@ result_each_run = {}
 result_per_node = {}
 num_nodes = 6
 LATENCY_THRESHOLD = 0.2
+SSIM_THRESHOLD = None
 
 SCHEDULERS = []
 LOC = []
@@ -88,8 +89,9 @@ def plot_dict_data_box(dict, name, idx):
     for k in labels:
         plt.boxplot(dict[k], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
-    plt.xticks(range(0, len(ticks)), ticks, fontsize=10)
+    plt.xticks(range(0, len(ticks)), ticks, fontsize=15)
     plt.ylabel('Latency (s)')
+    plt.tight_layout()
     plt.savefig('analysis-results/%s.png'%name)
 
 def plot_dict_data_cdf(dict, name, idx):
@@ -100,6 +102,7 @@ def plot_dict_data_cdf(dict, name, idx):
         ticks.append(labels[label_idx][idx])
         sns.ecdfplot(data[label_idx], label=labels[label_idx][idx])
     plt.legend()
+    plt.xlabel('Latency (s)')
     plt.ylabel('CDF')
     plt.savefig('analysis-results/%s-cdf.png'%name)
 
@@ -137,7 +140,7 @@ def get_per_experiment_stats(result_dir, node_num):
     return stats
 
 
-def get_all_runs_results(data_dir, key, have_multi=False):
+def get_all_runs_results(data_dir, key, have_multi=False, with_ssim=False):
     global num_nodes
     # combined 
     # if analyze_type == 'single':
@@ -160,6 +163,10 @@ def get_all_runs_results(data_dir, key, have_multi=False):
             mobility = config["location_file"].split('/')[-1][:-4]
             helpee = config["helpee_conf"].split('/')[-1][:-4] # TODO: helpe_config instead of helpee
             num_nodes = int(config["num_of_nodes"])
+            if "adaptive_encode" in config.keys():
+                adaptive = config["adaptive_encode"]
+            else:
+                adaptive = "0" 
             if scheduler not in SCHEDULERS: # TODO: Use a set
                 SCHEDULERS.append(scheduler)
             if network not in BW:
@@ -171,11 +178,12 @@ def get_all_runs_results(data_dir, key, have_multi=False):
             if have_multi:
                 # TODO: if no one_to_many in config, make it 0
                 is_multi = config["multi"]
-                conf_key = (dir, scheduler, network, mobility, is_multi, helpee)
+                conf_key = (dir, scheduler, network, mobility, is_multi, helpee, adaptive)
             else:
-                conf_key = (dir, scheduler, network, mobility, helpee)
+                conf_key = (dir, scheduler, network, mobility, helpee, adaptive)
 
-            result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes, config["helpee_conf"])
+            result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes,\
+                config["helpee_conf"], with_ssim=with_ssim)
 
 def plot_bar_across_runs():
     fig = plt.figure(figsize=(50, 8))
@@ -220,14 +228,14 @@ def plot_bar_compare_schedule(schedules):
                     schedule_data[schedule] = v['all']
                     schedule_helpee_data[schedule] = v['helpee']
                     schedule_helper_data[schedule] = v['helper']
-                    schedule_to_frames_within_threshold[schedule] = get_num_frames_within_threshold(v, LATENCY_THRESHOLD)
+                    schedule_to_frames_within_threshold[schedule] = get_num_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)
                 else:
                     schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
                     schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
                     schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
                     schedule_to_frames_within_threshold[schedule] = \
                         np.hstack((schedule_to_frames_within_threshold[schedule], \
-                            get_num_frames_within_threshold(v, LATENCY_THRESHOLD)))
+                            get_num_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)))
     for schedule in schedule_data.keys():
         ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-0.2]), whis=(5, 95), autorange=True, showfliers=False)
         ax.boxplot(schedule_helpee_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
@@ -248,8 +256,39 @@ def plot_bar_compare_schedule(schedules):
         cnt += 1
     ax.set_xticks(x_positions)
     ax.set_xticklabels(schedules)
-    plt.ylabel('# of Frame in schedule (%fs)'%LATENCY_THRESHOLD)
+    if SSIM_THRESHOLD is None:
+        plt.ylabel('# of Frame in schedule (%3fs)'%LATENCY_THRESHOLD)
+    else:
+        plt.ylabel('# of Frame in schedule (%3f s, %3f SSIM)'%(LATENCY_THRESHOLD, SSIM_THRESHOLD))
     plt.savefig('analysis-results/schedule_frames_within_latency.png')
+
+
+def plot_bar_compare_encode():
+    fig = plt.figure(figsize=(12,6))
+    ax = fig.add_subplot(111)
+    x_positions = np.arange(2)
+    encode_data = {}
+    ENCODE = ['0', '1']
+    labels = ['No Adaptive Encoding', 'Adaptive Encoding']
+    cnt = 0
+    for encode_type in ENCODE:
+        for k, v in result_each_run.items():
+            if encode_type in k:
+                if encode_type not in encode_data.keys():
+                    encode_data[encode_type] = \
+                        get_num_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)
+                else:
+                    encode_data[encode_type] = \
+                        np.hstack((encode_data[encode_type], \
+                            get_num_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)))
+    for encode_type in encode_data.keys():
+        ax.boxplot(encode_data[encode_type], positions=np.array([x_positions[cnt]]), whis=(5, 95),\
+            autorange=True, showfliers=False)
+        cnt += 1
+    ax.set_xticklabels(labels)
+    plt.ylabel('# of Frame in schedule (%3f s, %3f SSIM)'%(LATENCY_THRESHOLD, SSIM_THRESHOLD))
+    plt.savefig('analysis-results/compare_encoding_types.png')
+        
 
 def calculate_per_node_mean(setting):
     print("Setting: %s" % str(setting))
@@ -349,8 +388,9 @@ def main():
     parser.add_argument('-p', '--prefix', default='data-', type=str, help='prefix on data dir to analyze')
     ## high level task to anal e.g. compare_scheduler, compare_effect_multi, 
     ## one-help-many can be parsed from config
-    parser.add_argument('-m', '--multi', default=False, type=bool, help='compare multi helper')  # delete this arg
-    parser.add_argument('-t', '--threshold', default=0.2, type=float, help='threshold to evaluate a good frame latency')  # delete this arg
+    # parser.add_argument('-m', '--multi', default=False, type=bool, help='compare multi helper')  # delete this arg
+    parser.add_argument('-t', '--threshold', default=0.2, type=float, help='threshold to evaluate a good frame latency')
+    parser.add_argument('--task', default="", type=str, help='additional analysis task to do (ssim|compare_adaptive_encode)')
 
     args = parser.parse_args()
 
@@ -358,15 +398,20 @@ def main():
     data_dir = args.data_dir
     # frames = args.frames
     key = args.prefix
-    have_multi = args.multi
-    global LATENCY_THRESHOLD
+    # have_multi = args.multi
+    task = args.task
+    global LATENCY_THRESHOLD, SSIM_THRESHOLD
+    with_ssim = False
+    if task == 'ssim':
+        with_ssim = True
+        SSIM_THRESHOLD = 0.6
     LATENCY_THRESHOLD = args.threshold
 
     # create a analysis-results/ dir under data_dir
     os.system('mkdir %s/analysis-results/'%data_dir)
 
     # read all exp data, need a return value 
-    get_all_runs_results(data_dir, key, have_multi)
+    get_all_runs_results(data_dir, key, with_ssim=with_ssim)
 
     plot_bar_across_runs()
 
