@@ -133,7 +133,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
             partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
             encodeds = []
             for partition in partitions:
-                encoded, ratio = ptcl.pointcloud.dracoEncode(partition, 10, 8)
+                encoded, ratio = ptcl.pointcloud.dracoEncode(partition, PCD_ENCODE_LEVEL, PCD_QB)
                 encodeds.append(encoded)
             pcd_data_buffer.append(encodeds)
         oxts_f_name = oxts_data_path + "%06d.txt"%i
@@ -151,10 +151,10 @@ def get_encoded_frame(frame_id, metric):
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE:
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
         cnt = 1
-        if metric < 0.5:
+        if metric < 0.3:
             encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
             cnt += 1
-        if metric < 0.3:
+        if metric < 0.2:
             encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
             cnt += 1
         if metric < 0.1:
@@ -180,7 +180,7 @@ def get_latency(e2e_frame_latency):
         cnt += 1
         recent_latency += latency
         # print(id, latency)
-        if cnt == 10:
+        if cnt == 5:
             break
     recent_latency /= cnt
     return recent_latency
