@@ -391,6 +391,7 @@ def main():
     # parser.add_argument('-m', '--multi', default=False, type=bool, help='compare multi helper')  # delete this arg
     parser.add_argument('-t', '--threshold', default=0.2, type=float, help='threshold to evaluate a good frame latency')
     parser.add_argument('--task', default="", type=str, help='additional analysis task to do (ssim|compare_adaptive_encode)')
+    parser.add_argument('--ssim_threshold', default=None, type=float, help='threshold to evaluate a good SSIM')
 
     args = parser.parse_args()
 
@@ -406,6 +407,7 @@ def main():
         with_ssim = True
         SSIM_THRESHOLD = 0.6
     LATENCY_THRESHOLD = args.threshold
+    SSIM_THRESHOLD = args.ssim_threshold
 
     # create a analysis-results/ dir under data_dir
     os.system('mkdir %s/analysis-results/'%data_dir)
