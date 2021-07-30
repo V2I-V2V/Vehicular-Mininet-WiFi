@@ -124,7 +124,7 @@ def recv_msg(socket, type, is_udp=False):
                     return b'', b''
             payload += data_recv
             to_recv = msg_payload_size - len(payload)
-        elapsed_time = first_buffer_empty_recv_time + (time.time() - start_time)
+        elapsed_time = (time.time() - start_time)
         if type == TYPE_DATA_MSG:
             # print("bytes account %d"%thrpt_cnt_bytes)
             if thrpt_cnt_bytes > 0:

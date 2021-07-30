@@ -83,6 +83,16 @@ def get_receiver_ts(filename):
     return receiver_ts_dict, receiver_throughput, server_node_dict
 
 
+def get_ssims(filename):
+    ssims = np.loadtxt(filename)
+    return ssims
+
+
+def get_ssim(ssim_array, frame_id):
+    idx = np.argwhere(ssim_array[:, 0] == frame_id)[0][0]
+    return ssim_array[idx][1]
+
+
 def get_helpees(helpee_conf):
     conf = np.loadtxt(helpee_conf)
     if len(conf) == 0:
@@ -93,30 +103,43 @@ def get_helpees(helpee_conf):
         return conf[0]
 
 
-def get_num_frames_within_threshold(node_to_latency, threshold):
-    all_latency = node_to_latency['all']
-    return len(all_latency[all_latency <= threshold])
+def get_num_frames_within_threshold(node_to_latency, threshold, ssim_t=None, perception_t=None):
+    if ssim_t is None and perception_t is None:
+        all_latency = node_to_latency['all']
+        return len(all_latency[all_latency <= threshold])
+    elif ssim_t is not None:
+        cnt = 0
+        for i in range(len(node_to_latency.keys())-3):
+            node_stats = node_to_latency[i]
+            within_latency_indices = np.array(sorted(node_stats.values()))[:, 0] < threshold
+            within_ssim_indices = np.array(sorted(node_stats.values()))[:, 2] > ssim_t
+            mask = within_latency_indices * within_ssim_indices
+            cnt += len(np.where(mask==True)[0])
+        return cnt
 
 
-def get_stats_on_one_run(dir, num_nodes, helpee_conf):
+def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee
     sender_ts_dict, encode_choice_dict = {}, {}
     # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
-    latency_dict = {}
+    latency_dict, node_to_ssims = {}, {}
     # node_id_to_latencies, node_id means the 
     for i in range(num_nodes):
         sender_ts_dict[i], encode_choice_dict[i], encode_t = get_sender_ts(dir + '/logs/node%d.log'%i)
         latency_dict[i] = {}
+        if with_ssim:
+            ssims = get_ssims(dir+'/node%d_ssim.log'%i)
+            node_to_ssims[i] = ssims
     receiver_ts_dict, receiver_thrpt, server_helper_dict = get_receiver_ts(dir + '/logs/server.log')
     # calculate delay
-    all_delay = []
-    helpee_delay = []
-    helper_delay = []
+    all_delay, helpee_delay, helper_delay = [], [], []
     for i in range(num_nodes):
         for frame_idx, recv_ts in receiver_ts_dict[i].items():
             send_ts = sender_ts_dict[i][frame_idx]
             latency = recv_ts-sender_ts_dict[i][frame_idx]
             latency_dict[i][send_ts] = [latency, frame_idx] # add adptation choice
+            if with_ssim:                
+                latency_dict[i][send_ts] = [latency, frame_idx, get_ssim(node_to_ssims[i], frame_idx)]
             all_delay.append(latency)
             if i in helpees:
                 helpee_delay.append(latency)
