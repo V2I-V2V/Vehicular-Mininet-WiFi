@@ -164,7 +164,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
             encode_levels = []
             for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
                 encode_levels.append(v)
-            ax.plot(ts, encode_levels, label='encode level')
+            ax.plot(ts, encode_levels[:len(ts)], label='encode level')
             while bw.shape[0] < int(ts[-1]-ts[0]):
                 bw = np.vstack((bw, bw[-1]))
             ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
