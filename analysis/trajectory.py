@@ -9,7 +9,7 @@ font = {'family' : 'DejaVu Sans',
 
 matplotlib.rc('font', **font)
 
-def plot_trajectory(loc_file, save_dir):
+def plot_trajectory(loc_file, save_dir='./'):
     trajs = {}
     traj = np.loadtxt(loc_file)
     if traj.ndim == 1:

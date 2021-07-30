@@ -691,6 +691,7 @@ def main():
     v2i_data_thread.start()
 
     throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
+    throughput_thread.daemon = True
     throughput_thread.start()
 
     check_connection_state(disconnect_timestamps)
