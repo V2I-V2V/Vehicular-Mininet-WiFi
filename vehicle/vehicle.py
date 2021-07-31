@@ -17,6 +17,7 @@ import numpy as np
 import argparse
 import message
 
+# Define some constants
 HELPEE = 0
 HELPER = 1
 TYPE_PCD = 0
@@ -34,17 +35,22 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
 parser.add_argument('-d', '--data_path', default='~/DeepGTAV-data/object-0227-1/',\
                     type=str, help='point cloud and oxts data path')
+parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
 parser.add_argument('-l', '--location_file', default=os.path.dirname(os.path.abspath(__file__)) + "/input/object-0227-loc.txt", \
                     type=str, help='location file name')
 parser.add_argument('-c', '--helpee_conf', default=os.path.dirname(os.path.abspath(__file__)) + "/input/helpee_conf/helpee-nodes.txt",\
                     type=str, help='helpee nodes configuration file')
 parser.add_argument('-f', '--fps', default=1, type=int, help='FPS of pcd data')
 parser.add_argument('-n', '--disable_control', default=0, type=int, help='disable control msgs')
-parser.add_argument('--adaptive', default=0, type=int, help="adaptive encoding type (0 for no adaptive encoding, 1 for adaptive, 2 for adaptive but always use full 4 chunks")
+parser.add_argument('--adaptive', default=0, type=int, \
+    help="adaptive encoding type (0 for no adaptive encoding, 1 for adaptive, 2 for adaptive but always use full 4 chunks")
+parser.add_argument('--adapt_skip_frames', default=False, action="store_true", \
+    help="enable adaptive frame skipping when sending takes too long")
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
+is_adaptive_frame_skipped = args.adapt_skip_frames
 
 PCD_DATA_PATH = args.data_path + '/velodyne_2/'
 OXTS_DATA_PATH = args.data_path + '/oxts/'
@@ -147,6 +153,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
 
 def get_encoded_frame(frame_id, metric):
     if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
+        cnt = 1
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE:
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
@@ -162,11 +169,13 @@ def get_encoded_frame(frame_id, metric):
             cnt += 1
         print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(cnt))
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE_FULL_CHUNK:
+        cnt = 4
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0] + \
                         pcd_data_buffer[frame_id % config.MAX_FRAMES][1] + \
                         pcd_data_buffer[frame_id % config.MAX_FRAMES][2] + \
                         pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
-    return encoded_frame
+        print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(4))
+    return encoded_frame, cnt
     
 
 
@@ -186,9 +195,9 @@ def get_latency(e2e_frame_latency):
     return recent_latency
 
 
-def send(socket, data, id, type):
+def send(socket, data, id, type, num_chunks=1, chunks=None):
     msg_len = len(data)
-    header = message.construct_data_msg_header(data, type, id, vehicle_id)
+    header = message.construct_data_msg_header(data, type, id, vehicle_id, num_chunks, chunks)
     print("[send header] vehicle %d, frame %d, data len: %d" % (vehicle_id, id, msg_len))
     hender_sent = 0
     while hender_sent < len(header):
@@ -222,22 +231,22 @@ def v2i_data_send_thread():
         data_f_id = curr_f_id % config.MAX_FRAMES
         # pcd = pcd_data_buffer[data_f_id]
         # pcd = pcd_data_buffer[data_f_id][0]
-        pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+        pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
         oxts = oxts_data_buffer[data_f_id]
         curr_frame_id += 1
         frame_lock.release()
-        # TODO: maybe compress the frames beforehand, change encode to another thread
+        # TODO: change encode to another thread (right now data is pre-encoded)
         last_frame_sent_ts = time.time()
         print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
         frame_sent_time[curr_f_id] = time.time()
-        send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
+        send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd_data_buffer[data_f_id][:num_chunks])
         send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
         print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
         t_elapsed = time.time() - t_start
         if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
             print("capture finished, sleep %f" % (1.0/FRAMERATE-t_elapsed))
             time.sleep(1.0/FRAMERATE-t_elapsed)
-        elif capture_finished and (1.0/FRAMERATE-t_elapsed) < 0:
+        elif capture_finished and is_adaptive_frame_skipped and (1.0/FRAMERATE-t_elapsed) < 0:
             passed_frames = int(t_elapsed * FRAMERATE)
             print('Sending V2I passed %f'%t_elapsed)
             frame_lock.acquire()
@@ -488,7 +497,7 @@ class VehicleDataRecvThread(threading.Thread):
                     return
                 header_to_recv -= len(data_recv)
                 v2v_recved_bytes += len(data_recv)
-            msg_len, frame_id, v_id, type, _ = message.parse_data_msg_header(data)
+            msg_len, frame_id, v_id, type, _, _, _ = message.parse_data_msg_header(data)
             to_send = message.DATA_MSG_HEADER_LEN
             sent = 0
             while sent < to_send:
@@ -547,21 +556,23 @@ class VehicleDataSendThread(threading.Thread):
             curr_f_id = curr_frame_id
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
-            pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # TODO: use a lock to protect frame
+            pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
             print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
                     + str(current_helper_id) + ' ' + str(time.time()), flush=True)
             frame_sent_time[curr_f_id] = time.time()
-            if_send_success = send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
+            if_send_success = send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD, num_chunks,\
+                pcd_data_buffer[curr_f_id%config.MAX_FRAMES][:num_chunks])
             if not if_send_success:
                 print("send not in time!!")
             if_send_success = send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             t_elapsed = time.time() - t_start
             if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
                 time.sleep(1/FRAMERATE - t_elapsed)
-            elif capture_finished and (1/FRAMERATE - t_elapsed) <= 0:
+            elif capture_finished and is_adaptive_frame_skipped and (1/FRAMERATE - t_elapsed) <= 0:
                 print('Sending passed %f'%t_elapsed)
                 passed_frames = int(t_elapsed*FRAMERATE)
                 frame_lock.acquire()
