@@ -17,6 +17,7 @@ import numpy as np
 import argparse
 import message
 
+# Define some constants
 HELPEE = 0
 HELPER = 1
 TYPE_PCD = 0
@@ -34,17 +35,22 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
 parser.add_argument('-d', '--data_path', default='~/DeepGTAV-data/object-0227-1/',\
                     type=str, help='point cloud and oxts data path')
+parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
 parser.add_argument('-l', '--location_file', default=os.path.dirname(os.path.abspath(__file__)) + "/input/object-0227-loc.txt", \
                     type=str, help='location file name')
 parser.add_argument('-c', '--helpee_conf', default=os.path.dirname(os.path.abspath(__file__)) + "/input/helpee_conf/helpee-nodes.txt",\
                     type=str, help='helpee nodes configuration file')
 parser.add_argument('-f', '--fps', default=1, type=int, help='FPS of pcd data')
 parser.add_argument('-n', '--disable_control', default=0, type=int, help='disable control msgs')
-parser.add_argument('--adaptive', default=0, type=int, help="adaptive encoding type (0 for no adaptive encoding, 1 for adaptive, 2 for adaptive but always use full 4 chunks")
+parser.add_argument('--adaptive', default=0, type=int, \
+    help="adaptive encoding type (0 for no adaptive encoding, 1 for adaptive, 2 for adaptive but always use full 4 chunks")
+parser.add_argument('--adapt_skip_frames', default=False, action="store_true", \
+    help="enable adaptive frame skipping when sending takes too long")
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
+is_adaptive_frame_skipped = args.adapt_skip_frames
 
 PCD_DATA_PATH = args.data_path + '/velodyne_2/'
 OXTS_DATA_PATH = args.data_path + '/oxts/'
@@ -240,7 +246,7 @@ def v2i_data_send_thread():
         if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
             print("capture finished, sleep %f" % (1.0/FRAMERATE-t_elapsed))
             time.sleep(1.0/FRAMERATE-t_elapsed)
-        elif capture_finished and (1.0/FRAMERATE-t_elapsed) < 0:
+        elif capture_finished and is_adaptive_frame_skipped and (1.0/FRAMERATE-t_elapsed) < 0:
             passed_frames = int(t_elapsed * FRAMERATE)
             print('Sending V2I passed %f'%t_elapsed)
             frame_lock.acquire()
@@ -566,7 +572,7 @@ class VehicleDataSendThread(threading.Thread):
             t_elapsed = time.time() - t_start
             if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
                 time.sleep(1/FRAMERATE - t_elapsed)
-            elif capture_finished and (1/FRAMERATE - t_elapsed) <= 0:
+            elif capture_finished and is_adaptive_frame_skipped and (1/FRAMERATE - t_elapsed) <= 0:
                 print('Sending passed %f'%t_elapsed)
                 passed_frames = int(t_elapsed*FRAMERATE)
                 frame_lock.acquire()

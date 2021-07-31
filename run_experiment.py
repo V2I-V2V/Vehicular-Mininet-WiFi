@@ -31,7 +31,8 @@ def init_config():
     config_params = {"num_of_nodes": "6", "location_file": input_path + "/locations/location-mindist-bw.txt",
                      "network_trace": input_path + "/traces/trace-mindist-bw.txt", "ptcl_config": input_path + "/pcds/pcd-data-config.txt",
                      "scheduler": "minDist", "fps": "10", "t": "70", "helpee_conf": input_path + "/helpee_conf/helpee-nodes.txt",
-                     "routing": "custom", "frames": "300", "one_to_many": '1', "adaptive_encode": "0"}
+                     "routing": "custom", "frames": "300", "one_to_many": '1', "adaptive_encode": "0",
+                     "adapt_frame_skipping": "0"}
     return config_params
 
 
@@ -81,6 +82,8 @@ def run_experiment(config_params, is_save_data=False, is_run_app=True):
          " --helpee_conf " + config_params["helpee_conf"] +\
          " -t " + config_params["t"] + " --fps " + config_params["fps"] + " -r " + config_params["routing"] +\
          " --multi " + config_params["one_to_many"] + " --adaptive_encode " + config_params["adaptive_encode"]
+    if config_params["adapt_frame_skipping"] == "1":
+        cmd += " --adapt_frame_skipping"
     if is_save_data:
         cmd += " --save_data 1"
     if is_run_app:
