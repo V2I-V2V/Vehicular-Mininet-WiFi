@@ -1,4 +1,5 @@
 import sys, os
+from typing import Tuple
 from numpy.lib import utils
 from mininet.log import setLogLevel, info
 from mininet.link import TCLink
@@ -27,13 +28,15 @@ default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0'
 default_loc_file = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/location-multihop.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
-tx_power = 20
+tx_power = 30
 time_to_run = 70
 trace_filename = os.path.dirname(os.path.abspath(__file__)) + "/input/traces/constant.txt"
 routing = 'olsrd'
 no_control = 0
 adaptive_encode = 0
+adaptive_frame_skip = False
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
@@ -79,12 +82,14 @@ def create_adhoc_links(net, node, ifname):
 def create_wired_links(net, node, switch, bw):
     net.addLink(node, switch, cls=TCLink, bw=bw, delay='10ms')
 
+
 def read_location_traces(loc_file):
     loc_trace = np.loadtxt(loc_file)
     if loc_trace.ndim == 1:
         loc_trace = loc_trace.reshape(1, -1)
     return loc_trace
 
+# Deprecated, do not use this
 def config_mobility_mininet_replay(net, stations, loc_file, plot=True):
     net.isReplaying = True
     loc_trace = read_location_traces(loc_file)
@@ -95,6 +100,7 @@ def config_mobility_mininet_replay(net, stations, loc_file, plot=True):
         for sta_idx in range(len(stations)):
             pos = float(loc_trace[time_i][2*sta_idx]), float(loc_trace[time_i][2*sta_idx+1]), 0.0
             stations[sta_idx].p.append(pos)
+
 
 def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
@@ -133,6 +139,7 @@ def kill_application():
     cmd = "kill -9 $(ps aux | grep \"[d]ynamic.py\" | awk {'print $2'})"
     os.system(cmd)
 
+
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
                     save=0, is_one_to_many=1):
     num_nodes = len(stations)
@@ -148,8 +155,11 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 3 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d > %s/logs/node%d.log 2>&1 &'\
-            % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, adaptive_encode, CODE_DIR, node_num)
+        vehicle_app_cmd = 'sleep 3 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d'\
+            % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, adaptive_encode)
+        if adaptive_frame_skip:
+            vehicle_app_cmd += ' --adapt_skip_frames '
+        vehicle_app_cmd += ' > %s/logs/node%d.log 2>&1 &'%(CODE_DIR, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
 
@@ -171,6 +181,7 @@ def run_custom_routing(nodes):
         routing_cmds.append('sleep 2 && python3 %s/routing/dynamic.py %d > %s/logs/node%d.route 2>&1 &'\
                             %(CODE_DIR, node_num, CODE_DIR, node_num))
         nodes[node_num].cmd(routing_cmds[node_num])
+
 
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
@@ -350,6 +361,9 @@ if __name__ == '__main__':
     
     if '--adaptive_encode' in sys.argv:
         adaptive_encode = int(sys.argv[sys.argv.index('--adaptive_encode')+1])
+    
+    if '--adapt_frame_skipping' in sys.argv:
+        adaptive_frame_skip = True
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\

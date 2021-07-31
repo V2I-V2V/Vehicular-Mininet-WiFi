@@ -23,13 +23,33 @@ def plot_trajectory(loc_file, save_dir='./'):
         trajs[i] = traj[:,2*i:2*i+2]
     for i in range(int(traj.shape[1]/2)):
         ax.scatter([traj[:,2*i][0]], [traj[:,2*i+1][0]], s=34)
-        trajs[i] = traj[:,2*i:2*i+2]
 
     plt.xlabel('x (m)')
     plt.ylabel('y (m)')
     plt.legend()
     plt.tight_layout()
     plt.savefig(save_dir + 'traj.png')
+    plot_distance_for_each_node(trajs, save_dir)
+
+
+def plot_distance_for_each_node(trajs, save_dir='./'):
+    fig = plt.figure(figsize=(7,20))
+    cnt = 1
+    for start_node in trajs.keys():
+        ax = fig.add_subplot(len(trajs.keys()),1,cnt)
+        for end_node in trajs.keys():
+            if start_node != end_node:
+                start_node_traj, end_node_traj = trajs[start_node], trajs[end_node]
+                dist = np.linalg.norm(start_node_traj - end_node_traj, axis=1)
+                ax.plot(np.arange(0, len(dist)), dist, label='dist to %d'%end_node)
+                # ax.set_ylabel('distance (m)')
+                ax.legend()
+        cnt += 1
+    # plt.ylabel('y (m)')
+    plt.tight_layout()
+    plt.savefig(save_dir + 'node-distances.png')
+
+
 
 
 if __name__ == '__main__':
