@@ -147,6 +147,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
 
 def get_encoded_frame(frame_id, metric):
     if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
+        cnt = 1
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE:
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
@@ -162,11 +163,13 @@ def get_encoded_frame(frame_id, metric):
             cnt += 1
         print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(cnt))
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE_FULL_CHUNK:
+        cnt = 4
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0] + \
                         pcd_data_buffer[frame_id % config.MAX_FRAMES][1] + \
                         pcd_data_buffer[frame_id % config.MAX_FRAMES][2] + \
                         pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
-    return encoded_frame
+        print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(4))
+    return encoded_frame, cnt
     
 
 
@@ -186,9 +189,9 @@ def get_latency(e2e_frame_latency):
     return recent_latency
 
 
-def send(socket, data, id, type):
+def send(socket, data, id, type, num_chunks=1, chunks=None):
     msg_len = len(data)
-    header = message.construct_data_msg_header(data, type, id, vehicle_id)
+    header = message.construct_data_msg_header(data, type, id, vehicle_id, num_chunks, chunks)
     print("[send header] vehicle %d, frame %d, data len: %d" % (vehicle_id, id, msg_len))
     hender_sent = 0
     while hender_sent < len(header):
@@ -222,15 +225,15 @@ def v2i_data_send_thread():
         data_f_id = curr_f_id % config.MAX_FRAMES
         # pcd = pcd_data_buffer[data_f_id]
         # pcd = pcd_data_buffer[data_f_id][0]
-        pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+        pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
         oxts = oxts_data_buffer[data_f_id]
         curr_frame_id += 1
         frame_lock.release()
-        # TODO: maybe compress the frames beforehand, change encode to another thread
+        # TODO: change encode to another thread (right now data is pre-encoded)
         last_frame_sent_ts = time.time()
         print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
         frame_sent_time[curr_f_id] = time.time()
-        send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD)
+        send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd_data_buffer[data_f_id][:num_chunks])
         send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
         print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
         t_elapsed = time.time() - t_start
@@ -488,7 +491,7 @@ class VehicleDataRecvThread(threading.Thread):
                     return
                 header_to_recv -= len(data_recv)
                 v2v_recved_bytes += len(data_recv)
-            msg_len, frame_id, v_id, type, _ = message.parse_data_msg_header(data)
+            msg_len, frame_id, v_id, type, _, _, _ = message.parse_data_msg_header(data)
             to_send = message.DATA_MSG_HEADER_LEN
             sent = 0
             while sent < to_send:
@@ -547,14 +550,16 @@ class VehicleDataSendThread(threading.Thread):
             curr_f_id = curr_frame_id
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
-            pcd = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # TODO: use a lock to protect frame
+            pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
             print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
                     + str(current_helper_id) + ' ' + str(time.time()), flush=True)
             frame_sent_time[curr_f_id] = time.time()
-            if_send_success = send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD)
+            if_send_success = send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD, num_chunks,\
+                pcd_data_buffer[curr_f_id%config.MAX_FRAMES][:num_chunks])
             if not if_send_success:
                 print("send not in time!!")
             if_send_success = send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
