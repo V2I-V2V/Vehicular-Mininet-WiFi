@@ -26,6 +26,8 @@ sys.stderr = sys.stdout
 
 curr_connected_vehicles = 0
 conn_lock = threading.Lock()
+data_save_lock = threading.Lock()
+data_save_cv = threading.Condition()
 init_time = 0
 bws = {0: 50, 1:50, 2:50, 3:50, 4:50, 5:50}
 
@@ -118,6 +120,7 @@ class SchedThread(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
+        self.flip_cnt = 0
 
 
     def check_if_loc_map_complete(self, vids):
@@ -140,7 +143,8 @@ class SchedThread(threading.Thread):
         print("Helpers: %d helpees: %d %f"%(helper_count, helpee_count, time.time()))
         if len(current_connected_vids) < 2:
             return False
-        elif scheduler_mode == "minDist" or scheduler_mode == "bwAware" or scheduler_mode == 'random':
+        elif scheduler_mode == "minDist" or scheduler_mode == "bwAware" or scheduler_mode == 'random' \
+            or scheduler_mode == 'switch':
             return self.check_if_loc_map_complete(current_connected_vids)
         elif scheduler_mode == 'routeAware':
             return self.check_if_route_map_conplete(current_connected_vids)
@@ -210,6 +214,12 @@ class SchedThread(threading.Thread):
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
+                elif scheduler_mode == 'switch':
+                    if self.flip_cnt % 2 == 0:
+                        assignment = (1,)
+                    else:
+                        assignment = (2,)
+                    self.flip_cnt += 1
                 sched_end = time.time()
                 print("Sched takes " + str(sched_end-sched_start))
                 print("Assignment: " + str(assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
@@ -308,7 +318,7 @@ def server_recv_data(client_socket, client_addr):
             client_socket.close()
             return
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
-        msg_size, frame_id, v_id, data_type, ts = message.parse_data_msg_header(header)
+        msg_size, frame_id, v_id, data_type, ts, num_chunks, chunk_sizes = message.parse_data_msg_header(header)
         # received_bytes[vehicle_id] += msg_size
         # print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
         #         (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
@@ -329,7 +339,7 @@ def server_recv_data(client_socket, client_addr):
             update_node_latency_dict(v_id, latency)    
             pcds[v_id][frame_id%MAX_FRAMES] = msg
             if save:
-                saving_thread = threading.Thread(target=save_ptcl, args=(v_id, frame_id, msg))
+                saving_thread = threading.Thread(target=save_ptcl, args=(v_id, frame_id, msg, num_chunks, chunk_sizes))
                 saving_thread.daemon = True
                 saving_thread.start()
         elif data_type == TYPE_OXTS:
@@ -339,10 +349,23 @@ def server_recv_data(client_socket, client_addr):
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
             data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
 
-def save_ptcl(v_id, frame_id, data):
-    with open('%s/output/node%d_%d.bin'%(REPO_DIR, v_id, frame_id), 'wb') as f:
-        f.write(data)
-        f.close()
+# TODO: change save format: nodeid_frameid_chunkid.bin
+def save_ptcl(v_id, frame_id, data, num_chunks, chunk_sizes):
+    chunk_num = 0
+    if num_chunks == 1:
+        with open('%s/output/node%d_frame%d_chunk%d.bin'%(REPO_DIR, v_id, frame_id, chunk_num), 'wb') as f:
+            f.write(data)
+            f.close()
+    else:
+        for i in range(num_chunks):
+            if i > 0:
+                chunk = data[sum(chunk_sizes[:i]):sum(chunk_sizes[:i+1])]
+            else:
+                chunk = data[:chunk_sizes[0]]
+            with open('%s/output/node%d_frame%d_chunk%d.bin'%(REPO_DIR, v_id, frame_id, chunk_num), 'wb') as f:
+                f.write(chunk)
+                f.close()
+            chunk_num += 1
 
 def merge_data_when_ready():
     global curr_processed_frame

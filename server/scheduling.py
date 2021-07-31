@@ -157,6 +157,7 @@ def get_distance_scores(assignment, positions):
 
 def min_total_distance_sched(num_of_helpees, num_of_helpers, positions, is_one_to_one=False):
     print("Using the min total distance sched")
+    print(positions)
     sum_distances = {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     for assignment in assignments:

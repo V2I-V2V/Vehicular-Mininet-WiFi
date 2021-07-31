@@ -7,7 +7,8 @@ TYPE_LOCATION = 0
 TYPE_ASSIGNMENT = 1
 TYPE_ROUTE = 2
 CONTROL_MSG_HEADER_LEN = 6
-DATA_MSG_HEADER_LEN = 18
+DATA_MSG_HEADER_LEN = 36
+MAX_CHUNKS_NUM = 4
 
 def construct_control_msg_header(msg_payload, msg_type):
     """ Construct a control message header
@@ -26,16 +27,19 @@ def construct_control_msg_header(msg_payload, msg_type):
     return header
 
 
-def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id):
+def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id, num_chucks=1,\
+    chunk=None):
     """Construct a data message header
-    |---- 4 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 8 bytes ----|
-    | message length  |    frame id     |    vehicle id   |  message type   |    timestamp    |
+    |---- 4 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 8 bytes ----| ---2 bytes--- |---- 4 bytes ----|---- 4 bytes ----|---- 4 bytes ----| ---- 4 bytes ----|
+    | payload length  |    frame id     |    vehicle id   |  message type   |    timestamp    | num of chunks | chunk 1 size | chunk 2 size | chunk 3 size | chunk 4 size |
  
     Args:
         msg_payload (int): length of the msg payload
         msg_type (int): type of msg
         frame_id (int): frame id
         vehicle_id (int): vehicle id
+        num_chucks (int): num of chunks
+        chunk_sizes (list): list of chunks
 
     Returns:
         headers [bytes]
@@ -45,7 +49,15 @@ def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id):
     
     header = msg_len.to_bytes(4, "big") + frame_id.to_bytes(2, "big") \
                 + vehicle_id.to_bytes(2, "big") + msg_type.to_bytes(2, 'big') \
-                + encoded_ts
+                + encoded_ts + num_chucks.to_bytes(2, "big")
+        
+    for chunk_i in range(MAX_CHUNKS_NUM):
+        base_size = 0
+        if chunk is not None and chunk_i < len(chunk):
+            base_size = len(chunk[chunk_i])
+            print("chunk %d size %d"%(chunk_i, base_size))
+        header += base_size.to_bytes(4, 'big')
+        
     return header
 
 
@@ -148,7 +160,12 @@ def parse_data_msg_header(data):
     v_id = int.from_bytes(data[6:8], "big")
     type = int.from_bytes(data[8:10], "big")
     ts = struct.unpack('!d', data[10:18])[0]
-    return payload_size, frame_id, v_id, type, ts
+    num_chunks = int.from_bytes(data[18:20], "big")
+    chunk_sizes = []
+    for i in range(MAX_CHUNKS_NUM):
+        chunk_sizes.append(int.from_bytes(data[20+i*4:20+(i+1)*4], "big"))
+
+    return payload_size, frame_id, v_id, type, ts, num_chunks, chunk_sizes
 
 
 def vehicle_parse_location_packet_data(data):
