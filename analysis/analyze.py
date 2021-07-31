@@ -239,7 +239,7 @@ def plot_bar_compare_schedule(schedules):
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/schedule_compare.png')
 
-    fig = plt.figure(figsize=(12,6))
+    fig = plt.figure(figsize=(9,6))
     ax = fig.add_subplot(111)
     cnt = 0
     for schedule in schedule_data.keys():
@@ -249,6 +249,7 @@ def plot_bar_compare_schedule(schedules):
     ax.set_xticks(x_positions)
     ax.set_xticklabels(schedules)
     plt.ylabel('# of Frame in schedule (%fs)'%LATENCY_THRESHOLD)
+    plt.tight_layout()
     plt.savefig('analysis-results/schedule_frames_within_latency.png')
 
 def calculate_per_node_mean(setting):
