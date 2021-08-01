@@ -40,3 +40,15 @@ def merge(points_oxts_primary, points_oxts_secondary):
 		# pcl = np.float32(np.concatenate((pcl, np.matmul(points, np.transpose(rotation.numpy())) + translation.numpy())))
 		pcl = torch.cat((pcl, torch.mm(points, torch.t(rotation)) + translation))
 	return pcl.numpy()
+
+
+def merge_carla(pcd_points, oxts):
+	transformed_points = []
+	for i in range(len(pcd_points)):
+		pcd = pcd_points[i]
+		# pcd[:,3] = 1
+		pcd = np.concatenate([pcd, np.ones((pcd.shape[0], 1))], axis=1)
+        # pcd_data = np.dot(oxts[i], pcd[:,:4].T).T # pcd[:,:4].dot(trans.T)
+		transformed_points.append(np.dot(oxts[i], pcd[:,:4].T).T)
+	merged_points = np.vstack(transformed_points)
+	return merged_points
