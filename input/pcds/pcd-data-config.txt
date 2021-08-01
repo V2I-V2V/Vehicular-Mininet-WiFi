@@ -1,3 +1,4 @@
+GTA
 ~/DeepGTAV-data/object-0227-1/
 ~/DeepGTAV-data/object-0227-1/alt_perspective/0022786/
 ~/DeepGTAV-data/object-0227-1/alt_perspective/0037122/

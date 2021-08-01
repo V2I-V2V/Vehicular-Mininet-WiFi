@@ -31,30 +31,6 @@ data_save_cv = threading.Condition()
 init_time = 0
 bws = {0: 50, 1:50, 2:50, 3:50, 4:50, 5:50}
 
-def update_bw(trace_filename):
-    v2i_bw_traces = {}
-    all_bandwidth = np.loadtxt(trace_filename)
-    for i in range(all_bandwidth.shape[1]):
-        v2i_bw_traces[i] = all_bandwidth[:, i]
-    for i in range(all_bandwidth.shape[1]):
-        bws[i] = v2i_bw_traces[i][0]
-    time.sleep(13)
-    while True:
-        # TODO: this is using too much CPU resources, change it
-        cur_time = time.time()
-        j = int(cur_time - init_time)
-        for i in range(all_bandwidth.shape[1]): # for node in num_nodes
-            if j >= all_bandwidth.shape[0]:
-                bws[i] = v2i_bw_traces[i][-1]
-            else:
-                bws[i] = v2i_bw_traces[i][j]
-
-
-def bw_update_thread(trace_filename):
-    update_thread = threading.Thread(target=update_bw, args=(trace_filename,))
-    update_thread.daemon = True
-    update_thread.start()
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-n', '--num_vehicles', default=6, type=int, 
@@ -69,10 +45,12 @@ parser.add_argument('-d', '--data_save', default=0, type=int,
                     help='whether to save undecoded pcds')
 parser.add_argument('-m', '--multi', default=1, type=int, 
                     help='whether to use one-to-many assignment')
+parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
 
 args = parser.parse_args()
 trace_filename = args.trace_filename
 scheduler_mode = args.scheduler
+pcd_data_type = args.data_type
 fixed_assignment = ()
 save = args.data_save
 num_vehicles = args.num_vehicles
@@ -84,8 +62,6 @@ if args.fixed_assignment is not None:
     print(fixed_assignment)
 else:
     print("Run in %s mode" % scheduler_mode)
-    # if scheduler_mode == "bwAware" or scheduler_mode == "combined":
-    #     bw_update_thread(trace_filename)
 
 all_bandwidth = np.loadtxt(trace_filename)
 location_map = {}
@@ -344,12 +320,18 @@ def server_recv_data(client_socket, client_addr):
                 saving_thread.start()
         elif data_type == TYPE_OXTS:
             # print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
-            oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
+            if pcd_data_type == 'GTA':
+                oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
+            elif pcd_data_type == 'Carla':
+                oxts[v_id][frame_id%MAX_FRAMES] = np.frombuffer(msg).reshape(4,4)
         
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
+            # if (pcd_data_type == 'GTA' and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0) or \
+            #     pcd_data_type == 'Carla':
+                # if dataset is GTA, require additional oxts file
             data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
 
-# TODO: change save format: nodeid_frameid_chunkid.bin
+
 def save_ptcl(v_id, frame_id, data, num_chunks, chunk_sizes):
     chunk_num = 0
     if num_chunks == 1:
@@ -377,19 +359,26 @@ def merge_data_when_ready():
                 break
         if ready:
             print("[merge data] merge frame %d at %f" % (curr_processed_frame, time.time()))
-            decoded_pcl = ptcl.pointcloud.dracoDecode(pcds[0][curr_processed_frame])
-            decoded_pcl = np.append(decoded_pcl, np.zeros((decoded_pcl.shape[0],1),dtype='float32'), axis=1)
-            points_oxts_primary = (decoded_pcl, oxts[0][curr_processed_frame])
-            points_oxts_secondary = []
-            for i in range(1, num_vehicles):
-                pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
-                if pcl.shape[0] != 0:
-                    pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
-                    points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
-                # if save:
-                #     with open('%s/output/node%d_%d.bin'%(REPO_DIR, i, curr_processed_frame), 'wb') as f:
-                #         f.write(pcds[i][curr_processed_frame])
-            merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
+            if pcd_data_type == "GTA":
+                decoded_pcl = ptcl.pointcloud.dracoDecode(pcds[0][curr_processed_frame])
+                # add a redudant intensity value column
+                decoded_pcl = np.append(decoded_pcl, np.zeros((decoded_pcl.shape[0],1),dtype='float32'), axis=1)
+                points_oxts_primary = (decoded_pcl, oxts[0][curr_processed_frame])
+                points_oxts_secondary = []
+                for i in range(1, num_vehicles):
+                    pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
+                    if pcl.shape[0] != 0:
+                        pcl = np.append(pcl, np.zeros((pcl.shape[0],1), dtype='float32'), axis=1)
+                        points_oxts_secondary.append((pcl,oxts[i][curr_processed_frame]))
+                merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
+            elif pcd_data_type == "Carla":
+                decoded_pcls, ptcl_oxts = [], []
+                for i in range(0, num_vehicles):
+                    pcl = ptcl.pointcloud.dracoDecode(pcds[i][curr_processed_frame])
+                    if pcl.shape[0] != 0:
+                        decoded_pcls.append(pcl)
+                        ptcl_oxts.append(oxts[i][curr_processed_frame])
+                merged_pcl = ptcl.pcd_merge.merge_carla(decoded_pcls, ptcl_oxts)
             # with open('%s/output/merged_%d.bin'%(REPO_DIR, curr_processed_frame), 'w') as f:
             #     merged_pcl.tofile(f)
             curr_processed_frame += 1

@@ -247,7 +247,7 @@ def plot_bar_compare_schedule(schedules):
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/schedule_compare.png')
 
-    fig = plt.figure(figsize=(12,6))
+    fig = plt.figure(figsize=(9,6))
     ax = fig.add_subplot(111)
     cnt = 0
     for schedule in schedule_data.keys():
@@ -260,6 +260,7 @@ def plot_bar_compare_schedule(schedules):
         plt.ylabel('# of Frame in schedule (%3fs)'%LATENCY_THRESHOLD)
     else:
         plt.ylabel('# of Frame in schedule (%3f s, %3f SSIM)'%(LATENCY_THRESHOLD, SSIM_THRESHOLD))
+    plt.tight_layout()
     plt.savefig('analysis-results/schedule_frames_within_latency.png')
 
 

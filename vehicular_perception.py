@@ -16,6 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils
 
 # global default values
+pcd_data_type = 'GTA'
 vehicle_data_dir = ['~/DeepGTAV-data/object-0227-1/', 
                     '~/DeepGTAV-data/object-0227-1/alt_perspective/0022786/',
                     '~/DeepGTAV-data/object-0227-1/alt_perspective/0037122/',
@@ -145,12 +146,12 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 -u %s/server/server.py -f %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
-             % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, CODE_DIR)
+        server_cmd = "python3 -u %s/server/server.py -f %s -n %d -t %s -d %d -m %d --data_type %s > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d > %s/logs/server.log 2>&1 &"\
-             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, CODE_DIR)
+        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, CODE_DIR)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
@@ -159,7 +160,7 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
             % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, adaptive_encode)
         if adaptive_frame_skip:
             vehicle_app_cmd += ' --adapt_skip_frames '
-        vehicle_app_cmd += ' > %s/logs/node%d.log 2>&1 &'%(CODE_DIR, node_num)
+        vehicle_app_cmd += ' --data_type %s > %s/logs/node%d.log 2>&1 &'%(pcd_data_type, CODE_DIR, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
 
@@ -298,7 +299,9 @@ if __name__ == '__main__':
 
     if '-p' in sys.argv:
         pcd_config_file = sys.argv[sys.argv.index('-p')+1]
-        vehicle_data_dir = np.loadtxt(pcd_config_file, dtype=str)
+        vehicle_data_config = np.loadtxt(pcd_config_file, dtype=str)
+        pcd_data_type = vehicle_data_config[0]
+        vehicle_data_dir = vehicle_data_config[1:]
 
     if '-s' in sys.argv:
         scheduler = sys.argv[sys.argv.index('-s')+1]

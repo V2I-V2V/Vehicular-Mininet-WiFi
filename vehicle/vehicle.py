@@ -52,8 +52,14 @@ control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
 is_adaptive_frame_skipped = args.adapt_skip_frames
 
-PCD_DATA_PATH = args.data_path + '/velodyne_2/'
-OXTS_DATA_PATH = args.data_path + '/oxts/'
+pcd_data_type = args.data_type
+if args.data_type == "GTA":
+    PCD_DATA_PATH = args.data_path + '/velodyne_2/'
+    OXTS_DATA_PATH = args.data_path + '/oxts/'
+else:
+    PCD_DATA_PATH = args.data_path
+    OXTS_DATA_PATH = args.data_path
+
 LOCATION_FILE = args.location_file
 HELPEE_CONF = args.helpee_conf
 FRAMERATE = args.fps
@@ -126,14 +132,18 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     """
     global capture_finished
     for i in range(config.MAX_FRAMES):
-        # t_s = time.time()
-        pcd_f_name = pcd_data_path + "%06d.bin"%i
-        raw_pcd = ptcl.pointcloud.read_pointcloud(pcd_f_name)
-        pcd_np = np.frombuffer(raw_pcd, dtype=np.float32).reshape([-1,4])
+        if pcd_data_type == "GTA":
+            pcd_f_name = pcd_data_path + "%06d.bin"%i
+            oxts_f_name = oxts_data_path + "%06d.txt"%i
+        elif pcd_data_type == "Carla":
+            pcd_f_name = pcd_data_path + str(1000+i) + ".npy"
+            oxts_f_name = oxts_data_path + str(1000+i) + ".trans.npy"
+        oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
+        pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
+
         if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
             partitioned = ptcl.partition.simple_partition(pcd_np, 20)
-            pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
-                                            PCD_ENCODE_LEVEL, PCD_QB)
+            pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
             pcd_data_buffer.append(pcd)
         else:            
             partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
@@ -142,8 +152,9 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
                 encoded, ratio = ptcl.pointcloud.dracoEncode(partition, PCD_ENCODE_LEVEL, PCD_QB)
                 encodeds.append(encoded)
             pcd_data_buffer.append(encodeds)
-        oxts_f_name = oxts_data_path + "%06d.txt"%i
-        oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
+        # if pcd_data_type == "GTA":
+        #     oxts_f_name = oxts_data_path + "%06d.txt"%i
+        #     oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         # t_elapsed = time.time() - t_s
         # print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
         # if (1.0/fps-t_elapsed) > 0:
@@ -232,14 +243,15 @@ def v2i_data_send_thread():
         # pcd = pcd_data_buffer[data_f_id]
         # pcd = pcd_data_buffer[data_f_id][0]
         pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
-        oxts = oxts_data_buffer[data_f_id]
         curr_frame_id += 1
         frame_lock.release()
-        # TODO: change encode to another thread (right now data is pre-encoded)
+        # TODO: change encode to another thread, follow a pipeline (right now data is pre-encoded)
         last_frame_sent_ts = time.time()
         print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
         frame_sent_time[curr_f_id] = time.time()
         send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd_data_buffer[data_f_id][:num_chunks])
+        # if pcd_data_type == "GTA":
+        oxts = oxts_data_buffer[data_f_id]
         send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
         print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
         t_elapsed = time.time() - t_start
@@ -558,6 +570,7 @@ class VehicleDataSendThread(threading.Thread):
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
             # TODO: use a lock to protect frame
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # if pcd_data_type == "GTA":
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
@@ -568,6 +581,7 @@ class VehicleDataSendThread(threading.Thread):
                 pcd_data_buffer[curr_f_id%config.MAX_FRAMES][:num_chunks])
             if not if_send_success:
                 print("send not in time!!")
+            # if pcd_data_type == "GTA":
             if_send_success = send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             t_elapsed = time.time() - t_start
             if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
