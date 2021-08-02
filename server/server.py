@@ -97,6 +97,9 @@ class SchedThread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.flip_cnt = 0
+        self.last_assignment_score = 0 # used for combined sched
+        self.last_assignment = None
+        self.assignment_change_threshold = 0.5
 
 
     def check_if_loc_map_complete(self, vids):
@@ -136,6 +139,7 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
+            skip_sending_assignment = False
             print("loc:" + str(location_map), flush=True)
             if scheduler_mode == 'fixed':
                 assignment = fixed_assignment
@@ -179,7 +183,24 @@ class SchedThread(threading.Thread):
                 sched_start = time.time()
                 if scheduler_mode == 'combined':
                     get_bws()
-                    assignment = scheduling.combined_sched(helpee_count, helper_count, positions, bws, route_map, is_one_to_one)
+                    assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, route_map, is_one_to_one)
+                    if self.last_assignment is not None:
+                        last_assignment_id = scheduling.get_id_from_assignment(self.last_assignment)
+                    else:
+                        last_assignment_id = ()
+                    last_score = scores[last_assignment_id] if last_assignment_id in scores.keys() else 0
+                    print("best score: ", score, last_score, self.last_assignment_score)
+                    if score < last_score + self.assignment_change_threshold:
+                        print("Skip assignment ", score, self.last_assignment_score, current_assignment)
+                        skip_sending_assignment = True
+                    # if score < self.last_assignment_score + self.assignment_change_threshold and \
+                    #     score > self.last_assignment_score:
+                    #     print("Skip assignment ", score, self.last_assignment_score, current_assignment)
+                    #     print("Assignment: " + str(self.last_assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
+                    #     time.sleep(0.2)
+                    #     continue
+                    else:
+                        self.last_assignment_score = score
                 elif scheduler_mode == 'minDist':
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions, is_one_to_one)
                 elif scheduler_mode == 'bwAware':
@@ -196,15 +217,20 @@ class SchedThread(threading.Thread):
                     else:
                         assignment = (2,)
                     self.flip_cnt += 1
+                
                 sched_end = time.time()
                 print("Sched takes " + str(sched_end-sched_start))
-                print("Assignment: " + str(assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
-                for cnt, node in enumerate(assignment):
-                    real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
-                    current_assignment[real_helper] = real_helpee
-                    print("send %d to node %d" % (real_helpee, real_helper))
-                    msg = int(real_helpee).to_bytes(2, 'big')
-                    client_sockets[real_helper].send(msg)
+                if skip_sending_assignment:
+                    print("Assignment: " + str(self.last_assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
+                if not skip_sending_assignment:
+                    print("Assignment: " + str(assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
+                    self.last_assignment = assignment
+                    for cnt, node in enumerate(assignment):
+                        real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
+                        current_assignment[real_helper] = real_helpee
+                        print("send %d to node %d" % (real_helpee, real_helper))
+                        msg = int(real_helpee).to_bytes(2, 'big')
+                        client_sockets[real_helper].send(msg)
             time.sleep(0.2)
 
 

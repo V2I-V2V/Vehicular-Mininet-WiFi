@@ -263,6 +263,19 @@ def plot_bar_compare_schedule(schedules):
     plt.tight_layout()
     plt.savefig('analysis-results/schedule_frames_within_latency.png')
 
+    fig = plt.figure(figsize=(9,6))
+    ax = fig.add_subplot(111)
+    for schedule in schedule_data.keys():
+        bins = np.arange(0, 1, 0.2)
+        arr = plt.hist(schedule_data[schedule], bins=bins, cumulative=True)
+        for i in range(len(bins)-1):
+            plt.text(arr[1][i],arr[0][i],str(arr[0][i]))
+    plt.xticks(np.arange(0,4,1))
+    plt.gca().set(title='Frame latency frequency Histogram', ylabel='# of frames')
+    plt.xlabel('Latency (s)')
+    plt.savefig('analysis-results/frames_latency_histogram.png')
+
+
 
 def plot_bar_compare_encode():
     fig = plt.figure(figsize=(12,6))
@@ -390,7 +403,7 @@ def main():
     ## high level task to anal e.g. compare_scheduler, compare_effect_multi, 
     ## one-help-many can be parsed from config
     # parser.add_argument('-m', '--multi', default=False, type=bool, help='compare multi helper')  # delete this arg
-    parser.add_argument('-t', '--threshold', default=0.2, type=float, help='threshold to evaluate a good frame latency')
+    parser.add_argument('-t', '--time_threshold', default=0.2, type=float, help='threshold to evaluate a good frame latency')
     parser.add_argument('--task', default="", type=str, help='additional analysis task to do (ssim|compare_adaptive_encode)')
     parser.add_argument('--ssim_threshold', default=None, type=float, help='threshold to evaluate a good SSIM')
 
@@ -407,7 +420,7 @@ def main():
     if task == 'ssim':
         with_ssim = True
         SSIM_THRESHOLD = 0.6
-    LATENCY_THRESHOLD = args.threshold
+    LATENCY_THRESHOLD = args.time_threshold
     SSIM_THRESHOLD = args.ssim_threshold
 
     # create a analysis-results/ dir under data_dir
