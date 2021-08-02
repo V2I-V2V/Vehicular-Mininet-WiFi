@@ -125,6 +125,9 @@ Optional arguments:
 
 Optional arguments:
 
+* `--adaptive_encode <encode_type>`: Wether to use adaptive endoding, (encode_type: 0 for no adaptive encoding, 1 for adaptive encdoing, 2 for adaptive encoding but always uses 4 chunks). Default value is 0 (no adaptive encoding).
+* `--adapt_frame_skipping`: Enable adaptive frame skipping when a frame sending takes too long. Default is not enabled.
+* `--multi <0/1>`: 1 for enable 1 help many, 0 for disable. Default is enabled. 
 * `-r <routing_algorithm>`: Support `olsrd` and `custom`. Other input will make nodes run no routing algorithm.
 * `-s <scheduler>`: Scheduler algorithm used by `server/server.py`. Default scheduler scheme is `minDist`. If you want to use fixed assignment mode, see next bullet.
 * `-s fixed <assignment_file> <assignment_index>`: Fix assignment mode. Assignment file format: each line is an assignment, and `<assignment_index>` is the index of the assignment to test. For example  `-f input/assignments.txt 1` test the second assignment/second line in file `input/assignments.txt`

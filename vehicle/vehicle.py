@@ -15,7 +15,7 @@ import mobility
 import route
 import numpy as np
 import argparse
-import message
+import network.message
 
 # Define some constants
 HELPEE = 0
@@ -52,8 +52,14 @@ control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
 is_adaptive_frame_skipped = args.adapt_skip_frames
 
-PCD_DATA_PATH = args.data_path + '/velodyne_2/'
-OXTS_DATA_PATH = args.data_path + '/oxts/'
+pcd_data_type = args.data_type
+if args.data_type == "GTA":
+    PCD_DATA_PATH = args.data_path + '/velodyne_2/'
+    OXTS_DATA_PATH = args.data_path + '/oxts/'
+else:
+    PCD_DATA_PATH = args.data_path
+    OXTS_DATA_PATH = args.data_path
+
 LOCATION_FILE = args.location_file
 HELPEE_CONF = args.helpee_conf
 FRAMERATE = args.fps
@@ -126,24 +132,29 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     """
     global capture_finished
     for i in range(config.MAX_FRAMES):
-        # t_s = time.time()
-        pcd_f_name = pcd_data_path + "%06d.bin"%i
-        raw_pcd = ptcl.pointcloud.read_pointcloud(pcd_f_name)
-        pcd_np = np.frombuffer(raw_pcd, dtype=np.float32).reshape([-1,4])
+        if pcd_data_type == "GTA":
+            pcd_f_name = pcd_data_path + "%06d.bin"%i
+            oxts_f_name = oxts_data_path + "%06d.txt"%i
+        elif pcd_data_type == "Carla":
+            pcd_f_name = pcd_data_path + str(1000+i) + ".npy"
+            oxts_f_name = oxts_data_path + str(1000+i) + ".trans.npy"
+        oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
+        pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
+
         if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
             partitioned = ptcl.partition.simple_partition(pcd_np, 20)
-            pcd, _ = ptcl.pointcloud.dracoEncode(partitioned, 
-                                            PCD_ENCODE_LEVEL, PCD_QB)
+            pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
             pcd_data_buffer.append(pcd)
         else:            
             partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
             encodeds = []
             for partition in partitions:
-                encoded, ratio = ptcl.pointcloud.dracoEncode(partition, 10, 8)
+                encoded, ratio = ptcl.pointcloud.dracoEncode(partition, PCD_ENCODE_LEVEL, PCD_QB)
                 encodeds.append(encoded)
             pcd_data_buffer.append(encodeds)
-        oxts_f_name = oxts_data_path + "%06d.txt"%i
-        oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
+        # if pcd_data_type == "GTA":
+        #     oxts_f_name = oxts_data_path + "%06d.txt"%i
+        #     oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         # t_elapsed = time.time() - t_s
         # print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
         # if (1.0/fps-t_elapsed) > 0:
@@ -158,10 +169,10 @@ def get_encoded_frame(frame_id, metric):
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE:
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
         cnt = 1
-        if metric < 0.5:
+        if metric < 0.3:
             encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
             cnt += 1
-        if metric < 0.3:
+        if metric < 0.2:
             encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
             cnt += 1
         if metric < 0.1:
@@ -189,7 +200,7 @@ def get_latency(e2e_frame_latency):
         cnt += 1
         recent_latency += latency
         # print(id, latency)
-        if cnt == 10:
+        if cnt == 5:
             break
     recent_latency /= cnt
     return recent_latency
@@ -197,7 +208,7 @@ def get_latency(e2e_frame_latency):
 
 def send(socket, data, id, type, num_chunks=1, chunks=None):
     msg_len = len(data)
-    header = message.construct_data_msg_header(data, type, id, vehicle_id, num_chunks, chunks)
+    header = network.message.construct_data_msg_header(data, type, id, vehicle_id, num_chunks, chunks)
     print("[send header] vehicle %d, frame %d, data len: %d" % (vehicle_id, id, msg_len))
     hender_sent = 0
     while hender_sent < len(header):
@@ -232,14 +243,15 @@ def v2i_data_send_thread():
         # pcd = pcd_data_buffer[data_f_id]
         # pcd = pcd_data_buffer[data_f_id][0]
         pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
-        oxts = oxts_data_buffer[data_f_id]
         curr_frame_id += 1
         frame_lock.release()
-        # TODO: change encode to another thread (right now data is pre-encoded)
+        # TODO: change encode to another thread, follow a pipeline (right now data is pre-encoded)
         last_frame_sent_ts = time.time()
         print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
         frame_sent_time[curr_f_id] = time.time()
         send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd_data_buffer[data_f_id][:num_chunks])
+        # if pcd_data_type == "GTA":
+        oxts = oxts_data_buffer[data_f_id]
         send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
         print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
         t_elapsed = time.time() - t_start
@@ -331,9 +343,9 @@ def notify_helpee_node(helpee_id):
     # print("[notifying the helpee]")
     send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     msg = vehicle_id.to_bytes(2, 'big')
-    header = message.construct_control_msg_header(msg, message.TYPE_ASSIGNMENT)
+    header = network.message.construct_control_msg_header(msg, network.message.TYPE_ASSIGNMENT)
     helpee_addr = "10.0.0." + str(helpee_id+2)
-    message.send_msg(send_note_sock, header, msg, is_udp=True,\
+    network.message.send_msg(send_note_sock, header, msg, is_udp=True,\
                         remote_addr=(helpee_addr, helper_control_recv_port))
 
 
@@ -387,14 +399,14 @@ class VehicleControlThread(threading.Thread):
     def run(self):
         global current_helper_id, control_seq_num
         while True:
-            data, addr = message.recv_msg(v2v_control_socket, message.TYPE_CONTROL_MSG,\
+            data, addr = network.message.recv_msg(v2v_control_socket, network.message.TYPE_CONTROL_MSG,\
                                             is_udp=True)
-            msg_size, msg_type = message.parse_control_msg_header(data)
+            msg_size, msg_type = network.message.parse_control_msg_header(data)
             if connection_state == "Connected":
                 # This vehicle is a helper now
-                if msg_type == message.TYPE_LOCATION:
+                if msg_type == network.message.TYPE_LOCATION:
                     print("[helper recv location broadcast] " + str(time.time()))
-                    helpee_id, helpee_loc, seq_num = message.vehicle_parse_location_packet_data(data[-msg_size:])
+                    helpee_id, helpee_loc, seq_num = network.message.vehicle_parse_location_packet_data(data[-msg_size:])
                     # send helpee location
                     print((helpee_id, helpee_loc))
                     if helpee_id not in vehicle_seq_dict.keys() \
@@ -405,9 +417,9 @@ class VehicleControlThread(threading.Thread):
                         wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket, seq_num)
                         control_seq_num += 1
                         v2i_control_socket_lock.release()
-                elif msg_type == message.TYPE_ROUTE:
+                elif msg_type == network.message.TYPE_ROUTE:
                     print("[helper recv route broadcast] " + str(time.time()))
-                    helpee_id, route_bytes, seq_num = message.vehicle_parse_route_packet_data(data[-msg_size:])
+                    helpee_id, route_bytes, seq_num = network.message.vehicle_parse_route_packet_data(data[-msg_size:])
                     # forward helpee route
                     if helpee_id not in vehicle_seq_dict.keys() \
                         or seq_num > vehicle_seq_dict[helpee_id]:
@@ -420,7 +432,7 @@ class VehicleControlThread(threading.Thread):
                         v2i_control_socket_lock.release()
             elif connection_state == "Disconnected":
                 # This vehicle is a helpee now
-                if msg_type == message.TYPE_ASSIGNMENT:
+                if msg_type == network.message.TYPE_ASSIGNMENT:
                     helper_id = int.from_bytes(data[-msg_size:], 'big')
                     if helper_id != current_helper_id:
                         print("[Helpee get helper assignment] helper_id: "\
@@ -433,23 +445,23 @@ class VehicleControlThread(threading.Thread):
                         if len(helper_data_send_thread) != 0:
                             helper_data_send_thread[-1].stop()
                         helper_data_send_thread.append(new_send_thread)
-                elif msg_type == message.TYPE_LOCATION and self_ip != addr[0]:
-                    helpee_id, helpee_loc, seq_num = message.vehicle_parse_location_packet_data(data[-msg_size:])
+                elif msg_type == network.message.TYPE_LOCATION and self_ip != addr[0]:
+                    helpee_id, helpee_loc, seq_num = network.message.vehicle_parse_location_packet_data(data[-msg_size:])
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
                             seq_num > vehicle_seq_dict[helpee_id]):
                         # helpee only rebroadcast loc not equal to themselves and with larger seq
                         vehicle_seq_dict[helpee_id] = seq_num
-                        message.send_msg(v2v_control_socket, data[:message.CONTROL_MSG_HEADER_LEN],\
-                                        data[message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
+                        network.message.send_msg(v2v_control_socket, data[:network.message.CONTROL_MSG_HEADER_LEN],\
+                                        data[network.message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
                                         remote_addr=("10.255.255.255", helper_control_recv_port))
-                elif msg_type == message.TYPE_ROUTE and self_ip != addr[0]:
-                    helpee_id, route_bytes, seq_num = message.vehicle_parse_route_packet_data(data[-msg_size:])
+                elif msg_type == network.message.TYPE_ROUTE and self_ip != addr[0]:
+                    helpee_id, route_bytes, seq_num = network.message.vehicle_parse_route_packet_data(data[-msg_size:])
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
                             seq_num > vehicle_seq_dict[helpee_id]):
                         # helpee only rebroadcast route not equal to themselves and with larger seq
                         vehicle_seq_dict[helpee_id] = seq_num
-                        message.send_msg(v2v_control_socket, data[:message.CONTROL_MSG_HEADER_LEN],\
-                                        data[message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
+                        network.message.send_msg(v2v_control_socket, data[:network.message.CONTROL_MSG_HEADER_LEN],\
+                                        data[network.message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
                                         remote_addr=("10.255.255.255", helper_control_recv_port))
             else:
                 print("Exception: no such connection state")
@@ -486,8 +498,8 @@ class VehicleDataRecvThread(threading.Thread):
         ack_relay_thread.start()
         while True and not self._is_closed:
             data = b''
-            header_to_recv = message.DATA_MSG_HEADER_LEN
-            while len(data) < message.DATA_MSG_HEADER_LEN:
+            header_to_recv = network.message.DATA_MSG_HEADER_LEN
+            while len(data) < network.message.DATA_MSG_HEADER_LEN:
                 data_recv = self.client_socket.recv(header_to_recv)
                 data += data_recv
                 if len(data_recv) <= 0:
@@ -497,8 +509,8 @@ class VehicleDataRecvThread(threading.Thread):
                     return
                 header_to_recv -= len(data_recv)
                 v2v_recved_bytes += len(data_recv)
-            msg_len, frame_id, v_id, type, _, _, _ = message.parse_data_msg_header(data)
-            to_send = message.DATA_MSG_HEADER_LEN
+            msg_len, frame_id, v_id, type, _, _, _ = network.message.parse_data_msg_header(data)
+            to_send = network.message.DATA_MSG_HEADER_LEN
             sent = 0
             while sent < to_send:
                 sent_len = self.helper_relay_server_sock.send(data[sent:])
@@ -558,6 +570,7 @@ class VehicleDataSendThread(threading.Thread):
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
             # TODO: use a lock to protect frame
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # if pcd_data_type == "GTA":
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
@@ -568,6 +581,7 @@ class VehicleDataSendThread(threading.Thread):
                 pcd_data_buffer[curr_f_id%config.MAX_FRAMES][:num_chunks])
             if not if_send_success:
                 print("send not in time!!")
+            # if pcd_data_type == "GTA":
             if_send_success = send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             t_elapsed = time.time() - t_start
             if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
