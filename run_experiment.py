@@ -108,9 +108,11 @@ def check_exception_in_output():
         # sys.exit(1)
     # if output 
 
-def move_output(folder):
+def move_output(folder, is_save_data=False):
     cmds = ["cp -r " + os.path.dirname(os.path.abspath(__file__)) + "/logs/ " + folder, 
             "cp -r " + os.path.dirname(os.path.abspath(__file__)) + "/pcaps/ " + folder]
+    if is_save_data:
+        cmds.append("cp -r " + os.path.dirname(os.path.abspath(__file__)) + "/output/ " + folder)
     for cmd in cmds:
         os.system(cmd)
         print("+" + cmd)

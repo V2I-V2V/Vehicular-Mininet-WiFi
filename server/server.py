@@ -11,7 +11,7 @@ import ptcl.pcd_merge
 import numpy as np
 import argparse
 import ptcl.pointcloud
-import message
+import network.message
 
 MAX_VEHICLES = 8
 MAX_FRAMES = 80
@@ -250,13 +250,13 @@ class ControlConnectionThread(threading.Thread):
         vehicle_types[vehicle_id] = HELPER
         # node_last_recv_timestamp[vehicle_id] = time.time()
         client_sockets[vehicle_id] = self.client_socket
-        header, payload = message.recv_msg(self.client_socket,\
-                                        message.TYPE_CONTROL_MSG)
+        header, payload = network.message.recv_msg(self.client_socket,\
+                                        network.message.TYPE_CONTROL_MSG)
         while len(header) > 0 and len(payload) > 0:
-            payload_size, msg_type = message.parse_control_msg_header(header)
-            if msg_type == message.TYPE_LOCATION:
+            payload_size, msg_type = network.message.parse_control_msg_header(header)
+            if msg_type == network.message.TYPE_LOCATION:
                 v_type, v_id, x, y, seq_num = \
-                    message.server_parse_location_msg(payload)
+                    network.message.server_parse_location_msg(payload)
                 if v_id not in node_seq_nums.keys() or \
                 node_seq_nums[v_id] < seq_num:
                     # only update location when seq num is larger
@@ -264,14 +264,14 @@ class ControlConnectionThread(threading.Thread):
                     location_map[v_id] = (x, y)
                     vehicle_types[v_id] = v_type
                     node_seq_nums[v_id] = seq_num
-            elif msg_type == message.TYPE_ROUTE:
-                v_type, v_id, routing_table, seq_num = message.server_parse_route_msg(payload)
+            elif msg_type == network.message.TYPE_ROUTE:
+                v_type, v_id, routing_table, seq_num = network.message.server_parse_route_msg(payload)
                 route_map[v_id] = routing_table
                 print(route_map)
                 vehicle_types[v_id] = v_type
                 node_seq_nums[v_id] = seq_num
             node_last_recv_timestamp[v_id] = time.time()
-            header, payload = message.recv_msg(self.client_socket, message.TYPE_CONTROL_MSG)
+            header, payload = network.message.recv_msg(self.client_socket, network.message.TYPE_CONTROL_MSG)
         self.client_socket.close()
 
 
@@ -314,13 +314,13 @@ def server_recv_data(client_socket, client_addr):
     conn_lock.release()
 
     while True:
-        header, msg, throughput, elapsed_t = message.recv_msg(client_socket, message.TYPE_DATA_MSG)
+        header, msg, throughput, elapsed_t = network.message.recv_msg(client_socket, network.message.TYPE_DATA_MSG)
         if header == b'' and msg == b'':
             print("[Helper relay closed]")
             client_socket.close()
             return
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
-        msg_size, frame_id, v_id, data_type, ts, num_chunks, chunk_sizes = message.parse_data_msg_header(header)
+        msg_size, frame_id, v_id, data_type, ts, num_chunks, chunk_sizes = network.message.parse_data_msg_header(header)
         # received_bytes[vehicle_id] += msg_size
         # print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
         #         (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 

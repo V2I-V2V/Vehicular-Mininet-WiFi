@@ -5,7 +5,7 @@ import threading
 import time
 import utils
 import fcntl, os
-import message
+import network.message
 
 def setup_lte():
     # TODO
@@ -31,8 +31,8 @@ def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num):
     y = int(position[1]).to_bytes(2, 'big')
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + x + y + seq
-    header = message.construct_control_msg_header(msg, message.TYPE_LOCATION)
-    message.send_msg(client_socket, header, msg)
+    header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)
+    network.message.send_msg(client_socket, header, msg)
 
 
 def send_route(vehicle_type, vehicle_id, route_bytes, client_socket, seq_num):
@@ -40,8 +40,8 @@ def send_route(vehicle_type, vehicle_id, route_bytes, client_socket, seq_num):
     v_id = vehicle_id.to_bytes(2, 'big')
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + route_bytes + seq
-    header = message.construct_control_msg_header(msg, message.TYPE_ROUTE)
-    message.send_msg(client_socket, header, msg)
+    header = network.message.construct_control_msg_header(msg, network.message.TYPE_ROUTE)
+    network.message.send_msg(client_socket, header, msg)
 
 
 def recv_assignment(client_socket):
