@@ -41,7 +41,7 @@ CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
-    time.sleep(13)
+    time.sleep(14)
     for throughput_idx in range(min(len(trace), time_to_run-20)):
         start_t = time.time()
         if trace[throughput_idx] == 0:
@@ -105,7 +105,7 @@ def config_mobility_mininet_replay(net, stations, loc_file, plot=True):
 
 def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
-    time.sleep(13)
+    time.sleep(14)
     print("\nstart update location at %f" % time.time())
     # loc_update_logs = []
     # for station_idx in range(len(stations)):
@@ -156,7 +156,7 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     server.cmd(server_cmd)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 3 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d'\
+        vehicle_app_cmd = 'sleep 4 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d'\
             % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, adaptive_encode)
         if adaptive_frame_skip:
             vehicle_app_cmd += ' --adapt_skip_frames '
