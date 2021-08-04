@@ -282,14 +282,16 @@ def route_sched(num_of_helpees, num_of_helpers, routing_tables, is_one_to_one=Fa
 
 
 def get_bw_scores(assignment, v2i_bws):
+    # print(assignment, v2i_bws)
     scores = []
     for helpee, helper in enumerate(assignment):
         score = 1
         counts = get_counts(assignment)
         average_bw = v2i_bws[helpee] / (counts[helper] + 1)
+        # print(average_bw)
         if 5 < average_bw < 25:
             score = (average_bw - 5) / 20
-        elif v2i_bws[helpee] <= 5:
+        elif average_bw <= 5:
             score = 0
         scores.append(score)
     return scores
@@ -317,7 +319,7 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
 
 
 def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables, is_one_to_one=False):
-    print("Using the combined sched")
+    print("Using the combined sched", num_of_helpees, num_of_helpers)
     scores, scores_dist, scores_bw, scores_intf = {}, {}, {}, {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     for assignment in assignments:
@@ -327,7 +329,7 @@ def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_table
         distance_scores = get_distance_scores(assignment, positions)
         bw_scores = get_bw_scores(assignment, v2i_bws)
         interference_scores = get_interference_scores(assignment, interference_counts, routing_tables)
-        # print(interference_scores)
+        print(assignment, statistics.harmonic_mean(distance_scores), statistics.harmonic_mean(bw_scores), statistics.harmonic_mean(interference_scores))
         scores_dist[get_id_from_assignment(assignment)] = statistics.harmonic_mean(distance_scores)
         scores_bw[get_id_from_assignment(assignment)] = statistics.harmonic_mean(bw_scores)
         scores_intf[get_id_from_assignment(assignment)] = statistics.harmonic_mean(interference_scores)
