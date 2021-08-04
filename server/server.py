@@ -92,6 +92,14 @@ def get_bws():
         bws[i] = all_bandwidth[bw_idx][i]
 
 
+def get_mapped_bw(mapped_node_ids):
+    get_bws()
+    mapped_bw = []
+    for node in mapped_node_ids:
+        mapped_bw.append(bws[node])
+    return mapped_bw
+
+
 class SchedThread(threading.Thread):
 
     def __init__(self):
@@ -146,7 +154,7 @@ class SchedThread(threading.Thread):
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 for cnt, node in enumerate(assignment):
                     real_helpee, real_helper = cnt, node
-                    current_assignment[real_helper] = real_helpee
+                    current_assignment[real_helpee] = real_helper
                     print("send %d to node %d" % (real_helpee, real_helper))
                     msg = int(real_helpee).to_bytes(2, 'big')
                     if real_helper in client_sockets.keys():
@@ -182,7 +190,8 @@ class SchedThread(threading.Thread):
                         routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
                 sched_start = time.time()
                 if scheduler_mode == 'combined':
-                    get_bws()
+                    # get_bws() # need to map here
+                    bws = get_mapped_bw(mapped_nodes)
                     assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, route_map, is_one_to_one)
                     if self.last_assignment is not None:
                         last_assignment_id = scheduling.get_id_from_assignment(self.last_assignment)
@@ -204,7 +213,8 @@ class SchedThread(threading.Thread):
                 elif scheduler_mode == 'minDist':
                     assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions, is_one_to_one)
                 elif scheduler_mode == 'bwAware':
-                    get_bws()
+                    # get_bws()
+                    bws = get_mapped_bw(mapped_nodes)
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
                 elif scheduler_mode == 'routeAware':
                     assignment = scheduling.route_sched(helpee_count, helper_count, route_map, is_one_to_one)
@@ -227,7 +237,7 @@ class SchedThread(threading.Thread):
                     self.last_assignment = assignment
                     for cnt, node in enumerate(assignment):
                         real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
-                        current_assignment[real_helper] = real_helpee
+                        current_assignment[real_helpee] = real_helper
                         print("send %d to node %d" % (real_helpee, real_helper))
                         msg = int(real_helpee).to_bytes(2, 'big')
                         client_sockets[real_helper].send(msg)

@@ -65,6 +65,7 @@ HELPEE_CONF = args.helpee_conf
 FRAMERATE = args.fps
 ADAPTIVE_ENCODE_TYPE = args.adaptive
 print('fps ' + str(FRAMERATE))
+curr_frame_rate = FRAMERATE
 connection_state = "Connected"
 current_helpee_id = 65535
 current_helper_id = 65535
@@ -78,6 +79,7 @@ if len(self_loc_trace) > 5:
 pcd_data_buffer = []
 oxts_data_buffer = []
 e2e_frame_latency = {}
+e2e_frame_latency_lock = threading.Lock()
 frame_sent_time = {}
 
 def self_loc_update_thread():
@@ -162,6 +164,17 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     capture_finished = True
 
 
+def get_updated_fps(metric):
+    if metric >= 1:
+        # Avg latency over 1 sec, min fps adjust to 2
+        return 2
+    elif metric >= 0.5:
+        return 4
+    elif metric > 0.1:
+        return 7
+    elif metric <= 0.1:
+        return 10
+
 def get_encoded_frame(frame_id, metric):
     if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
         cnt = 1
@@ -194,7 +207,9 @@ def get_latency(e2e_frame_latency):
     recent_latency = 0
     if len(e2e_frame_latency) == 0:
         return 0
+    e2e_frame_latency_lock.acquire()
     recent_latencies = sorted(e2e_frame_latency.items(), key=lambda item: -item[0])
+    e2e_frame_latency_lock.release()
     cnt = 0
     for id, latency in recent_latencies:
         cnt += 1
@@ -230,7 +245,7 @@ def send(socket, data, id, type, num_chunks=1, chunks=None):
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
     """
-    global curr_frame_id, last_frame_sent_ts
+    global curr_frame_id, last_frame_sent_ts, curr_frame_rate
     ack_recv_thread = threading.Thread(target=v2i_ack_recv_thread)
     ack_recv_thread.start()
     while connection_state == "Connected":
@@ -255,15 +270,18 @@ def v2i_data_send_thread():
         send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
         print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
         t_elapsed = time.time() - t_start
-        if capture_finished and (1.0/FRAMERATE-t_elapsed) > 0:
-            print("capture finished, sleep %f" % (1.0/FRAMERATE-t_elapsed))
-            time.sleep(1.0/FRAMERATE-t_elapsed)
-        elif capture_finished and is_adaptive_frame_skipped and (1.0/FRAMERATE-t_elapsed) < 0:
-            passed_frames = int(t_elapsed * FRAMERATE)
-            print('Sending V2I passed %f'%t_elapsed)
-            frame_lock.acquire()
-            curr_frame_id += passed_frames
-            frame_lock.release()
+        if capture_finished and is_adaptive_frame_skipped:
+            curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
+            print("Update framerate: ", curr_frame_rate)
+        if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0:
+            print("capture finished, sleep %f" % (1.0/curr_frame_rate-t_elapsed))
+            time.sleep(1.0/curr_frame_rate-t_elapsed)
+        # elif capture_finished and is_adaptive_frame_skipped and (1.0/FRAMERATE-t_elapsed) < 0:
+        #     passed_frames = int(t_elapsed * FRAMERATE)
+        #     print('Sending V2I passed %f'%t_elapsed)
+        #     frame_lock.acquire()
+        #     curr_frame_id += passed_frames
+        #     frame_lock.release()
         # elif curr_frame_id >= config.MAX_FRAMES:
         #     curr_frame_id = 0
         #     print('[Max frame reached] finished ' + str(time.time()))
@@ -279,7 +297,9 @@ def v2i_ack_recv_thread():
         frame_id = int.from_bytes(ack, 'big')
         frame_latency = time.time() - frame_sent_time[frame_id]
         print("[Recv ack from server] frame %d, latency %f"%(frame_id, frame_latency))
+        e2e_frame_latency_lock.acquire()
         e2e_frame_latency[frame_id] = frame_latency
+        e2e_frame_latency_lock.release()
 
 
 def is_helper_recv():
@@ -558,7 +578,7 @@ class VehicleDataSendThread(threading.Thread):
 
     
     def run(self):
-        global curr_frame_id, last_frame_sent_ts
+        global curr_frame_id, last_frame_sent_ts, curr_frame_rate
         self.ack_recv_thread.start()
         while self.is_helper_alive:
             t_start = time.time()
@@ -568,7 +588,6 @@ class VehicleDataSendThread(threading.Thread):
             curr_f_id = curr_frame_id
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
-            # TODO: use a lock to protect frame
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             # if pcd_data_type == "GTA":
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
@@ -584,14 +603,17 @@ class VehicleDataSendThread(threading.Thread):
             # if pcd_data_type == "GTA":
             if_send_success = send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             t_elapsed = time.time() - t_start
-            if capture_finished and (1/FRAMERATE - t_elapsed) > 0:
-                time.sleep(1/FRAMERATE - t_elapsed)
-            elif capture_finished and is_adaptive_frame_skipped and (1/FRAMERATE - t_elapsed) <= 0:
-                print('Sending passed %f'%t_elapsed)
-                passed_frames = int(t_elapsed*FRAMERATE)
-                frame_lock.acquire()
-                curr_frame_id += passed_frames
-                frame_lock.release()
+            if capture_finished and is_adaptive_frame_skipped:
+                curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
+                print("Update framerate: ", curr_frame_rate)
+            if capture_finished and (1/curr_frame_rate - t_elapsed) > 0:
+                time.sleep(1/curr_frame_rate - t_elapsed)
+            # elif capture_finished and is_adaptive_frame_skipped and (1/FRAMERATE - t_elapsed) <= 0:
+            #     print('Sending passed %f'%t_elapsed)
+            #     passed_frames = int(t_elapsed*FRAMERATE)
+            #     frame_lock.acquire()
+            #     curr_frame_id += passed_frames
+            #     frame_lock.release()
             # elif curr_frame_id >= config.MAX_FRAMES:
             #     curr_frame_id = 0
             #     frame_lock.release()
