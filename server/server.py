@@ -181,18 +181,22 @@ class SchedThread(threading.Thread):
                 for cnt, mapped_node_id in enumerate(mapped_nodes):
                     original_to_new[mapped_node_id] = cnt
                     positions.append(location_map[mapped_node_id])
-                if scheduler_mode == 'combined' and scheduler_mode == 'routeAware':
+                if scheduler_mode == 'combined' or scheduler_mode == 'routeAware':
+                    print("[mapping routing tables]")
                     for cnt, mapped_node_id in enumerate(mapped_nodes):
                         routing_table = {}
                         if mapped_node_id in route_map.keys():
                             for k, v in route_map[mapped_node_id].items():
-                                routing_table[original_to_new[k]] = original_to_new[v]
-                        routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
+                                if v in original_to_new.keys(): # helpee/helper num may change
+                                    routing_table[original_to_new[k]] = original_to_new[v]
+                                    print("update routing table", original_to_new[k], original_to_new[v])
+                        # routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
+                        routing_tables[cnt] = routing_table
                 sched_start = time.time()
                 if scheduler_mode == 'combined':
                     # get_bws() # need to map here
                     bws = get_mapped_bw(mapped_nodes)
-                    assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, route_map, is_one_to_one)
+                    assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, is_one_to_one)
                     if self.last_assignment is not None:
                         last_assignment_id = scheduling.get_id_from_assignment(self.last_assignment)
                     else:
@@ -217,7 +221,10 @@ class SchedThread(threading.Thread):
                     bws = get_mapped_bw(mapped_nodes)
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
                 elif scheduler_mode == 'routeAware':
-                    assignment = scheduling.route_sched(helpee_count, helper_count, route_map, is_one_to_one)
+                    print("unmapped:", route_map)
+                    # print("routing table", routing_table)
+                    print("routing tables", routing_tables)
+                    assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)

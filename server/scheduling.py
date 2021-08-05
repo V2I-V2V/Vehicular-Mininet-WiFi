@@ -274,9 +274,11 @@ def route_sched(num_of_helpees, num_of_helpers, routing_tables, is_one_to_one=Fa
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     for assignment in assignments:
         sum_interference_count = 0
+        print(get_interference_counts(assignment, routing_tables))
         for interference_count in get_interference_counts(assignment, routing_tables):
             sum_interference_count += interference_count
         scores[get_id_from_assignment(assignment)] = 0 - sum_interference_count
+        print("assignment ", assignment, 0 - sum_interference_count)
     sorted_scores = sorted(scores.items(), key=lambda item: -item[1]) # decreasing order
     return get_assignment_from_id(sorted_scores[0][0])
 
@@ -303,14 +305,17 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
     for helpee, helper in enumerate(assignment):
         interference_count = interference_counts[helpee]
         routing_path = vehicle.route.get_routing_path(helpee, helper, routing_tables)
+        print("routing path", routing_path)
         neighbor_map = get_neighbor_map(assignment, routing_tables)
         max_interference_count = get_path_interference_count(routing_path, neighbor_map)
         nodes_on_routes = get_nodes_on_routes(assignment, routing_tables)
         path_nodes = set(routing_path)
         min_neighbor_map = get_valid_neighbor_map(neighbor_map, nodes_on_routes, path_nodes, assignment, routing_tables)
         min_interference_count = get_path_interference_count(routing_path, min_neighbor_map)
-        if max_interference_count != min_interference_count:
-            score = 1 - (interference_count - min_interference_count) / (max_interference_count - min_interference_count)
+        if len(routing_path) == 0:
+            score = 0
+        elif max_interference_count != min_interference_count:
+            score = 1 - (interference_count - min_interference_count) / (max_interference_count - min_interference_count)        
         else:
             score = 1
         scores.append(score)
