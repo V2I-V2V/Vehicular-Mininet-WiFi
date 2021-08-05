@@ -210,23 +210,32 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     if len(server_assignments) != 0: # proceed if there are assignments
         timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_assignments)
         print(assignment_enums)
-        fig = plt.figure(figsize=(9, 6))
-        ax = fig.add_subplot(111)
+        fig = plt.figure(figsize=(9, 12))
+        ax = fig.add_subplot(511)
         ax.plot(timestamps, assignments, color='darkblue', label='assignment')
-        ax.set_xlabel('Time (s)')
-        ax.set_ylabel('Assignment (helpee: helper)')
+        # ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Assignment\n(helpee: helper)')
         ax.set_yticks(np.arange(0, len(assignment_enums), 1))
         ax.set_yticklabels(assignment_enums)
         ax.legend()
+        axes = []
+        for i in range(3):
+            axes.append(fig.add_subplot(5,1,i+2))
         if len(ts_to_scores) != 0:
             ts, dist_scores, bw_scores, intf_scores = construct_ts_scores_array(ts_to_scores)
-            ax2 = ax.twinx()
-            ax2.plot(ts, dist_scores, '--', label='dist score')
-            ax2.plot(ts, bw_scores, '--', label='bw score')
-            ax2.plot(ts, intf_scores, '--', label='intf score')
-        ax2.set_ylabel('Score')
-        ax2.legend(loc='lower right')
-        ax2.set_yticks(np.arange(-10, 5))
+            axes[0].plot(ts, dist_scores, '--.', label='dist score')
+            axes[1].plot(ts, bw_scores, '--.', label='bw score')
+            axes[2].plot(ts, intf_scores, '--.', label='intf score')
+            # plot the sum of three scores
+            ax_sum_score = fig.add_subplot(5,1,5)
+            ax_sum_score.plot(ts, np.array(dist_scores) + np.array(bw_scores) + np.array(intf_scores), '--.',\
+                label='sum score')
+        for ax in axes:
+            ax.legend()
+        ax2.set_xlabel('Time (s)')
+        # ax2.set_ylabel('Score')
+        # ax2.legend(loc='lower right')
+        # ax2.set_yticks(np.arange(-10, 5))
         plt.tight_layout()
         plt.savefig(dir+'assignments.png')
 
