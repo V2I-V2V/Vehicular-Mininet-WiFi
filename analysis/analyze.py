@@ -71,6 +71,18 @@ def construct_result_based_on_keys(keys):
                     result[key] = v['all']
     return result
 
+def construct_full_frame_result_based_on_keys(keys):
+    result = {}
+    for k,v in result_each_run.items():
+        for key in keys:
+            matched = check_keys_matched(key, k)
+            if matched:
+                if key in result.keys():
+                    result[key].append(v['full_frames'])
+                else:
+                    result[key] = [v['full_frames']]
+    return result
+
 # Create a setting
 
 def find_data_with_partial_keys(partial_keys, data):
@@ -97,24 +109,39 @@ def plot_dict_data_box(dict, name, idx):
     plt.tight_layout()
     plt.savefig('analysis-results/%s.png'%name)
    
-    fig = plt.figure()    
+def plot_full_frame(partial_results, name, idx):
+    fig = plt.figure()   
+    labels, data = partial_results.keys(), partial_results.values() 
+    print(labels)
+    ticks = []
+    for label in labels:
+        ticks.append(label[idx])
     ax = fig.add_subplot(111)
     selected_threshold = [0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 1.5, 2.0]
-    setting_to_diff_latency_frames = {}
+    setting_to_diff_latency_frames, setting_to_diff_latency_frames_std = {}, {}
     cnt = 0
     for label in labels:
         setting_to_diff_latency_frames[label] = []
+        setting_to_diff_latency_frames_std[label] = []
         for t in selected_threshold:
-            setting_to_diff_latency_frames[label].append(len(dict[label][dict[label] <= t]))
-        ax.plot(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], label=ticks[cnt])
+            # calculate mean and std
+            one_setting_num_full_frames = []
+            for one_run in partial_results[label]:
+                one_setting_num_full_frames.append(len(one_run[one_run <= t]))
+            setting_to_diff_latency_frames[label].append(np.mean(one_setting_num_full_frames))
+            setting_to_diff_latency_frames_std[label].append(np.std(one_setting_num_full_frames))
+        ax.errorbar(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], \
+                yerr=setting_to_diff_latency_frames_std[label], capsize=2,
+                label=ticks[cnt])
         cnt += 1
     
     ax.set_xticks(np.arange(1,len(selected_threshold)+1))
     ax.set_xticklabels(selected_threshold)
 
     plt.legend()
-    plt.ylabel("# of Frames")
+    plt.ylabel("# of full Frames\n(frame id from all vechiles are recved)")
     plt.xlabel('Latency (s)')
+    plt.tight_layout()
     plt.savefig('analysis-results/%s-diff-latency.png'%name)
     
             
@@ -136,9 +163,19 @@ def plot_based_on_setting():
     all_keys = generate_keys(LOC, BW, HELPEE, SCHEDULERS)
 
     result = construct_result_based_on_keys(all_keys)
+    result_full_frame = construct_full_frame_result_based_on_keys(all_keys)
     print(result)
     combined_latency_improvement = {}
+    for loc in LOC:
+        for bw in BW:
+            for helpee in HELPEE:
+                partial_results = find_data_with_partial_keys((loc, bw, helpee), result)
+                plot_dict_data_box(partial_results, str([loc, bw, helpee]), 2)
+                plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 2)
     # plt.close()
+                partial_results = find_data_with_partial_keys((loc, bw, helpee),result_full_frame)
+                plot_full_frame(partial_results, str([loc, bw, helpee]), 2)
+        
     fig = plt.figure(figsize=(18, 9))
     ax = fig.add_subplot(111)
     cnt = 0
@@ -148,8 +185,7 @@ def plot_based_on_setting():
             for helpee in HELPEE:
                 setting.append((loc, bw, helpee))
                 partial_results = find_data_with_partial_keys((loc, bw, helpee), result)
-                # plot_dict_data_box(partial_results, str([loc, bw, helpee]), 2)
-                # plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 2)
+
                 
                 schedulers = []
                 combined_in_schedule_frames, other_sched_in_sched_frames = {}, {}
@@ -164,14 +200,44 @@ def plot_based_on_setting():
                     
                 latency_improvement = float(combined_in_schedule_frames['combined']-max(other_sched_in_sched_frames.values()))/ \
                                         max(other_sched_in_sched_frames.values())
-                ax.bar(cnt, latency_improvement, align='center', alpha=0.5)
+                ax.bar(cnt, latency_improvement*100, align='center', alpha=0.5)
                 cnt += 1
     ax.set_xticks(np.arange(cnt))
     # ax.set_xticklabels(setting)
     map_setting = np.concatenate((np.arange(0, len(setting)).reshape(-1,1), np.array(setting).reshape(-1,3)), axis=1)
     print(map_setting)
+    plt.ylabel('# of frames improvement over the best sched (%)')
     np.savetxt("analysis-results/improvement_mapping.txt", map_setting, fmt='%s')
-    plt.savefig('analysis-results/combined-improvement.png') 
+    plt.savefig('analysis-results/combined-improvement.png')
+    for loc in LOC:
+        for bw in BW:
+            for helpee in HELPEE: 
+                titles = []                
+                fig = plt.figure(figsize=(18,16))
+                cnt = 1
+                print("latency-all-sched_figure:")
+                for sched in SCHEDULERS:
+                    ax = fig.add_subplot(len(SCHEDULERS), 1, cnt)
+                    # folder = get_folder_based_on_setting('./', (loc, bw, helpee, sched))[0]
+                    for k,v in result_each_run.items():
+                        matched = check_keys_matched((loc, bw, helpee, sched), k)
+                        if matched:
+                            titles.append(k[0])
+                            # print(k[0])
+                            data_one_setting = v
+                            break
+                    for i in range(len(data_one_setting)-4):
+                        ts, latency = construct_ts_latency_array(data_one_setting[i])
+                        ax.plot(ts, latency, '--.', label="node%i"%i)
+                        ax.legend()
+                        ax.set_ylabel(sched, fontsize=20)
+                    cnt += 1
+                plt.xlabel('Time (s)')
+                plt.tight_layout()
+                plt.title(str(titles))
+                print(titles)
+                plt.savefig('analysis-results/%s-latency.png'%str((loc, bw, helpee)))
+                # plt.close()
 
 
 def plot_based_on_setting_multi():
@@ -212,27 +278,11 @@ def get_folder_based_on_setting(data_dir, setting):
     return result_dir
                 
     
-    # for dir in dirs:
-    #     config = run_experiment.parse_config_from_file(data_dir+dir+'/config.txt')
-    #     network = config["network_trace"].split('/')[-1][:-4] 
-    #     mobility = config["location_file"].split('/')[-1][:-4]
-    #     helpee = config["helpee_conf"].split('/')[-1][:-4] 
-    #     num_nodes = int(config["num_of_nodes"])
         
 
 def get_all_runs_results(data_dir, key, have_multi=False, with_ssim=False):
     global num_nodes
-    # combined 
-    # if analyze_type == 'single':
-    #     # meaning is different, TODO: change the way to do single analysis
-    #     config = run_experiment.parse_config_from_file(data_dir+'/config.txt')
-    #     num_nodes = int(config["num_of_nodes"])
-    #     # realize this by a cal_delay_main() instead of bash, latency-cdf, latency-cdf-by-node
-    #     # latency-over-time, # of nodes (helper/helpee) over time
-    #     # node_x_delay_s.txt
     #     # TODO: cuurently node number has to start on 0, support node number to be largely different (e.g. 0, 145, etc)
-    #     os.system('sudo python3 %s/calc_delay.py %d %s %d'%(CODE_DIR, num_nodes, data_dir, frames))
-    # elif analyze_type == 'multi':
     dirs = os.listdir(data_dir)
     for dir in dirs:
         if key in dir:
@@ -393,7 +443,6 @@ def plot_bar_compare_schedule(schedules):
     plt.savefig('analysis-results/frames_latency_diff_threshold.png')
         
 
-
 def plot_bar_compare_encode():
     fig = plt.figure(figsize=(12,6))
     ax = fig.add_subplot(111)
@@ -437,6 +486,7 @@ def calculate_per_node_mean(setting):
    
     # print(node_result)
     return node_result
+
 
 def calculate_per_node_per_frame_mean(setting):
     frame_result = {}
@@ -542,29 +592,38 @@ def main():
 
     # create a analysis-results/ dir under data_dir
     os.system('mkdir %s/analysis-results/'%data_dir)
+    
+    # rst = get_folder_based_on_setting(data_dir, ('111', 'lte-28', 'helpee-start-middle'))
+    # print(rst)
+    # for folder in rst:
+    #     os.system("rm -rf %s"%folder)
+    
 
-    # read all exp data, need a return value 
+    # # read all exp data, need a return value 
     get_all_runs_results(data_dir, key, with_ssim=with_ssim)
 
-    plot_bar_across_runs()
+    # plot_bar_across_runs()
 
-    # for sched in SCHEDULERS:
-    #     # plot_bars_of_a_schedule(sched)
-    #     plot_bar_based_on_schedule(sched)
+    for sched in SCHEDULERS:
+        # plot_bars_of_a_schedule(sched)
+        plot_bar_based_on_schedule(sched)
     
-    # compare schedule
+    # # compare schedule
     plot_bar_compare_schedule(SCHEDULERS) # plot_bars_comapring_schedules(SCHEDULERS)
 
     # plot_compare_schedule_by_setting()
     # name of figure 'compare-schedule-by-[set]'
     plot_based_on_setting()
     
-    # rst = get_folder_based_on_setting(data_dir, ('lte-49', '101', 'helpee-start-middle'))
-    # print(rst)
+    
+    # 111 lte-28 helpee-start-middle
 
     # repeat_exp_analysis(set_of_settings), plot 
     # plot_compare_latency_of_settings(set_of_settings)
     repeat_exp_analysis()
+    
+    rst = get_folder_based_on_setting(data_dir, ('111', 'lte-28', 'helpee-start-middle', 'combined'))
+    print(rst)
 
     # if have_multi:
     #     plot_based_on_setting_multi()

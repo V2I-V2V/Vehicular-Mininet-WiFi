@@ -227,8 +227,12 @@ def send(socket, data, id, type, num_chunks=1, chunks=None):
     print("[send header] vehicle %d, frame %d, data len: %d" % (vehicle_id, id, msg_len))
     hender_sent = 0
     while hender_sent < len(header):
-        bytes_sent = socket.send(header[hender_sent:])
-        hender_sent += bytes_sent
+        try:
+            bytes_sent = socket.send(header[hender_sent:])
+            hender_sent += bytes_sent
+        except:
+            print('[Send error]')
+            return False
     total_sent = 0
     while total_sent < msg_len:
         try:
@@ -272,7 +276,7 @@ def v2i_data_send_thread():
         t_elapsed = time.time() - t_start
         if capture_finished and is_adaptive_frame_skipped:
             curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
-            print("Update framerate: ", curr_frame_rate)
+            print("Update framerate: ", curr_frame_rate, time.time())
         if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0:
             print("capture finished, sleep %f" % (1.0/curr_frame_rate-t_elapsed))
             time.sleep(1.0/curr_frame_rate-t_elapsed)
@@ -393,7 +397,7 @@ class ServerControlThread(threading.Thread):
                 else:
                     print("[Helper get assignment from server] helpee_id: " +\
                                 str(helpee_id) + ' ' + str(time.time()))
-                    print(self_loc)
+                    # print(self_loc)
                     current_helpee_id = helpee_id
                     notify_helpee_node(helpee_id)
             time.sleep(0.2)
@@ -507,6 +511,7 @@ class VehicleDataRecvThread(threading.Thread):
             try:
                 ack = self.helper_relay_server_sock.recv(2)
                 self.client_socket.send(ack)
+                print("[helper relay server ack] frame %d" % int.from_bytes(ack[:], 'big'))
             except:
                 print("[Helpee already closed] skip relaying acks")
 
@@ -516,7 +521,8 @@ class VehicleDataRecvThread(threading.Thread):
         #                                                     config.server_data_port)
         ack_relay_thread = threading.Thread(target=self.relay_ack_thread)
         ack_relay_thread.start()
-        while True and not self._is_closed:
+        while not self._is_closed:
+            print('relay conn state: ', connection_state)
             data = b''
             header_to_recv = network.message.DATA_MSG_HEADER_LEN
             while len(data) < network.message.DATA_MSG_HEADER_LEN:
@@ -557,6 +563,8 @@ class VehicleDataRecvThread(threading.Thread):
                 print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
                         % (est_v2v_thrpt, frame_id, v_id, time.time()), flush=True)
 
+            
+        # self.client_socket.close()
 
 class VehicleDataSendThread(threading.Thread):
     """ Thread that handle data sending between nodes (vehicles)
@@ -600,6 +608,7 @@ class VehicleDataSendThread(threading.Thread):
                 pcd_data_buffer[curr_f_id%config.MAX_FRAMES][:num_chunks])
             if not if_send_success:
                 print("send not in time!!")
+                self.stop()
             # if pcd_data_type == "GTA":
             if_send_success = send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             t_elapsed = time.time() - t_start
@@ -634,10 +643,14 @@ class VehicleDataSendThread(threading.Thread):
                 recv_time = time.time()
                 frame_latency = recv_time - frame_sent_time[frame_id]
                 print("[Recv ack from helper relay] frame %d latency %f"%(frame_id,frame_latency))
+                e2e_frame_latency_lock.acquire()
                 e2e_frame_latency[frame_id] = frame_latency
+                e2e_frame_latency_lock.release()
             except Exception as e:
                 # socket might be closed since helper change
+                print(e)
                 print('[Helper changed] not recv ACK from prev helper anymore')
+                return 
 
 
     def stop(self):
@@ -725,6 +738,7 @@ def main():
     if t_elapsed < 10:
         time.sleep(10-t_elapsed)
     curr_timestamp = time.time()
+    print("[start timestamp] ", curr_timestamp)
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
     loction_update_thread.daemon = True
     loction_update_thread.start()

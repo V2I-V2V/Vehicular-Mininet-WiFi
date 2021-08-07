@@ -71,10 +71,11 @@ def plot_loc_at_timestamp(loc_file, timestamp, save_dir='./'):
     fig = plt.figure(figsize=(7,7))
     ax = fig.add_subplot(111)
     for i in range(int(len(loc)/2)):
-        ax.scatter([loc[2*i]], [loc[2*i+1]], s=34, label='node%d'%i)
+        ax.scatter([loc[2*i]], [loc[2*i+1]], s=34) # , label='node%d'%i
+        ax.annotate('%d'%i, xy=(loc[2*i], loc[2*i+1]+10))
     plt.xlabel('x (m)')
     plt.ylabel('y (m)')
-    plt.legend()
+    # plt.legend()
     plt.tight_layout()
     plt.savefig(save_dir + 'loc-at-%ds.png'%timestamp)
     
