@@ -29,7 +29,7 @@ default_loc = ['280.225, 891.726, 0', '313.58, 855.46, 0', '286.116, 832.733, 0'
 default_loc_file = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/location-multihop.txt"
 default_v2i_bw = [100, 100, 100, 100, 100, 100] # unit: Mbps
 v2i_bw_traces = {0: [100], 1: [100], 2: [100], 3: [100], 4: [100], 5: [100]}
-tx_power = 20
+tx_power = 30
 time_to_run = 70
 trace_filename = os.path.dirname(os.path.abspath(__file__)) + "/input/traces/constant.txt"
 routing = 'olsrd'
@@ -42,6 +42,7 @@ CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
     time.sleep(14)
+    print("start update bw:", time.time())
     for throughput_idx in range(min(len(trace), time_to_run-20)):
         start_t = time.time()
         if trace[throughput_idx] == 0:
