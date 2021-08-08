@@ -6,22 +6,24 @@ import time
 import utils
 import fcntl, os
 import network.message
-
-def setup_lte():
-    # TODO
-    pass
+import config
 
 
-def setup_p2p_links(vehicle_id, ip, port):
+def setup_p2p_links(vehicle_id, ip, port, recv_sched_scheme=False):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65536)
     client_socket.connect((ip, port))
-    # fcntl.fcntl(client_socket, fcntl.F_SETFL, os.O_NONBLOCK)
     # client_socket.setblocking(0)
     # client_socket.settimeout(1)
     msg = vehicle_id.to_bytes(2, 'big')
     client_socket.send(msg)
-    return client_socket
+    if recv_sched_scheme:
+        encoded_sched = client_socket.recv(2)
+        sched_mode_int = int.from_bytes(encoded_sched, 'big')
+        scheduler_mode = config.map_int_encoding_to_scheduler[sched_mode_int]
+        return client_socket, scheduler_mode
+    else:
+        return client_socket
 
 
 def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num):
