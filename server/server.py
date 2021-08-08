@@ -12,6 +12,7 @@ import numpy as np
 import argparse
 import ptcl.pointcloud
 import network.message
+import config
 
 MAX_VEHICLES = 8
 MAX_FRAMES = 80
@@ -182,16 +183,18 @@ class SchedThread(threading.Thread):
                 original_to_new = {}
                 for cnt, mapped_node_id in enumerate(mapped_nodes):
                     original_to_new[mapped_node_id] = cnt
-                    positions.append(location_map[mapped_node_id])
+                    if scheduler_mode == 'combined' or scheduler_mode == 'minDist' or \
+                        scheduler_mode == 'bwAware':
+                        positions.append(location_map[mapped_node_id])
                 if scheduler_mode == 'combined' or scheduler_mode == 'routeAware':
-                    print("[mapping routing tables]")
+                    # print("[mapping routing tables]")
                     for cnt, mapped_node_id in enumerate(mapped_nodes):
                         routing_table = {}
                         if mapped_node_id in route_map.keys():
                             for k, v in route_map[mapped_node_id].items():
                                 if v in original_to_new.keys() and k in original_to_new.keys(): # helpee/helper num may change
                                     routing_table[original_to_new[k]] = original_to_new[v]
-                                    print("update routing table", original_to_new[k], original_to_new[v])
+                                    # print("update routing table", original_to_new[k], original_to_new[v])
                         # routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
                         routing_tables[cnt] = routing_table
                 sched_start = time.time()
@@ -275,6 +278,9 @@ class ControlConnectionThread(threading.Thread):
         # print("Connection from : ", self.client_address)
         data = self.client_socket.recv(2)
         vehicle_id = int.from_bytes(data, "big")
+        # send back the shced scheme
+        encoded_sched_scheme = config.map_scheduler_to_int_encoding[scheduler_mode].to_bytes(2, 'big')
+        self.client_socket.send(encoded_sched_scheme)
         vehicle_types[vehicle_id] = HELPER
         # node_last_recv_timestamp[vehicle_id] = time.time()
         client_sockets[vehicle_id] = self.client_socket
