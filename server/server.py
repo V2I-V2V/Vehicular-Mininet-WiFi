@@ -107,7 +107,7 @@ class SchedThread(threading.Thread):
         self.flip_cnt = 0
         self.last_assignment_score = 0 # used for combined sched
         self.last_assignment = None
-        self.assignment_change_threshold = 0.5
+        self.assignment_change_threshold = 0.0
 
 
     def check_if_loc_map_complete(self, vids):
@@ -181,18 +181,22 @@ class SchedThread(threading.Thread):
                 for cnt, mapped_node_id in enumerate(mapped_nodes):
                     original_to_new[mapped_node_id] = cnt
                     positions.append(location_map[mapped_node_id])
-                if scheduler_mode == 'combined' and scheduler_mode == 'routeAware':
+                if scheduler_mode == 'combined' or scheduler_mode == 'routeAware':
+                    print("[mapping routing tables]")
                     for cnt, mapped_node_id in enumerate(mapped_nodes):
                         routing_table = {}
                         if mapped_node_id in route_map.keys():
                             for k, v in route_map[mapped_node_id].items():
-                                routing_table[original_to_new[k]] = original_to_new[v]
-                        routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
+                                if v in original_to_new.keys() and k in original_to_new.keys(): # helpee/helper num may change
+                                    routing_table[original_to_new[k]] = original_to_new[v]
+                                    print("update routing table", original_to_new[k], original_to_new[v])
+                        # routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
+                        routing_tables[cnt] = routing_table
                 sched_start = time.time()
                 if scheduler_mode == 'combined':
                     # get_bws() # need to map here
                     bws = get_mapped_bw(mapped_nodes)
-                    assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, route_map, is_one_to_one)
+                    assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, is_one_to_one)
                     if self.last_assignment is not None:
                         last_assignment_id = scheduling.get_id_from_assignment(self.last_assignment)
                     else:
@@ -217,7 +221,10 @@ class SchedThread(threading.Thread):
                     bws = get_mapped_bw(mapped_nodes)
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
                 elif scheduler_mode == 'routeAware':
-                    assignment = scheduling.route_sched(helpee_count, helper_count, route_map, is_one_to_one)
+                    print("unmapped:", route_map)
+                    # print("routing table", routing_table)
+                    print("routing tables", routing_tables)
+                    assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
                     assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
@@ -235,12 +242,19 @@ class SchedThread(threading.Thread):
                 if not skip_sending_assignment:
                     print("Assignment: " + str(assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
                     self.last_assignment = assignment
+                    real_helpers = []
                     for cnt, node in enumerate(assignment):
                         real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
                         current_assignment[real_helpee] = real_helper
                         print("send %d to node %d" % (real_helpee, real_helper))
                         msg = int(real_helpee).to_bytes(2, 'big')
                         client_sockets[real_helper].send(msg)
+                        real_helpers.append(real_helper)
+                    # for node_id, is_helper in enumerate(helper_list):
+                    #     if is_helper == 1 and node_id not in real_helpers:
+                            
+                    #         msg = int(65535).to_bytes(2, 'big')
+                    #         client_sockets[node_id].send(msg)
             time.sleep(0.2)
 
 
@@ -456,9 +470,9 @@ def main():
     data_channel_thread = DataConnectionThread()
     data_channel_thread.daemon = True
     data_channel_thread.start()
-    data_process_thread = threading.Thread(target=merge_data_when_ready)
-    data_process_thread.deamon = True
-    data_process_thread.start()
+    # data_process_thread = threading.Thread(target=merge_data_when_ready)
+    # data_process_thread.deamon = True
+    # data_process_thread.start()
     # thrpt_calc_thread = threading.Thread(target=throughput_calc)
     # thrpt_calc_thread.start()
     while True:

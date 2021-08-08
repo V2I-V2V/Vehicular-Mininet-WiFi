@@ -5,7 +5,7 @@ matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 import random
 font = {'family' : 'DejaVu Sans',
-        'size'   : 15}
+        'size'   : 18}
 matplotlib.rc('font', **font)
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 # if len(sys.argv) < 3:
@@ -27,7 +27,7 @@ def plot_v2i_bw(bw_file, time, num_nodes, save_dir):
         axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i], label='node%d'%i)
         axes[-1].legend()
         axes[-1].set_xlim([0, int(time)])
-        axes[-1].set_ylim([0, 220])
+        # axes[-1].set_ylim([0, 220])
         
     fig.add_subplot(111, frameon=False)
     plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
@@ -47,11 +47,12 @@ if __name__ == '__main__':
         axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i], label='node%d'%i)
         axes[-1].legend()
         axes[-1].set_xlim([0, 70])
-        axes[-1].set_ylim([0, 220])
+        # axes[-1].set_ylim([0, 220])
         
     fig.add_subplot(111, frameon=False)
     plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
     plt.xlabel("Time (s)")
     plt.ylabel("Throughput (Mbps)")
+    plt.tight_layout()
     # plt.legend()
     plt.savefig('v2i-bw.png')

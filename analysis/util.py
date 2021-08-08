@@ -2,6 +2,8 @@ import numpy as np
 import math
 from ast import literal_eval
 
+colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
+
 def get_server_assignments(filename):
     ts_to_assignment, ts_to_scores = {}, {}
     with open(filename, 'r') as f:
@@ -118,22 +120,32 @@ def get_num_frames_within_threshold(node_to_latency, threshold, ssim_t=None, per
         return cnt
 
 
+def get_percentage_frames_within_threshold(node_to_latency, threshold, ssim_t=None, perception_t=None):
+    num_frames = get_num_frames_within_threshold(node_to_latency, threshold, ssim_t, perception_t)
+    return num_frames/node_to_latency['sent_frames'] * 100.0
+
+
 def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee
     sender_ts_dict, encode_choice_dict = {}, {}
     # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
-    latency_dict, node_to_ssims = {}, {}
-    # node_id_to_latencies, node_id means the 
+    latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
+    # node_id_to_latencies, node_id 
+    sent_frames = 0
     for i in range(num_nodes):
-        sender_ts_dict[i], encode_choice_dict[i], encode_t = get_sender_ts(dir + '/logs/node%d.log'%i)
+        sender_ts_dict[i], node_to_encode_choices[i], encode_t = get_sender_ts(dir + '/logs/node%d.log'%i)
+        sent_frames += len(sender_ts_dict[i])
         latency_dict[i] = {}
         if with_ssim:
             ssims = get_ssims(dir+'/node%d_ssim.log'%i)
             node_to_ssims[i] = ssims
     receiver_ts_dict, receiver_thrpt, server_helper_dict = get_receiver_ts(dir + '/logs/server.log')
+    print("Total frames sent in exp", sent_frames)
     # calculate delay
     all_delay, helpee_delay, helper_delay = [], [], []
+    full_frames = receiver_ts_dict[0].keys()
     for i in range(num_nodes):
+        full_frames = full_frames & receiver_ts_dict[i].keys()
         for frame_idx, recv_ts in receiver_ts_dict[i].items():
             send_ts = sender_ts_dict[i][frame_idx]
             latency = recv_ts-sender_ts_dict[i][frame_idx]
@@ -145,8 +157,43 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
                 helpee_delay.append(latency)
             else:
                 helper_delay.append(latency)
+    full_frame_delay = []
+    for frame in full_frames:
+        for i in range(num_nodes):
+            full_frame_delay.append(receiver_ts_dict[i][frame]-sender_ts_dict[i][frame])
+    
     latency_dict['all'] = np.array(all_delay)
     latency_dict['helpee'] = np.array(helpee_delay)
     latency_dict['helper'] = np.array(helper_delay)
+    latency_dict['full_frames'] = np.array(full_frame_delay)
+    latency_dict['sent_frames'] = sent_frames
     
-    return latency_dict
+    return latency_dict, node_to_encode_choices
+
+def construct_ts_latency_array(delay_dict_ts, expected_frames=550):
+    ts, delay = [], []
+    last_frame_idx, idx_cnt = -1, 0
+    sorted_ts = sorted(delay_dict_ts.keys())
+    for send_ts in sorted_ts:
+        ts.append(send_ts)
+        delay.append(delay_dict_ts[send_ts][0])
+        frame_idx = delay_dict_ts[send_ts][1]
+        # if frame_idx > (last_frame_idx + 1):
+        #     # skipped frames 
+        #     # skipped_frames = frame_idx - last_frame_idx - 1
+        #     last_ts = sorted_ts[idx_cnt-1]
+        #     missed_tses = np.arange(last_ts, send_ts, 0.1)[1:]
+        #     for missed_ts in missed_tses:
+        #         ts.append(missed_ts)
+        #         delay.append(-0.1)
+        
+        # last_frame_idx = frame_idx
+        # idx_cnt += 1
+    
+    # while len(ts) < expected_frames:
+    #     ts.append(ts[-1]+0.1)
+    #     delay.append(-1)
+                       
+    ts = np.array(ts) - np.min(ts)
+    delay = np.array(delay)
+    return ts, delay
