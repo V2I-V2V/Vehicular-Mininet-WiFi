@@ -16,6 +16,7 @@ import route
 import numpy as np
 import argparse
 import network.message
+import bisect
 
 # Define some constants
 HELPEE = 0
@@ -93,7 +94,8 @@ def self_loc_update_thread():
         self_loc = loc
         # loc_log.write(str(time.time()) + ' ' + str(self_loc[0]) + ' ' +str(self_loc[1]) + '\n')
         t_passed = time.time() - t_s
-        time.sleep(0.1-t_passed)
+        if t_passed < 0.1:
+            time.sleep(0.1-t_passed)
 
 
 
@@ -252,47 +254,54 @@ def v2i_data_send_thread():
     global curr_frame_id, last_frame_sent_ts, curr_frame_rate
     ack_recv_thread = threading.Thread(target=v2i_ack_recv_thread)
     ack_recv_thread.start()
-    while connection_state == "Connected":
-        t_start = time.time()
-        frame_lock.acquire()
-        # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
-        #     and curr_frame_id < len(oxts_data_buffer):
-        curr_f_id = curr_frame_id
-        data_f_id = curr_f_id % config.MAX_FRAMES
-        # pcd = pcd_data_buffer[data_f_id]
-        # pcd = pcd_data_buffer[data_f_id][0]
-        pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
-        curr_frame_id += 1
-        frame_lock.release()
-        # TODO: change encode to another thread, follow a pipeline (right now data is pre-encoded)
-        last_frame_sent_ts = time.time()
-        print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
-        frame_sent_time[curr_f_id] = time.time()
-        send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd_data_buffer[data_f_id][:num_chunks])
-        # if pcd_data_type == "GTA":
-        oxts = oxts_data_buffer[data_f_id]
-        send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
-        print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
-        t_elapsed = time.time() - t_start
-        if capture_finished and is_adaptive_frame_skipped:
-            curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
-            print("Update framerate: ", curr_frame_rate, time.time())
-        if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0:
-            print("capture finished, sleep %f" % (1.0/curr_frame_rate-t_elapsed))
-            time.sleep(1.0/curr_frame_rate-t_elapsed)
-        # elif capture_finished and is_adaptive_frame_skipped and (1.0/FRAMERATE-t_elapsed) < 0:
-        #     passed_frames = int(t_elapsed * FRAMERATE)
-        #     print('Sending V2I passed %f'%t_elapsed)
-        #     frame_lock.acquire()
-        #     curr_frame_id += passed_frames
-        #     frame_lock.release()
-        # elif curr_frame_id >= config.MAX_FRAMES:
-        #     curr_frame_id = 0
-        #     print('[Max frame reached] finished ' + str(time.time()))
-        #     frame_lock.release()
-        #     # return
-        # else:
-        #     frame_lock.release()
+    while True:
+        if connection_state == "Connected":
+            t_start = time.time()
+            frame_lock.acquire()
+            # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
+            #     and curr_frame_id < len(oxts_data_buffer):
+            curr_f_id = curr_frame_id
+            data_f_id = curr_f_id % config.MAX_FRAMES
+            # pcd = pcd_data_buffer[data_f_id]
+            # pcd = pcd_data_buffer[data_f_id][0]
+            pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            curr_frame_id += 1
+            frame_lock.release()
+            # TODO: change encode to another thread, follow a pipeline (right now data is pre-encoded)
+            last_frame_sent_ts = time.time()
+            print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
+            frame_sent_time[curr_f_id] = time.time()
+            send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd_data_buffer[data_f_id][:num_chunks])
+            # if pcd_data_type == "GTA":
+            oxts = oxts_data_buffer[data_f_id]
+            send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
+            print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
+            t_elapsed = time.time() - t_start
+            if capture_finished and is_adaptive_frame_skipped:
+                curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
+                print("Update framerate: ", curr_frame_rate, time.time())
+            if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0:
+                print("capture finished, sleep %f" % (1.0/curr_frame_rate-t_elapsed))
+                time.sleep(1.0/curr_frame_rate-t_elapsed)
+            if curr_frame_rate != 10:
+                frame_lock.acquire()
+                curr_frame_id += int(10/curr_frame_rate)
+                frame_lock.release()
+            # elif capture_finished and is_adaptive_frame_skipped and (1.0/FRAMERATE-t_elapsed) < 0:
+            #     passed_frames = int(t_elapsed * FRAMERATE)
+            #     print('Sending V2I passed %f'%t_elapsed)
+            #     frame_lock.acquire()
+            #     curr_frame_id += passed_frames
+            #     frame_lock.release()
+            # elif curr_frame_id >= config.MAX_FRAMES:
+            #     curr_frame_id = 0
+            #     print('[Max frame reached] finished ' + str(time.time()))
+            #     frame_lock.release()
+            #     # return
+            # else:
+            #     frame_lock.release()
+        else:
+            time.sleep(0.1)
 
 
 def v2i_ack_recv_thread():
@@ -525,46 +534,52 @@ class VehicleDataRecvThread(threading.Thread):
             print('relay conn state: ', connection_state)
             data = b''
             header_to_recv = network.message.DATA_MSG_HEADER_LEN
-            while len(data) < network.message.DATA_MSG_HEADER_LEN:
-                data_recv = self.client_socket.recv(header_to_recv)
-                data += data_recv
-                if len(data_recv) <= 0:
-                    print("[Helpee closed]")
-                    self._is_closed = True
-                    self.helper_relay_server_sock.close()
+            try:
+                while len(data) < network.message.DATA_MSG_HEADER_LEN:
+                    data_recv = self.client_socket.recv(header_to_recv)
+                    data += data_recv
+                    if len(data_recv) <= 0:
+                        print("[Helpee closed]")
+                        self._is_closed = True
+                        self.helper_relay_server_sock.close()
+                        return
+                    header_to_recv -= len(data_recv)
+                    v2v_recved_bytes += len(data_recv)
+                msg_len, frame_id, v_id, type, _, _, _ = network.message.parse_data_msg_header(data)
+                to_send = network.message.DATA_MSG_HEADER_LEN
+                sent = 0
+                while sent < to_send:
+                    sent_len = self.helper_relay_server_sock.send(data[sent:])
+                    sent += sent_len
+                to_recv = msg_len
+                curr_recv_bytes = 0
+                t_start = time.time()
+                while curr_recv_bytes < msg_len:
+                    data = self.client_socket.recv(65536 if to_recv > 65536 else to_recv)
+                    if len(data) <= 0:
+                        print("[Helpee closed]")
+                        self._is_closed = True
+                        self.helper_relay_server_sock.close()
+                        break
+                    curr_recv_bytes += len(data)
+                    to_recv -= len(data)
+                    v2v_recved_bytes += len(data)
+                    self.helper_relay_server_sock.send(data)
+                t_elasped = time.time() - t_start
+                est_v2v_thrpt = msg_len/t_elasped/1000000.0
+                if self._is_closed:
                     return
-                header_to_recv -= len(data_recv)
-                v2v_recved_bytes += len(data_recv)
-            msg_len, frame_id, v_id, type, _, _, _ = network.message.parse_data_msg_header(data)
-            to_send = network.message.DATA_MSG_HEADER_LEN
-            sent = 0
-            while sent < to_send:
-                sent_len = self.helper_relay_server_sock.send(data[sent:])
-                sent += sent_len
-            to_recv = msg_len
-            curr_recv_bytes = 0
-            t_start = time.time()
-            while curr_recv_bytes < msg_len:
-                data = self.client_socket.recv(65536 if to_recv > 65536 else to_recv)
-                if len(data) <= 0:
-                    print("[Helpee closed]")
-                    self._is_closed = True
-                    self.helper_relay_server_sock.close()
-                    break
-                curr_recv_bytes += len(data)
-                to_recv -= len(data)
-                v2v_recved_bytes += len(data)
-                self.helper_relay_server_sock.send(data)
-            t_elasped = time.time() - t_start
-            est_v2v_thrpt = msg_len/t_elasped/1000000.0
-            if self._is_closed:
-                return
-            if type == TYPE_PCD:
-                print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
-                        % (est_v2v_thrpt, frame_id, v_id, time.time()), flush=True)
-
+                if type == TYPE_PCD:
+                    print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
+                            % (est_v2v_thrpt, frame_id, v_id, time.time()), flush=True)
+            except:
+                print("[Helpee closed the connection]")
+                self._is_closed = True
             
         # self.client_socket.close()
+
+    def stop():
+        pass
 
 class VehicleDataSendThread(threading.Thread):
     """ Thread that handle data sending between nodes (vehicles)
@@ -588,7 +603,7 @@ class VehicleDataSendThread(threading.Thread):
     def run(self):
         global curr_frame_id, last_frame_sent_ts, curr_frame_rate
         self.ack_recv_thread.start()
-        while self.is_helper_alive:
+        while (self.is_helper_alive) and (connection_state == "Disconnected"):
             t_start = time.time()
             frame_lock.acquire()
             # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
@@ -617,6 +632,10 @@ class VehicleDataSendThread(threading.Thread):
                 print("Update framerate: ", curr_frame_rate)
             if capture_finished and (1/curr_frame_rate - t_elapsed) > 0:
                 time.sleep(1/curr_frame_rate - t_elapsed)
+            if curr_frame_rate != 10:
+                frame_lock.acquire()
+                curr_frame_id += int(10/curr_frame_rate)
+                frame_lock.release()
             # elif capture_finished and is_adaptive_frame_skipped and (1/FRAMERATE - t_elapsed) <= 0:
             #     print('Sending passed %f'%t_elapsed)
             #     passed_frames = int(t_elapsed*FRAMERATE)
@@ -630,7 +649,7 @@ class VehicleDataSendThread(threading.Thread):
             #     # break
             # else:
             #     frame_lock.release()
-        print("[Change helper] close the prev conn thread " + str(time.time()))
+        print("[Change helper/reconnect to server] close the prev conn thread " + str(time.time()))
         self.v2v_data_send_sock.close()
 
 
@@ -662,14 +681,19 @@ def check_if_disconnected(disconnect_timestamps):
 
     Args:
         disconnect_timestamps (dictionary): the disconnected timestamp dictionary read from
-        LTE trace e.g. dict = {1: [2.1]} means node 1 disconnects at 2.1 sec
+        LTE trace e.g. dict = {1: [2.1, 10.0]} means node 1 disconnects at 2.1 sec and reconnect at
+        10.0 sec
 
     Returns:
         Bool: True for disconnected, False else
     """
     # print("check if V2I conn is disconnected")
     if vehicle_id in disconnect_timestamps.keys():
-        if time.time() - curr_timestamp > disconnect_timestamps[vehicle_id][0]:
+        elapsed_time = time.time() - curr_timestamp
+        index = bisect.bisect(disconnect_timestamps[vehicle_id], elapsed_time)
+        if index % 2 == 1:
+            # if index is an odd number, it falls in to the disconnected region 
+        # if time.time() - curr_timestamp > disconnect_timestamps[vehicle_id][0]:
             return True
         else:
             return False
@@ -714,6 +738,8 @@ def check_connection_state(disconnect_timestamps):
             v2i_control_socket_lock.release()
         if check_if_disconnected(disconnect_timestamps):
             connection_state = "Disconnected"
+        else:
+            connection_state = "Connected"
         t_elasped = time.time() - t_start
         if 0.2-t_elasped > 0:
             time.sleep(0.2-t_elasped)

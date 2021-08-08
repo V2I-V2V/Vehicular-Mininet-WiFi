@@ -20,6 +20,7 @@ TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
 NODE_LEFT_TIMEOUT = 0.5
+SCHED_PERIOD = 0.2
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 sys.stderr = sys.stdout
@@ -147,6 +148,7 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
+            sched_start_t = time.time()
             skip_sending_assignment = False
             print("loc:" + str(location_map), flush=True)
             if scheduler_mode == 'fixed':
@@ -255,7 +257,9 @@ class SchedThread(threading.Thread):
                             
                     #         msg = int(65535).to_bytes(2, 'big')
                     #         client_sockets[node_id].send(msg)
-            time.sleep(0.2)
+            sched_elapsed_t = time.time() - sched_start_t
+            print("One round sched takes", sched_elapsed_t)
+            time.sleep(SCHED_PERIOD)
 
 
 class ControlConnectionThread(threading.Thread):
