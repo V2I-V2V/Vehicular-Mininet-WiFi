@@ -20,9 +20,21 @@ def convert_decoded_bin_to_pcd(src, dst):
     o3d.io.write_point_cloud(dst, o3d_pcd)
 
 
-def merge_bin_to_pcd(bins, oxts, dst):
-
-
+def merge_bin_to_pcd(bins, oxtss, dst):
+	""" merge point clouds from different coordinates (oxts)
+		and save to dst
+	Args:
+		bins (list): list of pcd bins (or numpy arrays) 
+		oxtss (list): list of oxts files
+		dst (str): dest to save .pcd file
+	"""
+	points_oxts_primary = (bins[0], oxtss[0])
+	points_oxts_secondary = []
+	for idx in range(1, len(bins)):
+		points_oxts_secondary.append(bins[idx], oxtss[idx])
+	merged_pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary) # np.array of [n,3]
+	# save to dst 
+	convert_decoded_bin_to_pcd(merged_pcl, dst)
 
 
 def create_ref(n, frame_id, folder_name):
@@ -55,10 +67,11 @@ def create_ref(n, frame_id, folder_name):
         o3d.io.write_point_cloud(pcd_name, o3d_pcd)
 
 
-def convert_dis(node_id, frame_id):
-    prefix = "node" + node_id + "_frame" + str(frame_id) + "_"
+def convert_dis(node_id, frame_id, folder):
+    prefix = "node" + str(node_id) + "_frame" + str(frame_id) + "_"
+    print(prefix)
     chunks = []
-    for file in os.listdir(sys.argv[1]):
+    for file in os.listdir(folder):
         # print(file)
         if prefix in file:
             chunks.append(file)
@@ -66,44 +79,28 @@ def convert_dis(node_id, frame_id):
     pcds = []
     for chunk in chunks:
         print(chunk)
-        pcds.append(ptcl.pointcloud.dracoDecode(open(sys.argv[1] + "/" + chunk, 'rb').read()))
-    merged_from_chunks = np.vstack(pcds)
-    # merge among nodes
-
-
-    convert_decoded_bin_to_pcd(merged_from_chunks, sys.argv[1] + "/node0_frame" + str(i) + ".pcd")
+        pcds.append(ptcl.pointcloud.dracoDecode(open(folder + "/" + chunk, 'rb').read()))
+    return np.vstack(pcds)
 
 
 if __name__ == "__main__":
-    folder_name = "gta_ref_frames"
-    os.system('mkdir ' + folder_name)
-    for n in range(1, 7):
-        for i in range(80):
-            create_ref(n, i, folder_name)
-    # exit(0)
-
-    for i in range(50):
-        
-
-
-def main():
-    decoded_pcl = pointcloud.dracoDecode(open('node0_0.bin', 'rb').read())
-    decoded_pcl = np.concatenate((decoded_pcl[:, :3], np.zeros((decoded_pcl.shape[0],1), dtype=np.float32)), axis=1)
-    with open('node.bin', 'wb') as f:
-        f.write(decoded_pcl)
-        f.close()
-#     exit(0)
-    # for i in range(700):
-    #     # bin2pcd(np.fromfile(str(i).zfill(6) + ".bin", dtype=np.float32).reshape((-1, 4))[:, 0:3], str(i).zfill(6) + ".pcd")
-    #     if path.exists('node0_' + str(i) + '.bin'):
-    #         decoded_pcl = pointcloud.dracoDecode(open('node0_' + str(i) + '.bin', 'rb').read())
-    #         # Convert to Open3D point cloud
-    #         o3d_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(decoded_pcl))
-    #         # Save to whatever format you like
-    #         o3d.io.write_point_cloud('node0_' + str(i) + ".pcd", o3d_pcd)
-    # decoded_pcl = pointcloud.dracoDecode(open('node0_0.bin', 'rb').read())
-    # # Convert to Open3D point cloud
-    # o3d_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(decoded_pcl))
-    # # Save to whatever format you like
-    # o3d.io.write_point_cloud('node0_0.pcd', o3d_pcd)
-
+    # folder_name = "gta_ref_frames"
+    # os.system('mkdir ' + folder_name)
+    # for n in range(1, 7):
+    #     for i in range(80):
+    #         create_ref(n, i, folder_name)
+    # # exit(0)
+    basepath = '/home/shawnzhu/DeepGTAV-data/object-0227-1/'
+    oxts_paths = [basepath + x for x in ['oxts/', 'alt_perspective/0022786/oxts/', 'alt_perspective/0037122/oxts/', 
+                'alt_perspective/0191023/oxts/', 'alt_perspective/0399881/oxts/', 'alt_perspective/0735239/oxts/']]
+    folder = sys.argv[1]
+    for frame_id in range(10):
+        bins = []
+        oxtss = []
+        dst = folder + "/merged_frame" + str(frame_id) + ".pcd"
+        for node_id in range(1):
+            oxts_filename = str(frame_id).zfill(6) + ".txt" 
+            f = open(oxts_paths[node_id] + oxts_filename, 'r')
+            oxtss.append([float(x) for x in f.read().split()])
+            bins.append(convert_dis(node_id, frame_id, folder))
+        merge_bin_to_pcd(bins, oxtss, dst)
