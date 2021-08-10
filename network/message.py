@@ -6,6 +6,8 @@ TYPE_DATA_MSG = 1
 TYPE_LOCATION = 0
 TYPE_ASSIGNMENT = 1
 TYPE_ROUTE = 2
+TYPE_SOS = 3
+TYPE_SOS_REPLY = 4
 CONTROL_MSG_HEADER_LEN = 6
 DATA_MSG_HEADER_LEN = 36
 MAX_CHUNKS_NUM = 4
@@ -209,6 +211,10 @@ def vehicle_parse_route_packet_data(data):
     seq_num = int.from_bytes(data[-4:], "big")
     return helpee_id, route_bytes, seq_num
 
+
+def vehicle_parse_sos_packet_data(data):
+    vehicle_id = int.from_bytes(data[0:2], 'big')
+    return vehicle_id
 
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")
