@@ -464,11 +464,10 @@ class VehicleControlThread(threading.Thread):
                         wwan.send_route(HELPEE, helpee_id, route_bytes, v2i_control_socket, seq_num)
                         control_seq_num += 1
                         v2i_control_socket_lock.release()
-                elif msg_type == network.message.TYPE_SOS:
+                elif msg_type == network.message.TYPE_SOS and self_ip != addr[0]:
                     # helpee run in distributed way, send back help msg
-                    print("[helper recv sos broadcast]" + str(time.time()))
-                    wlan.echo_sos_msg(v2v_control_socket, addr)
-                    
+                    print("[helper recv sos broadcast] " + str(addr) + str(time.time()))
+                    wlan.echo_sos_msg(v2v_control_socket, vehicle_id, addr)                
             elif connection_state == "Disconnected":
                 # This vehicle is a helpee now
                 if msg_type == network.message.TYPE_ASSIGNMENT:
@@ -501,15 +500,18 @@ class VehicleControlThread(threading.Thread):
                         network.message.send_msg(v2v_control_socket, data[:network.message.CONTROL_MSG_HEADER_LEN],\
                                         data[network.message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
                                         remote_addr=("10.255.255.255", helper_control_recv_port))
-                elif msg_type == network.message.TYPE_SOS and self_ip != addr[0]:
+                elif msg_type == network.message.TYPE_SOS_REPLY and self_ip != addr[0]:
                     # get a helper reply that I can help you
-                    network.message.vehicle_parse_sos_packet_data()
+                    helper_id = network.message.vehicle_parse_sos_packet_data(data[-msg_size:])
                     if current_helper_id == 65535:
                         # dont have a helper yet, take this one
-                        helper_ip = "10.0.0." + str(helper_id+2)   
+                        helper_ip = "10.0.0." + str(helper_id+2)  
+                        current_helper_id = helper_id 
                         new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port, helper_id)
                         new_send_thread.daemon = True
                         new_send_thread.start()
+                        print("[Helpee decide to use helper assignment] helper_id: "\
+                            + str(helper_id) + ' ' + str(time.time()), flush=True)
             else:
                 print("Exception: no such connection state")
 
@@ -719,7 +721,7 @@ def send_control_msgs(node_type):
     v2i_control_socket_lock.acquire()
     if scheudler_mode == 'distributed':
         if node_type == HELPEE:
-            pass
+            wlan.broadcast_sos_msg(v2v_control_socket, vehicle_id)
     if scheudler_mode == 'minDist' or scheudler_mode == 'combined' or scheudler_mode == 'bwAware':
         # send helpee/helper info/loc 
         if node_type == HELPER:
@@ -755,28 +757,9 @@ def check_connection_state(disconnect_timestamps):
             # print("Connected to server...")
             # send out the corresponding control messages
             send_control_msgs(HELPER)
-            # v2i_control_socket_lock.acquire()
-            # wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket,\
-            #                     control_seq_num) 
-            # control_seq_num += 1
-            # v2i_control_socket_lock.release()
-            # v2i_control_socket_lock.acquire()
-            # wwan.send_route(HELPER, vehicle_id, 
-            #                 route.table_to_bytes(route.get_routes(vehicle_id)), 
-            #                 v2i_control_socket, control_seq_num)
-            # control_seq_num += 1
-            # v2i_control_socket_lock.release()
         elif connection_state == "Disconnected" and not control_msg_disabled:
             # print("Disconnected to server... broadcast " + str(time.time()))
             send_control_msgs(HELPEE)
-            # v2i_control_socket_lock.acquire()
-            # mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num)
-            # control_seq_num += 1
-            # v2i_control_socket_lock.release()
-            # v2i_control_socket_lock.acquire()
-            # route.broadcast_route(vehicle_id, route.get_routes(vehicle_id), v2v_control_socket, control_seq_num)
-            # control_seq_num += 1
-            # v2i_control_socket_lock.release()
         if check_if_disconnected(disconnect_timestamps):
             connection_state = "Disconnected"
         else:

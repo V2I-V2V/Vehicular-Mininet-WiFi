@@ -6,6 +6,9 @@ def broadcast_sos_msg(socket, vehicle_id, self_loc=None):
     message.send_msg(socket, header, msg_payload, is_udp=True, \
         remote_addr=("10.255.255.255", 8888))
 
-def echo_sos_msg(socket, dest):
+def echo_sos_msg(socket, vehicle_id, dest):
     # reply to a sos msg that I can help you
-    pass
+    msg_payload = vehicle_id.to_bytes(2, 'big')
+    header = message.construct_control_msg_header(msg_payload, message.TYPE_SOS_REPLY)
+    message.send_msg(socket, header, msg_payload, is_udp=True, \
+        remote_addr=dest)
