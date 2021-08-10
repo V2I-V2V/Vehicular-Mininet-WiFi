@@ -50,7 +50,7 @@ ids = [];
 for i = 0:total
     % pcd_dis_name = sprintf('./dis_noadapt/node0_%d.pcd', i);
     % pcd_dis_name = sprintf('%s/node0_frame0_chunk0.pcd', dir);
-    pcd_dis_name = sprintf('%s/node0_frame%d.pcd', dis_dir, i);
+    pcd_dis_name = sprintf('%s/merged_frame%d.pcd', dis_dir, i);
     if isfile(pcd_dis_name)
         pcd_ref_name = sprintf('%s/%06d_%d.pcd', ref_dir, mod(i, 80), n);
         %% Load point clouds

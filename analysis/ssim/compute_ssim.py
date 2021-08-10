@@ -16,7 +16,7 @@ if __name__ == "__main__":
     start = time.time()
     eng = matlab.engine.start_matlab()
     now = time.time()
-    print("time taken to start matlab: " + int(now - start) + "sec")
+    print("time taken to start matlab: " + str(now - start) + "sec")
     [pcd_ssims, pcd_ids] = eng.compute_ssim(ref_dir, dis_dir, 1, nframes, nargout=2)
     print(len(pcd_ssims))
     ssims, ids = pcd_ssims[0], pcd_ids[0]
