@@ -7,8 +7,8 @@ for folder in *; do
     # echo $folder
     if [[ $folder == $1* ]]; then
         echo $folder
-        python3 -W ignore ~/Vehicular-Mininet-WiFi/ptcl/pcd_process.py $folder
+        python3 -W ignore ~/Vehicular-Mininet-WiFi/ptcl/pcd_process.py dis $folder
         cd ~/Vehicular-Mininet-WiFi/analysis/ssim
-        python compute_ssim.py $3 $dir/$folder/output/ $2
+        python2 compute_ssim.py $3 $dir/$folder/output/ $2
     fi
 done
