@@ -163,7 +163,7 @@ class SchedThread(threading.Thread):
                     if real_helper in client_sockets.keys():
                         client_sockets[real_helper].send(msg)
             elif self.ready_to_schedule(scheduler_mode):
-                print(scheduler_mode)
+                # print(scheduler_mode)
                 positions = []
                 routing_tables = {}
                 helper_list = []
@@ -226,9 +226,8 @@ class SchedThread(threading.Thread):
                     bws = get_mapped_bw(mapped_nodes)
                     assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
                 elif scheduler_mode == 'routeAware':
-                    print("unmapped:", route_map)
-                    # print("routing table", routing_table)
-                    print("routing tables", routing_tables)
+                    # print("unmapped:", route_map)
+                    # print("routing tables", routing_tables)
                     assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
                 elif scheduler_mode == 'random':
                     random_seed = (time.time() - init_time) // 5
