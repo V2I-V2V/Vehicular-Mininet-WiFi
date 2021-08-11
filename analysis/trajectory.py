@@ -42,7 +42,7 @@ def plot_distance_for_each_node(trajs, save_dir='./'):
                 start_node_traj, end_node_traj = trajs[start_node], trajs[end_node]
                 dist = np.linalg.norm(start_node_traj - end_node_traj, axis=1)
                 if len(dist) > 10:
-                    ax.plot(np.arange(0, int(len(dist)/10), 0.1), dist, label='dist to %d'%end_node)
+                    ax.plot(np.arange(0, int(len(dist)/10), 0.1), dist[:len(np.arange(0, int(len(dist)/10), 0.1))], label='dist to %d'%end_node)
                 else:
                     ax.plot(np.arange(0, len(dist)), dist, label='dist to %d'%end_node)
                 # ax.set_xticks(np.arange(0, math))
@@ -67,12 +67,17 @@ def plot_loc_at_timestamp(loc_file, timestamp, save_dir='./'):
         loc = traj[-1]
     else:
         loc = traj[time_idx_in_100ms]
-    
+    x = loc[::2]
+    y = loc[1::2]
     fig = plt.figure(figsize=(7,7))
     ax = fig.add_subplot(111)
     for i in range(int(len(loc)/2)):
-        ax.scatter([loc[2*i]], [loc[2*i+1]], s=34) # , label='node%d'%i
-        ax.annotate('%d'%i, xy=(loc[2*i], loc[2*i+1]+10))
+        ax.scatter([loc[2*i]-min(x)], [loc[2*i+1]-min(y)], s=34) # , label='node%d'%i
+        ax.annotate('%d'%i, xy=(loc[2*i]-min(x), loc[2*i+1]-min(y)-20))
+
+    x_scaled, y_scaled = x - min(x), y - min(y)
+    plt.xlim(min(x_scaled)-50, max(x_scaled)+50)
+    plt.ylim(min(y_scaled)-50, max(y_scaled)+50)
     plt.xlabel('x (m)')
     plt.ylabel('y (m)')
     # plt.legend()

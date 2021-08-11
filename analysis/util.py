@@ -1,6 +1,8 @@
 import numpy as np
 import math
 from ast import literal_eval
+from analysis.v2i_bw import get_nodes_v2i_bw
+from analysis.disconnection import get_disconect_duration_in_percentage
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
@@ -51,8 +53,10 @@ def get_sender_ts(filename):
                 encode_choice[frame] = num_chunks
             elif line.startswith("read and encode takes"):
                 encode_t = math.ceil(float(parse[-1]))
+            elif line.startswith("[relay throughput]"):
+                last_t = float(parse[-1])
                 
-    return sender_ts, encode_choice, encode_t
+    return sender_ts, encode_choice, encode_t, last_t
 
 
 def get_receiver_ts(filename):
@@ -133,8 +137,8 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     # node_id_to_latencies, node_id 
     sent_frames = 0
     for i in range(num_nodes):
-        sender_ts_dict[i], node_to_encode_choices[i], encode_t = get_sender_ts(dir + '/logs/node%d.log'%i)
-        sent_frames += len(sender_ts_dict[i])
+        sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t = get_sender_ts(dir + '/logs/node%d.log'%i)
+        sent_frames += int((last_t-min(sender_ts_dict[i].values()))*10)
         latency_dict[i] = {}
         if with_ssim:
             ssims = get_ssims(dir+'/node%d_ssim.log'%i)
@@ -175,20 +179,24 @@ def construct_ts_latency_array(delay_dict_ts, expected_frames=550):
     last_frame_idx, idx_cnt = -1, 0
     sorted_ts = sorted(delay_dict_ts.keys())
     for send_ts in sorted_ts:
+        frame_idx = delay_dict_ts[send_ts][1]
+        if frame_idx > (last_frame_idx + 1):
+            # skipped frames 
+            print("skipped frmaes", frame_idx - last_frame_idx)
+            # skipped_frames = frame_idx - last_frame_idx - 1
+            last_ts = sorted_ts[idx_cnt-1]
+            print("length", send_ts - last_ts)
+            
+            missed_tses = np.arange(last_ts, send_ts, 0.1)[1:]
+            print(missed_tses)
+            for missed_ts in missed_tses:
+                ts.append(missed_ts)
+                delay.append(-0.1)
+        
+        last_frame_idx = frame_idx
+        idx_cnt += 1
         ts.append(send_ts)
         delay.append(delay_dict_ts[send_ts][0])
-        frame_idx = delay_dict_ts[send_ts][1]
-        # if frame_idx > (last_frame_idx + 1):
-        #     # skipped frames 
-        #     # skipped_frames = frame_idx - last_frame_idx - 1
-        #     last_ts = sorted_ts[idx_cnt-1]
-        #     missed_tses = np.arange(last_ts, send_ts, 0.1)[1:]
-        #     for missed_ts in missed_tses:
-        #         ts.append(missed_ts)
-        #         delay.append(-0.1)
-        
-        # last_frame_idx = frame_idx
-        # idx_cnt += 1
     
     # while len(ts) < expected_frames:
     #     ts.append(ts[-1]+0.1)
@@ -197,3 +205,15 @@ def construct_ts_latency_array(delay_dict_ts, expected_frames=550):
     ts = np.array(ts) - np.min(ts)
     delay = np.array(delay)
     return ts, delay
+
+
+def get_summary_of_settings(settings):
+    for setting in settings:
+        print("Get stats for setting", setting)
+        num_nodes, sched, bw_file, loc, helpee_conf, run_time =\
+            setting[0], setting[1], setting[2], setting[3], setting[4], setting[5]
+        v2i_bw = get_nodes_v2i_bw(bw_file, run_time, num_nodes, helpee_conf)
+        num_helpees, disconnect_percentage = \
+            get_disconect_duration_in_percentage(helpee_conf, run_time, num_nodes)
+
+        

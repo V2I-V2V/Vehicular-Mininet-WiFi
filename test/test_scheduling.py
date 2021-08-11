@@ -51,6 +51,9 @@ def test_find_assignments():
     print(assignments)
 
 
+def test_intf_cnt():
+    pass
+
 if __name__ == "__main__":
     test_minDist()
     test_bwAware()

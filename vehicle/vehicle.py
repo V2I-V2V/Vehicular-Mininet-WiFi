@@ -183,6 +183,7 @@ def get_encoded_frame(frame_id, metric):
     if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
         cnt = 1
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
+        print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(1))
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE:
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
         cnt = 1

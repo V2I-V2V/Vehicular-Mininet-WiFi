@@ -33,6 +33,7 @@ SCHEDULERS = []
 LOC = []
 BW = []
 HELPEE = []
+config_set = set()
 
 
 
@@ -83,6 +84,18 @@ def construct_full_frame_result_based_on_keys(keys):
                     result[key] = [v['full_frames']]
     return result
 
+def construct_frame_result_based_on_keys(keys):
+    result = {}
+    for k,v in result_each_run.items():
+        for key in keys:
+            matched = check_keys_matched(key, k)
+            if matched:
+                if key in result.keys():
+                    result[key].append(v)
+                else:
+                    result[key] = [v]
+    return result
+
 # Create a setting
 
 def find_data_with_partial_keys(partial_keys, data):
@@ -117,30 +130,37 @@ def plot_full_frame(partial_results, name, idx):
     for label in labels:
         ticks.append(label[idx])
     ax = fig.add_subplot(111)
-    selected_threshold = [0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 1.5, 2.0]
+    selected_threshold = [0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 1.5, 2.0]
     setting_to_diff_latency_frames, setting_to_diff_latency_frames_std = {}, {}
     cnt = 0
     for label in labels:
+        # if label[idx] in ['combined', 'distributed']:
+        assert label[idx] == ticks[cnt]
+        
         setting_to_diff_latency_frames[label] = []
         setting_to_diff_latency_frames_std[label] = []
         for t in selected_threshold:
             # calculate mean and std
             one_setting_num_full_frames = []
             for one_run in partial_results[label]:
-                one_setting_num_full_frames.append(len(one_run[one_run <= t]))
+                one_setting_num_full_frames.append(get_percentage_frames_within_threshold(one_run, t))
             setting_to_diff_latency_frames[label].append(np.mean(one_setting_num_full_frames))
             setting_to_diff_latency_frames_std[label].append(np.std(one_setting_num_full_frames))
         ax.errorbar(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], \
                 yerr=setting_to_diff_latency_frames_std[label], capsize=2,
-                label=ticks[cnt])
+                label=label[idx])
+        print(label[idx], "Mean threshold value")
+        print(setting_to_diff_latency_frames[label])
+        print(setting_to_diff_latency_frames_std[label])
         cnt += 1
     
     ax.set_xticks(np.arange(1,len(selected_threshold)+1))
     ax.set_xticklabels(selected_threshold)
 
     plt.legend()
-    plt.ylabel("# of full Frames\n(frame id from all vechiles are recved)")
+    plt.ylabel("% of Frames within latency")
     plt.xlabel('Latency (s)')
+    plt.gca().set_ylim(bottom=0)
     plt.tight_layout()
     plt.savefig('analysis-results/%s-diff-latency.png'%name)
     
@@ -164,6 +184,7 @@ def plot_based_on_setting():
 
     result = construct_result_based_on_keys(all_keys)
     result_full_frame = construct_full_frame_result_based_on_keys(all_keys)
+    result_all_frame = construct_frame_result_based_on_keys(all_keys)
     print(result)
     combined_latency_improvement = {}
     for loc in LOC:
@@ -173,51 +194,53 @@ def plot_based_on_setting():
                 plot_dict_data_box(partial_results, str([loc, bw, helpee]), 2)
                 plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 2)
     # plt.close()
-                partial_results = find_data_with_partial_keys((loc, bw, helpee),result_full_frame)
+                partial_results = find_data_with_partial_keys((loc, bw, helpee), result_all_frame)
                 plot_full_frame(partial_results, str([loc, bw, helpee]), 2)
         
-    fig = plt.figure(figsize=(18, 9))
-    ax = fig.add_subplot(111)
-    cnt = 0
-    setting = []
-    for loc in LOC:
-        for bw in BW:
-            for helpee in HELPEE:
-                setting.append((loc, bw, helpee))
-                partial_results = find_data_with_partial_keys((loc, bw, helpee), result)
+    # fig = plt.figure(figsize=(18, 9))
+    # ax = fig.add_subplot(111)
+    # cnt = 0
+    # setting = []
+    # for loc in LOC:
+    #     for bw in BW:
+    #         for helpee in HELPEE:
+    #             setting.append((loc, bw, helpee))
+    #             partial_results = find_data_with_partial_keys((loc, bw, helpee), result)
 
                 
-                schedulers = []
-                combined_in_schedule_frames, other_sched_in_sched_frames = {}, {}
-                for label in partial_results.keys():
-                    schedulers.append(label[2])
-                for label in partial_results.keys():
-                    combined_in_schedule_frames[label[2]] =\
-                        len(partial_results[label][partial_results[label] <= LATENCY_THRESHOLD])
-                    if label[2] != 'combined':
-                        other_sched_in_sched_frames[label[2]] = \
-                            len(partial_results[label][partial_results[label] <= LATENCY_THRESHOLD])
+    #             schedulers = []
+    #             combined_in_schedule_frames, other_sched_in_sched_frames = {}, {}
+    #             for label in partial_results.keys():
+    #                 schedulers.append(label[2])
+    #             for label in partial_results.keys():
+    #                 combined_in_schedule_frames[label[2]] =\
+    #                     len(partial_results[label][partial_results[label] <= LATENCY_THRESHOLD])
+    #                 if label[2] != 'combined':
+    #                     other_sched_in_sched_frames[label[2]] = \
+    #                         len(partial_results[label][partial_results[label] <= LATENCY_THRESHOLD])
                     
-                latency_improvement = float(combined_in_schedule_frames['combined']-max(other_sched_in_sched_frames.values()))/ \
-                                        max(other_sched_in_sched_frames.values())
-                ax.bar(cnt, latency_improvement*100, align='center', alpha=0.5)
-                cnt += 1
-    ax.set_xticks(np.arange(cnt))
-    # ax.set_xticklabels(setting)
-    map_setting = np.concatenate((np.arange(0, len(setting)).reshape(-1,1), np.array(setting).reshape(-1,3)), axis=1)
-    print(map_setting)
-    plt.ylabel('# of frames improvement over the best sched (%)')
-    np.savetxt("analysis-results/improvement_mapping.txt", map_setting, fmt='%s')
-    plt.savefig('analysis-results/combined-improvement.png')
+    #             latency_improvement = float(combined_in_schedule_frames['combined']-max(other_sched_in_sched_frames.values()))/ \
+    #                                     max(other_sched_in_sched_frames.values())
+    #             ax.bar(cnt, latency_improvement*100, align='center', alpha=0.5)
+    #             cnt += 1
+    # ax.set_xticks(np.arange(cnt))
+    # # ax.set_xticklabels(setting)
+    # map_setting = np.concatenate((np.arange(0, len(setting)).reshape(-1,1), np.array(setting).reshape(-1,3)), axis=1)
+    # print(map_setting)
+    # plt.ylabel('# of frames improvement over the best sched (%)')
+    # np.savetxt("analysis-results/improvement_mapping.txt", map_setting, fmt='%s')
+    # plt.savefig('analysis-results/combined-improvement.png')
+    selected_schedulers = SCHEDULERS
+    # selected_schedulers = ['combined', 'distributed']
     for loc in LOC:
         for bw in BW:
             for helpee in HELPEE: 
                 titles = []                
                 fig = plt.figure(figsize=(18,16))
                 cnt = 1
-                print("latency-all-sched_figure:")
-                for sched in SCHEDULERS:
-                    ax = fig.add_subplot(len(SCHEDULERS), 1, cnt)
+                print("lat ency-all-sched_figure:", (loc, bw, helpee))
+                for sched in selected_schedulers:
+                    ax = fig.add_subplot(len(selected_schedulers), 1, cnt)
                     # folder = get_folder_based_on_setting('./', (loc, bw, helpee, sched))[0]
                     for k,v in result_each_run.items():
                         matched = check_keys_matched((loc, bw, helpee, sched), k)
@@ -226,7 +249,7 @@ def plot_based_on_setting():
                             # print(k[0])
                             data_one_setting = v
                             break
-                    for i in range(len(data_one_setting)-4):
+                    for i in range(len(data_one_setting)-5):
                         ts, latency = construct_ts_latency_array(data_one_setting[i])
                         ax.plot(ts, latency, '--.', label="node%i"%i)
                         ax.legend()
@@ -282,7 +305,7 @@ def get_folder_based_on_setting(data_dir, setting):
 
 def get_all_runs_results(data_dir, key, have_multi=False, with_ssim=False):
     global num_nodes
-    #     # TODO: cuurently node number has to start on 0, support node number to be largely different (e.g. 0, 145, etc)
+    # TODO: cuurently node number has to start on 0, support node number to be largely different (e.g. 0, 145, etc)
     dirs = os.listdir(data_dir)
     for dir in dirs:
         if key in dir:
@@ -312,8 +335,13 @@ def get_all_runs_results(data_dir, key, have_multi=False, with_ssim=False):
             else:
                 conf_key = (dir, scheduler, network, mobility, helpee, adaptive)
 
+            # insert (sched, network, mobility, helpee) in to config_set
+            config_set.add((num_nodes, config["scheduler"], config["network_trace"], config["location_file"], \
+                config["helpee_conf"], config["t"]))
+            
             result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes,\
-                config["helpee_conf"], with_ssim=with_ssim)
+                config["helpee_conf"], with_ssim=with_ssim)[0]
+            print(conf_key, result_each_run[conf_key]['sent_frames'])
             setting_to_folder[str(conf_key)] = dir
     with open('analysis-results/setting_to_folder.json', 'w') as f:
         json.dump(setting_to_folder, f)
@@ -346,7 +374,7 @@ def plot_bar_based_on_schedule(schedule):
     plt.savefig('analysis-results/%s.png'%schedule)
 
 
-def plot_bar_compare_schedule(schedules):
+def plot_bars_compare_schedules(schedules):
     fig = plt.figure(figsize=(12,6))
     ax = fig.add_subplot(111)
     x_positions = np.arange(len(schedules))
@@ -361,14 +389,14 @@ def plot_bar_compare_schedule(schedules):
                     schedule_data[schedule] = v['all']
                     schedule_helpee_data[schedule] = v['helpee']
                     schedule_helper_data[schedule] = v['helper']
-                    schedule_to_frames_within_threshold[schedule] = get_num_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)
+                    schedule_to_frames_within_threshold[schedule] = get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)
                 else:
                     schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
                     schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
                     schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
                     schedule_to_frames_within_threshold[schedule] = \
                         np.hstack((schedule_to_frames_within_threshold[schedule], \
-                            get_num_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)))
+                            get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)))
     for schedule in schedule_data.keys():
         ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-0.2]), whis=(5, 95), autorange=True, showfliers=False)
         ax.boxplot(schedule_helpee_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
@@ -390,9 +418,9 @@ def plot_bar_compare_schedule(schedules):
     ax.set_xticks(x_positions)
     ax.set_xticklabels(schedules)
     if SSIM_THRESHOLD is None:
-        plt.ylabel('# of Frame in schedule (%3fs)'%LATENCY_THRESHOLD)
+        plt.ylabel('Percentage of frame in schedule (%3fs)'%LATENCY_THRESHOLD)
     else:
-        plt.ylabel('# of Frame in schedule (%3f s, %3f SSIM)'%(LATENCY_THRESHOLD, SSIM_THRESHOLD))
+        plt.ylabel('Percentage of frame in schedule (%3f s, %3f SSIM)'%(LATENCY_THRESHOLD, SSIM_THRESHOLD))
     plt.tight_layout()
     plt.savefig('analysis-results/schedule_frames_within_latency.png')
 
@@ -423,7 +451,7 @@ def plot_bar_compare_schedule(schedules):
             if schedule in k:
                 for t in selected_thresholds:
                     sched_to_different_latency_cnts[schedule][t].append(
-                        get_num_frames_within_threshold(v, t, SSIM_THRESHOLD)
+                        get_percentage_frames_within_threshold(v, t, SSIM_THRESHOLD)
                     )
     sched_to_different_latency_mean = {}
     sched_to_different_latency_std = {}
@@ -438,7 +466,8 @@ def plot_bar_compare_schedule(schedules):
         ax.set_xticks(np.arange(0, len(selected_thresholds)))
         ax.set_xticklabels(selected_thresholds)
     plt.legend()
-    plt.ylabel("# of Frames")
+    plt.ylabel("% of Frames within the latency threshold")
+    plt.gca().set_ylim(bottom=0)
     plt.xlabel('Latency (s)')
     plt.savefig('analysis-results/frames_latency_diff_threshold.png')
         
@@ -608,8 +637,10 @@ def main():
         # plot_bars_of_a_schedule(sched)
         plot_bar_based_on_schedule(sched)
     
-    # # compare schedule
-    plot_bar_compare_schedule(SCHEDULERS) # plot_bars_comapring_schedules(SCHEDULERS)
+    # compare schedule
+    # schedules = ['combined', 'distributed']
+    schedules = SCHEDULERS
+    plot_bars_compare_schedules(schedules) # plot_bars_comapring_schedules(SCHEDULERS)
 
     # plot_compare_schedule_by_setting()
     # name of figure 'compare-schedule-by-[set]'

@@ -78,7 +78,7 @@ def construct_ts_scores_array(scores):
 
 def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time):
     # plot node bw
-    v2i_bw.plot_v2i_bw(bw_file, exp_time, num_nodes, dir)
+    v2i_bw.plot_v2i_bw(bw_file, exp_time, num_nodes, dir, helpee_conf)
 
     # plot trajectory
     trajectory.plot_trajectory(loc_file, dir)
