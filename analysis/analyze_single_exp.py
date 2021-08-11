@@ -98,7 +98,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         receiver_ts_dict[i] = {}
         receiver_throughput[i] = []
     for i in range(num_nodes):
-        sender_ts_dict[i], sender_adaptive_choice[i], encode_time = util.get_sender_ts(dir + 'logs/node%d.log'%i)
+        sender_ts_dict[i], sender_adaptive_choice[i], encode_time, end_t = util.get_sender_ts(dir + 'logs/node%d.log'%i)
         helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
     receiver_ts_dict, receiver_thrpt, server_node_dict = util.get_receiver_ts(dir + 'logs/server.log')
     delay_all = np.empty((300,))
