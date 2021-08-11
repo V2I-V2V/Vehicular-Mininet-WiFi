@@ -38,87 +38,25 @@
 %   dispersion estimator, 'Mean' as the pooling method, 12 points as the
 %   neighborhood size, and using both point clouds as reference.
 
-
-% clear all;
-% close all;
-% clc;
-
-
-function [pcd_ssims, pcd_ids] = compute_ssim(ref_dir, dis_dir, n, total)
-ssims = [];
-ids = [];
-for i = 0:total
-    % pcd_dis_name = sprintf('./dis_noadapt/node0_%d.pcd', i);
-    % pcd_dis_name = sprintf('%s/node0_frame0_chunk0.pcd', dir);
-    pcd_dis_name = sprintf('%s/merged_frame%d.pcd', dis_dir, i);
-    if isfile(pcd_dis_name)
-        pcd_ref_name = sprintf('%s/%06d_%d.pcd', ref_dir, mod(i, 80), n);
-        %% Load point clouds
-        a = pcread(pcd_ref_name);
-        b = pcread(pcd_dis_name);
-        %% Define structs with required fields
-        pcA.geom = a.Location;
-        pcA.color = a.Color;
-        pcB.geom = b.Location;
-        pcB.color = b.Color;
-        %% Configure PARAMS
-        PARAMS.ATTRIBUTES.GEOM = true;
-        PARAMS.ATTRIBUTES.NORM = false;
-        PARAMS.ATTRIBUTES.CURV = false;
-        PARAMS.ATTRIBUTES.COLOR = false;
-        PARAMS.ESTIMATOR_TYPE = {'VAR'};
-        PARAMS.POOLING_TYPE = {'Mean'};
-        PARAMS.NEIGHBORHOOD_SIZE = 12;
-        PARAMS.CONST = eps(1);
-        PARAMS.REF = 0;
-        %% Compute structural similarity values based on selected PARAMS
-        [pointssim] = pc_ssim(pcA, pcB, PARAMS);
-        % disp(pointssim)
-        % disp(pointssim.geomBA);
-        ids(end + 1) = i;
-        ssims(end + 1) = pointssim.geomSym;
-    end
-end
-% for i = 1:size(ssims, 2)
-%     % disp(ssims(i));
-%     fprintf('%d %f\n', ids(i), ssims(i));
-% end
-% disp(ssims);
-% disp(size(ssims))
-% disp(mean(ssims));
-% disp(std(ssims));
-pcd_ssims = ssims 
-pcd_ids = ids
-% end
-
-
-
-% %% Load point clouds
-% a = pcread('000000.pcd');
-% b = pcread('000000.pcd');
-
-
-% %% Define structs with required fields
-% pcA.geom = a.Location;
-% pcA.color = a.Color;
-
-% pcB.geom = b.Location;
-% pcB.color = b.Color;
-
-
-% %% Configure PARAMS
-% PARAMS.ATTRIBUTES.GEOM = true;
-% PARAMS.ATTRIBUTES.NORM = false;
-% PARAMS.ATTRIBUTES.CURV = false;
-% PARAMS.ATTRIBUTES.COLOR = false;
-
-% PARAMS.ESTIMATOR_TYPE = {'VAR'};
-% PARAMS.POOLING_TYPE = {'Mean'};
-% PARAMS.NEIGHBORHOOD_SIZE = 12;
-% PARAMS.CONST = eps(1);
-% PARAMS.REF = 0;
-
-
-% %% Compute structural similarity values based on selected PARAMS
-% [pointssim] = pc_ssim(pcA, pcB, PARAMS);
-% disp(pointssim)
+function ssim = compute_ssim(pcd_ref_name, pcd_dis_name)
+%% Load point clouds
+a = pcread(pcd_ref_name);
+b = pcread(pcd_dis_name);
+%% Define structs with required fields
+pcA.geom = a.Location;
+pcA.color = a.Color;
+pcB.geom = b.Location;
+pcB.color = b.Color;
+%% Configure PARAMS
+PARAMS.ATTRIBUTES.GEOM = true;
+PARAMS.ATTRIBUTES.NORM = false;
+PARAMS.ATTRIBUTES.CURV = false;
+PARAMS.ATTRIBUTES.COLOR = false;
+PARAMS.ESTIMATOR_TYPE = {'VAR'};
+PARAMS.POOLING_TYPE = {'Mean'};
+PARAMS.NEIGHBORHOOD_SIZE = 12;
+PARAMS.CONST = eps(1);
+PARAMS.REF = 0;
+%% Compute structural similarity values based on selected PARAMS
+[pointssim] = pc_ssim(pcA, pcB, PARAMS);
+ssim = pointssim.geomSym;
