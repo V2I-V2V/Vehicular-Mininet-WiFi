@@ -201,7 +201,7 @@ def get_encoded_frame(frame_id, metric):
         cnt = 4
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0] + \
                         pcd_data_buffer[frame_id % config.MAX_FRAMES][1] + \
-                        pcd_data_buffer[fracdme_id % config.MAX_FRAMES][2] + \
+                        pcd_data_buffer[frame_id % config.MAX_FRAMES][2] + \
                         pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
         print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(4))
     return encoded_frame, cnt
