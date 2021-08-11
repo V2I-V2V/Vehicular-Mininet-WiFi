@@ -82,17 +82,16 @@ def create_ref(n, frame_id, folder_name):
 
 def get_dis(node_id, frame_id, folder):
     prefix = "node" + str(node_id) + "_frame" + str(frame_id) + "_"
-    print("prefix",prefix)
-    print("file", folder)
+    # print("prefix",prefix)
+    # print("file", folder)
     chunks = []
     for file in os.listdir(folder):
         # print(file)
         if prefix in file:
-            assert prefix != file
-            print("prefix", prefix)
-            print("file", file)
+            # print("prefix", prefix)
+            # print("file", file)
             chunks.append(file)
-    print(chunks)
+    # print(chunks)
     pcds = []
     for chunk in chunks:
         # print(chunk)
