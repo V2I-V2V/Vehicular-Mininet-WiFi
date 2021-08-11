@@ -36,6 +36,7 @@ def merge_bin_to_pcd(bins, oxts, dst):
         return
     elif len(bins) == 1:
         convert_decoded_bin_to_pcd(bins[0], dst)
+        return
     else:
         extended_bin = np.concatenate((bins[0], np.ones((bins[0].shape[0], 1),dtype=np.float32)), axis=1)
         points_oxts_primary = (extended_bin, oxts[0])
