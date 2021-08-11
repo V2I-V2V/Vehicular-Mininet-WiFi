@@ -119,8 +119,8 @@ if __name__ == "__main__":
         
         pcd_folder = data_folder + "/output"
         configs = parse_config_from_file(data_folder + '/config.txt')
-        num_nodes = int(configs["num_of_nodes"])
-        node_to_latency, node_to_encode_choices = get_stats_on_one_run(data_folder, num_nodes, configs["helpee_conf"])
+        num_of_nodes = int(configs["num_of_nodes"])
+        node_to_latency, node_to_encode_choices = get_stats_on_one_run(data_folder, num_of_nodes, configs["helpee_conf"])
         # print(node_to_latency)
         # print(len(node_to_encode_choices[0]))
         node_ids = list(node_to_encode_choices.keys())
