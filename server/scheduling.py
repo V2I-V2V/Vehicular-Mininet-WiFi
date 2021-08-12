@@ -218,7 +218,7 @@ def get_v2i_bws(assignment, bws):
 
 
 def wwan_bw_sched(num_of_helpees, num_of_helpers, bws, is_one_to_one=False):
-    print("Using the bw sched")
+    # print("Using the bw sched")
     scores = {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     for assignment in assignments:
@@ -269,7 +269,7 @@ def get_interference_counts(assignment, routing_tables):
 
 
 def route_sched(num_of_helpees, num_of_helpers, routing_tables, is_one_to_one=False):
-    print("Using the routeAware sched")
+    # print("Using the routeAware sched")
     scores = {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     for assignment in assignments:
@@ -328,7 +328,7 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
 
 
 def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables, is_one_to_one=False):
-    print("Using the combined sched", num_of_helpees, num_of_helpers)
+    # print("Using the combined sched", num_of_helpees, num_of_helpers)
     scores, scores_dist, scores_bw, scores_intf = {}, {}, {}, {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
     for assignment in assignments:
