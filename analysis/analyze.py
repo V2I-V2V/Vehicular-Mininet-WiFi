@@ -1,7 +1,6 @@
 import argparse
 import os
 import sys
-
 import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -9,13 +8,10 @@ import run_experiment
 
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 import matplotlib
-
 matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
-
-
 from util import *
 
 font = {'family' : 'DejaVu Sans',
@@ -36,7 +32,12 @@ HELPEE = []
 config_set = set()
 
 
+## TODO: define a function that plot comparison for only two schedulers
+## with each node's latecy and assignment
 
+def compare_two_sched(setting1, setting2):
+    
+    pass
 
 def generate_keys(locs, bws, helpees, schedulers=None):
     keys = []
@@ -59,7 +60,6 @@ def check_keys_matched(key, file_key):
     return matched
 
 
-
 def construct_result_based_on_keys(keys):
     result = {}
     for k,v in result_each_run.items():
@@ -71,6 +71,7 @@ def construct_result_based_on_keys(keys):
                 else:
                     result[key] = v['all']
     return result
+
 
 def construct_full_frame_result_based_on_keys(keys):
     result = {}
@@ -84,6 +85,7 @@ def construct_full_frame_result_based_on_keys(keys):
                     result[key] = [v['full_frames']]
     return result
 
+
 def construct_frame_result_based_on_keys(keys):
     result = {}
     for k,v in result_each_run.items():
@@ -96,7 +98,6 @@ def construct_frame_result_based_on_keys(keys):
                     result[key] = [v]
     return result
 
-# Create a setting
 
 def find_data_with_partial_keys(partial_keys, data):
     result = {}
@@ -105,6 +106,7 @@ def find_data_with_partial_keys(partial_keys, data):
         if matched:
             result[k] = v
     return result
+
 
 def plot_dict_data_box(dict, name, idx):
     plt.figure()
@@ -121,6 +123,7 @@ def plot_dict_data_box(dict, name, idx):
     plt.ylabel('Latency (s)')
     plt.tight_layout()
     plt.savefig('analysis-results/%s.png'%name)
+  
    
 def plot_full_frame(partial_results, name, idx):
     fig = plt.figure()   
@@ -134,7 +137,6 @@ def plot_full_frame(partial_results, name, idx):
     setting_to_diff_latency_frames, setting_to_diff_latency_frames_std = {}, {}
     cnt = 0
     for label in labels:
-        # if label[idx] in ['combined', 'distributed']:
         assert label[idx] == ticks[cnt]
         
         setting_to_diff_latency_frames[label] = []
@@ -179,7 +181,7 @@ def plot_dict_data_cdf(dict, name, idx):
     plt.savefig('analysis-results/%s-cdf.png'%name)
 
 
-def plot_based_on_setting():
+def plot_based_on_setting(num_nodes):
     all_keys = generate_keys(LOC, BW, HELPEE, SCHEDULERS)
 
     result = construct_result_based_on_keys(all_keys)
@@ -193,7 +195,6 @@ def plot_based_on_setting():
                 partial_results = find_data_with_partial_keys((loc, bw, helpee), result)
                 plot_dict_data_box(partial_results, str([loc, bw, helpee]), 2)
                 plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 2)
-    # plt.close()
                 partial_results = find_data_with_partial_keys((loc, bw, helpee), result_all_frame)
                 plot_full_frame(partial_results, str([loc, bw, helpee]), 2)
         
@@ -236,31 +237,34 @@ def plot_based_on_setting():
         for bw in BW:
             for helpee in HELPEE: 
                 titles = []                
-                fig = plt.figure(figsize=(18,16))
-                cnt = 1
                 print("lat ency-all-sched_figure:", (loc, bw, helpee))
-                for sched in selected_schedulers:
-                    ax = fig.add_subplot(len(selected_schedulers), 1, cnt)
-                    # folder = get_folder_based_on_setting('./', (loc, bw, helpee, sched))[0]
-                    for k,v in result_each_run.items():
-                        matched = check_keys_matched((loc, bw, helpee, sched), k)
-                        if matched:
-                            titles.append(k[0])
-                            # print(k[0])
-                            data_one_setting = v
-                            break
-                    for i in range(len(data_one_setting)-5):
-                        ts, latency = construct_ts_latency_array(data_one_setting[i])
-                        ax.plot(ts, latency, '--.', label="node%i"%i)
-                        ax.legend()
-                        ax.set_ylabel(sched, fontsize=20)
+                for i in range(num_nodes):
+                    fig = plt.figure(figsize=(18,16)) 
+                    
+                    cnt = 1
+                      
+                    for sched in selected_schedulers:
+                        ax = fig.add_subplot(len(selected_schedulers), 1, cnt)     
+                        # folder = get_folder_based_on_setting('./', (loc, bw, helpee, sched))[0]
+                        for k, v in result_each_run.items():
+                            matched = check_keys_matched((loc, bw, helpee, sched), k)
+                            if matched:
+                                titles.append(k[0])
+                                data_one_setting = v
+                                break                     
+                            ts, latency = construct_ts_latency_array(data_one_setting[i])
+                            ax.plot(ts, latency, '--.', label="node%i"%i)
+                            ax.legend()
+                            ax.set_ylabel(sched, fontsize=20)
+
                     cnt += 1
-                plt.xlabel('Time (s)')
-                plt.tight_layout()
-                plt.title(str(titles))
-                print(titles)
-                plt.savefig('analysis-results/%s-latency.png'%str((loc, bw, helpee)))
-                # plt.close()
+                    plt.title(str(titles))
+                    plt.xlabel('Time (s)')
+                    plt.tight_layout()
+                    print(titles)
+
+                    plt.savefig('analysis-results/%s-node%d-latency.png'%(str((loc, bw, helpee)),cnt))
+
 
 
 def plot_based_on_setting_multi():
@@ -303,7 +307,7 @@ def get_folder_based_on_setting(data_dir, setting):
     
         
 
-def get_all_runs_results(data_dir, key, have_multi=False, with_ssim=False):
+def get_all_runs_results(data_dir, key, with_ssim=False):
     global num_nodes
     # TODO: cuurently node number has to start on 0, support node number to be largely different (e.g. 0, 145, etc)
     dirs = os.listdir(data_dir)
@@ -316,6 +320,9 @@ def get_all_runs_results(data_dir, key, have_multi=False, with_ssim=False):
             mobility = config["location_file"].split('/')[-1][:-4]
             helpee = config["helpee_conf"].split('/')[-1][:-4] # TODO: helpe_config instead of helpee
             num_nodes = int(config["num_of_nodes"])
+            adapt_frame_skipping = int(config["adapt_frame_skipping"])
+            if adapt_frame_skipping == 1:
+                scheduler += '-adapt'
             if "adaptive_encode" in config.keys():
                 adaptive = config["adaptive_encode"]
             else:
@@ -328,15 +335,14 @@ def get_all_runs_results(data_dir, key, have_multi=False, with_ssim=False):
                 LOC.append(mobility)
             if helpee not in HELPEE:
                 HELPEE.append(helpee)
-            if have_multi:
-                # TODO: if no one_to_many in config, make it 0
+            if "multi" in config.keys():
                 is_multi = config["multi"]
-                conf_key = (dir, scheduler, network, mobility, is_multi, helpee, adaptive)
+                conf_key = (dir, scheduler, network, mobility, is_multi, helpee, adaptive, adapt_frame_skipping)
             else:
-                conf_key = (dir, scheduler, network, mobility, helpee, adaptive)
+                conf_key = (dir, scheduler, network, mobility, helpee, adaptive, adapt_frame_skipping)
 
             # insert (sched, network, mobility, helpee) in to config_set
-            config_set.add((num_nodes, config["scheduler"], config["network_trace"], config["location_file"], \
+            config_set.add((num_nodes, config["network_trace"], config["location_file"], \
                 config["helpee_conf"], config["t"]))
             
             result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes,\
@@ -389,7 +395,7 @@ def plot_bars_compare_schedules(schedules):
                     schedule_data[schedule] = v['all']
                     schedule_helpee_data[schedule] = v['helpee']
                     schedule_helper_data[schedule] = v['helper']
-                    schedule_to_frames_within_threshold[schedule] = get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)
+                    schedule_to_frames_within_threshold[schedule] = [get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)]
                 else:
                     schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
                     schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
@@ -424,20 +430,20 @@ def plot_bars_compare_schedules(schedules):
     plt.tight_layout()
     plt.savefig('analysis-results/schedule_frames_within_latency.png')
 
-    fig = plt.figure(figsize=(24,8))
-    cnt = 1
-    for schedule in schedule_data.keys():
-        ax = fig.add_subplot(1, len(schedules), cnt)
-        # bins = np.arange(0, 1, 0.2)
-        arr = ax.hist(schedule_data[schedule], bins=4, cumulative=True)
-        ax.set_xlabel(schedule)
-        # for i in range(len(bins)-1):
-        #     plt.text(arr[1][i],arr[0][i],str(arr[0][i]))
-        cnt += 1
+    # fig = plt.figure(figsize=(24,8))
+    # cnt = 1
+    # for schedule in schedule_data.keys():
+    #     ax = fig.add_subplot(1, len(schedules), cnt)
+    #     # bins = np.arange(0, 1, 0.2)
+    #     arr = ax.hist(schedule_data[schedule], bins=4, cumulative=True)
+    #     ax.set_xlabel(schedule)
+    #     # for i in range(len(bins)-1):
+    #     #     plt.text(arr[1][i],arr[0][i],str(arr[0][i]))
+    #     cnt += 1
     # plt.xticks(np.arange(0,4,1))
     # plt.gca().set(title='Frame latency frequency Histogram', ylabel='# of frames')
     # plt.xlabel('Latency (s)')
-    plt.savefig('analysis-results/frames_latency_histogram.png')
+    # plt.savefig('analysis-results/frames_latency_histogram.png')
     
     fig = plt.figure(figsize=(12,6))
     ax = fig.add_subplot(111)
@@ -600,16 +606,13 @@ def main():
     ## one-help-many can be parsed from config
     # parser.add_argument('-m', '--multi', default=False, type=bool, help='compare multi helper')  # delete this arg
     parser.add_argument('-t', '--time_threshold', default=0.2, type=float, help='threshold to evaluate a good frame latency')
-    parser.add_argument('--task', default="", type=str, help='additional analysis task to do (ssim|compare_adaptive_encode)')
+    parser.add_argument('--task', default=[], nargs='+', type=str, help='additional analysis task to do (ssim|compare_adaptive_encode|get_folder_on_setting)')
     parser.add_argument('--ssim_threshold', default=None, type=float, help='threshold to evaluate a good SSIM')
 
     args = parser.parse_args()
 
-    # analyze_type = args.type
     data_dir = args.data_dir
-    # frames = args.frames
     key = args.prefix
-    # have_multi = args.multi
     task = args.task
     global LATENCY_THRESHOLD, SSIM_THRESHOLD
     with_ssim = False
@@ -620,22 +623,30 @@ def main():
     SSIM_THRESHOLD = args.ssim_threshold
 
     # create a analysis-results/ dir under data_dir
-    os.system('mkdir %s/analysis-results/'%data_dir)
     
     # rst = get_folder_based_on_setting(data_dir, ('111', 'lte-28', 'helpee-start-middle'))
     # print(rst)
     # for folder in rst:
     #     os.system("rm -rf %s"%folder)
     
+    if len(args.task)>0:
+        if args.task[0] == 'get_folder_on_setting':        
+            print(tuple(args.task[1:]))
+            rst = get_folder_based_on_setting(data_dir, tuple(args.task[1:]))
+            print(rst)
+            return
+    
+    os.system('mkdir %s/analysis-results/'%data_dir)
 
     # # read all exp data, need a return value 
     get_all_runs_results(data_dir, key, with_ssim=with_ssim)
+    get_summary_of_settings(config_set)
 
     # plot_bar_across_runs()
 
-    for sched in SCHEDULERS:
-        # plot_bars_of_a_schedule(sched)
-        plot_bar_based_on_schedule(sched)
+    # for sched in SCHEDULERS:
+    #     # plot_bars_of_a_schedule(sched)
+    #     plot_bar_based_on_schedule(sched)
     
     # compare schedule
     # schedules = ['combined', 'distributed']
@@ -644,20 +655,17 @@ def main():
 
     # plot_compare_schedule_by_setting()
     # name of figure 'compare-schedule-by-[set]'
-    plot_based_on_setting()
+    plot_based_on_setting(num_nodes)
     
     
     # 111 lte-28 helpee-start-middle
 
-    # repeat_exp_analysis(set_of_settings), plot 
     # plot_compare_latency_of_settings(set_of_settings)
-    repeat_exp_analysis()
+    # repeat_exp_analysis()
     
     rst = get_folder_based_on_setting(data_dir, ('111', 'lte-28', 'helpee-start-middle', 'combined'))
     print(rst)
 
-    # if have_multi:
-    #     plot_based_on_setting_multi()
 
 
 if __name__ == '__main__':
