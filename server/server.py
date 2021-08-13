@@ -109,7 +109,7 @@ class SchedThread(threading.Thread):
         self.flip_cnt = 0
         self.last_assignment_score = 0 # used for combined sched
         self.last_assignment = None
-        self.assignment_change_threshold = 0.0
+        self.assignment_change_threshold = 0.4
 
 
     def check_if_loc_map_complete(self, vids):

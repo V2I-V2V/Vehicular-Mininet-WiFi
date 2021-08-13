@@ -21,3 +21,13 @@ pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(pcl[:,:3])
 pcd.paint_uniform_color([0, 0, 1])
 o3d.visualization.draw_geometries([pcd])
+
+
+# vis = o3d.visualization.Visualizer()
+# vis.create_window()
+# vis.add_geometry(pcd)
+# vis.update_geometry(pcd)
+# vis.poll_events()
+# vis.update_renderer()
+# vis.capture_screen_image(path)
+# vis.destroy_window()

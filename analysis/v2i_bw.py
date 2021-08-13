@@ -21,7 +21,7 @@ def get_nodes_v2i_bw(bw_file, time, num_nodes, helpee_conf):
     conn_status = get_connection_status(helpee_conf, time, num_nodes)
     for i in range(num_nodes):
         if i in conn_status.keys():
-            used_thrpts[:,i] *= conn_status[i]
+            used_thrpts[:time,i] *= conn_status[i]
     return used_thrpts
 
 def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
@@ -43,8 +43,9 @@ def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
             thrpt_i = thrpt
         else:
             thrpt_i = thrpt_i[:time]
-        if i in conn_status.keys():
-            thrpt_i *= conn_status[i]
+        if conn_status is not None:
+            if i in conn_status.keys():
+                thrpt_i *= conn_status[i]
         axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i], label='node%d'%i)
         axes[-1].legend()
         axes[-1].set_xlim([0, int(time)])

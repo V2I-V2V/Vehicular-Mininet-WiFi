@@ -3,6 +3,7 @@ import math
 from ast import literal_eval
 from analysis.v2i_bw import get_nodes_v2i_bw
 from analysis.disconnection import get_disconect_duration_in_percentage
+from analysis.trajectory import get_node_dists
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
@@ -11,6 +12,8 @@ def get_server_assignments(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
+            if line.startswith('Run in'):
+                assignment_mode = line.split()[2]
             if line.startswith("Assignment:"):
                 # helper_to_helpee = {}
                 helpee_to_helper = {}
@@ -29,7 +32,7 @@ def get_server_assignments(filename):
                 scores = (float(parse[1]), float(parse[2]), float(parse[3]))
                 ts_to_scores[ts] = scores
 
-    return ts_to_assignment, ts_to_scores
+    return assignment_mode, ts_to_assignment, ts_to_scores
 
 
 def get_sender_ts(filename):
@@ -39,14 +42,16 @@ def get_sender_ts(filename):
         lines = f.readlines()
         for line in lines:
             parse = line.split()
-            if line.startswith("[V2I"):
-                ts = float(parse[-1])
+            if line.startswith('[start timestamp]'):
+                start_ts = float(parse[-1])
+            elif line.startswith('fps '):
+                fps = int(parse[-1])
+            elif line.startswith("[V2I"):
                 frame = int(parse[-2])
-                sender_ts[frame] = ts
+                sender_ts[frame] = frame * 1.0/fps + start_ts
             elif line.startswith("[V2V"):
-                ts = float(parse[-1])
                 frame = int(parse[-5])
-                sender_ts[frame] = ts
+                sender_ts[frame] = frame * 1.0/fps + start_ts
             elif line.startswith("frame id:"):
                 num_chunks = int(parse[-1])
                 frame = int(parse[2])
@@ -153,6 +158,11 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
         for frame_idx, recv_ts in receiver_ts_dict[i].items():
             send_ts = sender_ts_dict[i][frame_idx]
             latency = recv_ts-sender_ts_dict[i][frame_idx]
+            # if latency < 0:
+            #     print("negative latency! %f, %d"%(latency, frame_idx))
+            #     print(dir)
+            #     print(i)
+            #     exit(1)
             latency_dict[i][send_ts] = [latency, frame_idx] # add adptation choice
             if with_ssim:                
                 latency_dict[i][send_ts] = [latency, frame_idx, get_ssim(node_to_ssims[i], frame_idx)]
@@ -207,13 +217,33 @@ def construct_ts_latency_array(delay_dict_ts, expected_frames=550):
     return ts, delay
 
 
+
+
 def get_summary_of_settings(settings):
+    setting_summary = open("setting_summary.txt", 'w')
     for setting in settings:
+        setting_summary.write(str(setting) + '\n')
         print("Get stats for setting", setting)
-        num_nodes, sched, bw_file, loc, helpee_conf, run_time =\
-            setting[0], setting[1], setting[2], setting[3], setting[4], setting[5]
+        num_nodes, bw_file, loc, helpee_conf, run_time =\
+            int(setting[0]), setting[1], setting[2], setting[3], int(setting[4])
         v2i_bw = get_nodes_v2i_bw(bw_file, run_time, num_nodes, helpee_conf)
+        setting_summary.write("-------BW_Summary------\n")
+        for i in range(num_nodes):
+            setting_summary.write("node%d_bw_mean/std=%f/%f\n"%(i, np.mean(v2i_bw[:, i]), np.std(v2i_bw[:, i])))
         num_helpees, disconnect_percentage = \
             get_disconect_duration_in_percentage(helpee_conf, run_time, num_nodes)
+        setting_summary.write("------Helpee_Summary------\n")
+        setting_summary.write("num_helpees=%d\n"%(num_helpees))
+        setting_summary.write("helpee_disconnect_time_percentage=%f\n"%(disconnect_percentage))
+        node_dists = get_node_dists(loc)
+        setting_summary.write("------Dist_Summay------\n")
+        for i in range(num_nodes):
+            dists = node_dists[i]
+            mean, std = np.mean(dists), np.std(dists)
+            setting_summary.write("node%d_to_other_distances_mean/std=%f/%f\n"%(i,mean, std))
+        setting_summary.write("\n")
+    setting_summary.close()
+        
+        
 
         

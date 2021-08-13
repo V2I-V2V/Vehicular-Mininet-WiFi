@@ -32,15 +32,28 @@ def plot_trajectory(loc_file, save_dir='./'):
     plot_distance_for_each_node(trajs, save_dir)
 
 
-def plot_distance_for_each_node(trajs, save_dir='./'):
+def get_node_dists(loc):
+    trajs = {}
+    traj = np.loadtxt(loc)  
+    if traj.ndim == 1:
+        traj = traj.reshape(1, -1)
+    for i in range(int(traj.shape[1]/2)):
+        trajs[i] = traj[:,2*i:2*i+2]
+    
+    return plot_distance_for_each_node(trajs, save_plot=False)
+    
+def plot_distance_for_each_node(trajs, save_dir='./', save_plot=True):
+    node_to_distances = {}
     fig = plt.figure(figsize=(7,20))
     cnt = 1
     for start_node in trajs.keys():
+        node_to_distances[start_node] = []
         ax = fig.add_subplot(len(trajs.keys()),1,cnt)
         for end_node in trajs.keys():
             if start_node != end_node:
                 start_node_traj, end_node_traj = trajs[start_node], trajs[end_node]
                 dist = np.linalg.norm(start_node_traj - end_node_traj, axis=1)
+                node_to_distances[start_node].append(dist)
                 if len(dist) > 10:
                     ax.plot(np.arange(0, int(len(dist)/10), 0.1), dist[:len(np.arange(0, int(len(dist)/10), 0.1))], label='dist to %d'%end_node)
                 else:
@@ -55,7 +68,10 @@ def plot_distance_for_each_node(trajs, save_dir='./'):
         
     # plt.ylabel('y (m)')
     plt.tight_layout()
-    plt.savefig(save_dir + 'node-distances.png')
+    if save_plot:
+        plt.savefig(save_dir + 'node-distances.png')
+
+    return node_to_distances
 
 def plot_loc_at_timestamp(loc_file, timestamp, save_dir='./'):
     traj = np.loadtxt(loc_file)

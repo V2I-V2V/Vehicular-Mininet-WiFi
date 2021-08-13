@@ -119,8 +119,8 @@ if __name__ == "__main__":
         
         pcd_folder = data_folder + "/output"
         configs = parse_config_from_file(data_folder + '/config.txt')
-        num_nodes = int(configs["num_of_nodes"])
-        node_to_latency, node_to_encode_choices = get_stats_on_one_run(data_folder, num_nodes, configs["helpee_conf"])
+        num_of_nodes = int(configs["num_of_nodes"])
+        node_to_latency, node_to_encode_choices = get_stats_on_one_run(data_folder, num_of_nodes, configs["helpee_conf"])
         # print(node_to_latency)
         # print(len(node_to_encode_choices[0]))
         node_ids = list(node_to_encode_choices.keys())
@@ -131,13 +131,14 @@ if __name__ == "__main__":
                 if k > max_frame_id:
                     max_frame_id = k
         print(max_frame_id)
+        # exit(0)
         for frame_id in range(0, max_frame_id + 1): # max_frame_id, max_frame_id + 1
             bins = []
             oxtss = []
             dst = pcd_folder + "/merged_frame" + str(frame_id) + ".pcd"
             for node_id in node_ids:
                 if frame_id not in node_to_encode_choices[node_id]:
-                    print("id skipped")
+                    print("id skipped", frame_id, node_id)
                     continue
                 oxts_filename = str(frame_id % config.MAX_FRAMES).zfill(6) + ".txt" 
                 f = open(oxts_paths[node_id] + oxts_filename, 'r')

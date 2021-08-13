@@ -70,7 +70,7 @@ curr_frame_rate = FRAMERATE
 connection_state = "Connected"
 current_helpee_id = 65535
 current_helper_id = 65535
-curr_timestamp = 0.0
+start_timestamp = 0.0
 last_frame_sent_ts = 0.0
 vehicle_locs = mobility.read_locations(LOCATION_FILE)
 self_loc_trace = vehicle_locs[vehicle_id]
@@ -104,9 +104,9 @@ control_seq_num = 0 # self seq number
 
 frame_lock = threading.Lock()
 v2i_control_socket_lock = threading.Lock()
-v2i_control_socket, scheudler_mode = wwan.setup_p2p_links(vehicle_id, config.server_ip, \
+v2i_control_socket, scheduler_mode = wwan.setup_p2p_links(vehicle_id, config.server_ip, \
                                         config.server_ctrl_port, recv_sched_scheme=True)
-print("server sched mode", scheudler_mode)
+print("server sched mode", scheduler_mode)
 v2i_data_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 curr_frame_id = 0
@@ -149,6 +149,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
 
         if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
             partitioned = ptcl.partition.simple_partition(pcd_np, 20)
+            partitioned = pcd_np
             pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
             pcd_data_buffer.append(pcd)
         else:            
@@ -251,6 +252,12 @@ def send(socket, data, id, type, num_chunks=1, chunks=None):
             return False
     return True
 
+def get_frame_ready_timestamp(frame_id, fps):
+    return start_timestamp + frame_id * (1/fps)
+
+def get_curr_tranmist_frame_id():
+    return int((time.time() - start_timestamp)*FRAMERATE)
+
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
     """
@@ -261,24 +268,23 @@ def v2i_data_send_thread():
         if connection_state == "Connected":
             t_start = time.time()
             frame_lock.acquire()
-            # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
-            #     and curr_frame_id < len(oxts_data_buffer):
-            curr_f_id = curr_frame_id
+            curr_f_id = curr_frame_id if not is_adaptive_frame_skipped else get_curr_tranmist_frame_id()
             data_f_id = curr_f_id % config.MAX_FRAMES
             # pcd = pcd_data_buffer[data_f_id]
             # pcd = pcd_data_buffer[data_f_id][0]
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             curr_frame_id += 1
             frame_lock.release()
-            # TODO: change encode to another thread, follow a pipeline (right now data is pre-encoded)
             last_frame_sent_ts = time.time()
+            # last_frame_sent_ts should be the timestamp for finishing the sensor data capture
+            last_frame_sent_ts = get_frame_ready_timestamp(curr_f_id, FRAMERATE)
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
             frame_sent_time[curr_f_id] = time.time()
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd_data_buffer[data_f_id][:num_chunks])
             # if pcd_data_type == "GTA":
             oxts = oxts_data_buffer[data_f_id]
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
-            print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
+            # print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
             t_elapsed = time.time() - t_start
             if capture_finished and is_adaptive_frame_skipped:
                 curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
@@ -286,22 +292,9 @@ def v2i_data_send_thread():
             if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0:
                 print("capture finished, sleep %f" % (1.0/curr_frame_rate-t_elapsed))
                 time.sleep(1.0/curr_frame_rate-t_elapsed)
-            if curr_frame_rate != 10:
-                frame_lock.acquire()
-                curr_frame_id += int(10/curr_frame_rate)
-                frame_lock.release()
-            # elif capture_finished and is_adaptive_frame_skipped and (1.0/FRAMERATE-t_elapsed) < 0:
-            #     passed_frames = int(t_elapsed * FRAMERATE)
-            #     print('Sending V2I passed %f'%t_elapsed)
+            # if curr_frame_rate != 10:
             #     frame_lock.acquire()
-            #     curr_frame_id += passed_frames
-            #     frame_lock.release()
-            # elif curr_frame_id >= config.MAX_FRAMES:
-            #     curr_frame_id = 0
-            #     print('[Max frame reached] finished ' + str(time.time()))
-            #     frame_lock.release()
-            #     # return
-            # else:
+            #     curr_frame_id += int(10/curr_frame_rate)
             #     frame_lock.release()
         else:
             time.sleep(0.1)
@@ -622,9 +615,7 @@ class VehicleDataSendThread(threading.Thread):
         while (self.is_helper_alive) and (connection_state == "Disconnected"):
             t_start = time.time()
             frame_lock.acquire()
-            # if curr_frame_id < config.MAX_FRAMES and curr_frame_id < len(pcd_data_buffer) \
-            #     and curr_frame_id < len(oxts_data_buffer):
-            curr_f_id = curr_frame_id
+            curr_f_id = curr_frame_id if not is_adaptive_frame_skipped else get_curr_tranmist_frame_id()
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
@@ -640,7 +631,6 @@ class VehicleDataSendThread(threading.Thread):
             if not if_send_success:
                 print("send not in time!!")
                 self.stop()
-            # if pcd_data_type == "GTA":
             if_send_success = send(self.v2v_data_send_sock, oxts, curr_f_id, TYPE_OXTS)
             t_elapsed = time.time() - t_start
             if capture_finished and is_adaptive_frame_skipped:
@@ -648,23 +638,7 @@ class VehicleDataSendThread(threading.Thread):
                 print("Update framerate: ", curr_frame_rate)
             if capture_finished and (1/curr_frame_rate - t_elapsed) > 0:
                 time.sleep(1/curr_frame_rate - t_elapsed)
-            if curr_frame_rate != 10:
-                frame_lock.acquire()
-                curr_frame_id += int(10/curr_frame_rate)
-                frame_lock.release()
-            # elif capture_finished and is_adaptive_frame_skipped and (1/FRAMERATE - t_elapsed) <= 0:
-            #     print('Sending passed %f'%t_elapsed)
-            #     passed_frames = int(t_elapsed*FRAMERATE)
-            #     frame_lock.acquire()
-            #     curr_frame_id += passed_frames
-            #     frame_lock.release()
-            # elif curr_frame_id >= config.MAX_FRAMES:
-            #     curr_frame_id = 0
-            #     frame_lock.release()
-            #     print('[Max frame reached] finished ' + str(time.time()))
-            #     # break
-            # else:
-            #     frame_lock.release()
+
         print("[Change helper/reconnect to server] close the prev conn thread " + str(time.time()))
         self.v2v_data_send_sock.close()
 
@@ -705,7 +679,7 @@ def check_if_disconnected(disconnect_timestamps):
     """
     # print("check if V2I conn is disconnected")
     if vehicle_id in disconnect_timestamps.keys():
-        elapsed_time = time.time() - curr_timestamp
+        elapsed_time = time.time() - start_timestamp
         index = bisect.bisect(disconnect_timestamps[vehicle_id], elapsed_time)
         if index % 2 == 1:
             # if index is an odd number, it falls in to the disconnected region 
@@ -720,17 +694,18 @@ def send_control_msgs(node_type):
     global control_seq_num
     # if node_type == HELPER:
     v2i_control_socket_lock.acquire()
-    if scheudler_mode == 'distributed':
+    if scheduler_mode == 'distributed':
         if node_type == HELPEE:
             wlan.broadcast_sos_msg(v2v_control_socket, vehicle_id)
-    if scheudler_mode == 'minDist' or scheudler_mode == 'combined' or scheudler_mode == 'bwAware':
+    if scheduler_mode == 'minDist' or scheduler_mode == 'combined' or scheduler_mode == 'bwAware' \
+        or scheduler_mode == 'random':
         # send helpee/helper info/loc 
         if node_type == HELPER:
             wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, control_seq_num)
         else:
             mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num)
         control_seq_num += 1
-    if scheudler_mode == 'combined' or scheudler_mode == 'routeAware':
+    if scheduler_mode == 'combined' or scheduler_mode == 'routeAware':
         # send routing info
         if node_type == HELPER:
             wwan.send_route(HELPER, vehicle_id, route.table_to_bytes(route.get_routes(vehicle_id)), 
@@ -772,7 +747,7 @@ def check_connection_state(disconnect_timestamps):
 
 
 def main():
-    global curr_timestamp
+    global start_timestamp
     # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
     #          args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
     # senser_data_capture_thread.start()
@@ -788,8 +763,8 @@ def main():
     # explicitly sync on encoding
     if t_elapsed < 10:
         time.sleep(10-t_elapsed)
-    curr_timestamp = time.time()
-    print("[start timestamp] ", curr_timestamp)
+    start_timestamp = time.time()
+    print("[start timestamp] ", start_timestamp)
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
     loction_update_thread.daemon = True
     loction_update_thread.start()

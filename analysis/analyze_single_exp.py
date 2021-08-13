@@ -132,8 +132,6 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         # plot time series data
         ts, delay = construct_ts_latency_array(delay_dict_ts[i])
         ax.plot(ts, delay, '--o', label='node%d'%i)
-        np.savetxt(dir+'node%d_delay.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
-        np.savetxt(dir+'node%d_thrpt.txt'%i, np.array(receiver_thrpt[i]))
     plt.xlabel("Time (s)")
     plt.ylabel("Latency (s)")
     plt.legend()
@@ -206,7 +204,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     plt.savefig(dir+'server-helper-helpee-change.png')
 
     # plot assignments
-    server_assignments, ts_to_scores = util.get_server_assignments(dir + 'logs/server.log')
+    assignment_mode, server_assignments, ts_to_scores = util.get_server_assignments(dir + 'logs/server.log')
     if len(server_assignments) != 0: # proceed if there are assignments
         timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_assignments)
         print(assignment_enums)
@@ -245,7 +243,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     ax.set_axisbelow(True)
     sns.ecdfplot(delay_all)
     # plt.xlim([0, 0.5])
-    np.savetxt(dir+'all_delay.txt', delay_all)
+    # np.savetxt(dir+'all_delay.txt', delay_all)
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
     # plt.legend()
