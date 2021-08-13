@@ -274,6 +274,11 @@ def v2i_data_send_thread():
             curr_f_id = curr_frame_id if not is_adaptive_frame_skipped else get_curr_tranmist_frame_id()
             expected_trasmit_frame = get_curr_tranmist_frame_id()
             print("Current sending frame %d, latest ready frame %d"%(curr_f_id, expected_trasmit_frame))
+            if curr_f_id > expected_trasmit_frame:
+                frame_lock.release()
+                next_ready_frame_time = (time.time() - start_timestamp) % (1.0/curr_frame_rate)
+                time.sleep(1/curr_frame_rate - next_ready_frame_time)
+                continue
             data_f_id = curr_f_id % config.MAX_FRAMES
             # pcd = pcd_data_buffer[data_f_id]
             # pcd = pcd_data_buffer[data_f_id][0]
@@ -626,6 +631,11 @@ class VehicleDataSendThread(threading.Thread):
             curr_f_id = curr_frame_id if not is_adaptive_frame_skipped else get_curr_tranmist_frame_id()
             expected_trasmit_frame = get_curr_tranmist_frame_id()
             print("Current sending frame %d, latest ready frame %d"%(curr_f_id, expected_trasmit_frame))
+            if curr_f_id > expected_trasmit_frame:
+                frame_lock.release()
+                next_ready_frame_time = (time.time() - start_timestamp) % (1.0/curr_frame_rate)
+                time.sleep(1.0/curr_frame_rate - next_ready_frame_time)
+                continue
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
@@ -649,7 +659,8 @@ class VehicleDataSendThread(threading.Thread):
             if capture_finished and (1/curr_frame_rate - t_elapsed) > 0 \
                 and expected_trasmit_frame == curr_f_id: 
                 # only sleep and wait if current sending frame is matched to the newest ready frame
-                time.sleep(1/curr_frame_rate - t_elapsed)
+                time_to_next_ready_frame = (time.time() - start_timestamp) % (1.0/curr_frame_rate)
+                time.sleep(1/curr_frame_rate - time_to_next_ready_frame)
 
         print("[Change helper/reconnect to server] close the prev conn thread " + str(time.time()))
         self.v2v_data_send_sock.close()
@@ -741,6 +752,12 @@ def check_connection_state(disconnect_timestamps):
     global connection_state, control_seq_num
     while True:
         t_start = time.time()
+        if check_if_disconnected(disconnect_timestamps):
+            if connection_state == "Connected":
+                print("disconnect to server ", time.time())
+            connection_state = "Disconnected"
+        else:
+            connection_state = "Connected"
         if connection_state == "Connected" and not control_msg_disabled:
             # print("Connected to server...")
             # send out the corresponding control messages
@@ -748,12 +765,6 @@ def check_connection_state(disconnect_timestamps):
         elif connection_state == "Disconnected" and not control_msg_disabled:
             # print("Disconnected to server... broadcast " + str(time.time()))
             send_control_msgs(HELPEE)
-        if check_if_disconnected(disconnect_timestamps):
-            if connection_state == "Connected":
-                print("disconnect to server ", time.time())
-            connection_state = "Disconnected"
-        else:
-            connection_state = "Connected"
         t_elasped = time.time() - t_start
         if 0.2-t_elasped > 0:
             time.sleep(0.2-t_elasped)
