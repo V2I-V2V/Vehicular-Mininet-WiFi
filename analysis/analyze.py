@@ -32,13 +32,51 @@ HELPEE = []
 config_set = set()
 
 
+def get_key_from_config(config, dir=''):
+    global num_nodes
+    scheduler = config["scheduler"]
+    network = config["network_trace"].split('/')[-1][:-4] # TODO: do we really need to split?
+    mobility = config["location_file"].split('/')[-1][:-4]
+    helpee = config["helpee_conf"].split('/')[-1][:-4] # TODO: helpe_config instead of helpee
+    num_nodes = int(config["num_of_nodes"])
+    adapt_frame_skipping = int(config["adapt_frame_skipping"])
+    if adapt_frame_skipping == 1:
+        scheduler += '-adapt'
+    if "adaptive_encode" in config.keys():
+        adaptive = config["adaptive_encode"]
+    else:
+        adaptive = "0" 
+    if scheduler not in SCHEDULERS: # TODO: Use a set
+        SCHEDULERS.append(scheduler)
+    if network not in BW:
+        BW.append(network)
+    if mobility not in LOC:
+        LOC.append(mobility)
+    if helpee not in HELPEE:
+        HELPEE.append(helpee)
+    if "multi" in config.keys():
+        is_multi = config["multi"]
+        conf_key = (dir, scheduler, network, mobility, is_multi, helpee, adaptive, adapt_frame_skipping)
+    else:
+        conf_key = (dir, scheduler, network, mobility, helpee, adaptive, adapt_frame_skipping)
+    return conf_key
 ## TODO: define a function that plot comparison for only two schedulers
 ## with each node's latecy and assignment
 
-def compare_two_sched(setting1, setting2):
-    result_sched1, result_sched2 = result_each_run[setting1], result_each_run[setting2]
+def compare_two_sched(data_folder1, data_folder2):
+    assignment1 = util.get_server_assignments(data_folder1+'/logs/server.log')   
+    assignment2 = util.get_server_assignments(data_folder2+'/logs/server.log')
+    config1 = run_experiment.parse_config_from_file(data_folder1 + '/config.txt')
+    config2 = run_experiment.parse_config_from_file(data_folder2 + '/config.txt')
+    sched1_key, sched2_key = get_key_from_config(config1, data_folder1), get_key_from_config(config2, data_folder2)
+
+    fig = plt.figure()
+    total_num_subfigures = (num_nodes + 1) * 2
     
 
+    # ax = fig.add_subplot()
+
+    
 def generate_keys(locs, bws, helpees, schedulers=None):
     keys = []
     for l in locs:
@@ -315,32 +353,7 @@ def get_all_runs_results(data_dir, key, with_ssim=False):
         if key in dir:
             # put this is a function def 
             config = run_experiment.parse_config_from_file(data_dir+dir+'/config.txt')
-            scheduler = config["scheduler"]
-            network = config["network_trace"].split('/')[-1][:-4] # TODO: do we really need to split?
-            mobility = config["location_file"].split('/')[-1][:-4]
-            helpee = config["helpee_conf"].split('/')[-1][:-4] # TODO: helpe_config instead of helpee
-            num_nodes = int(config["num_of_nodes"])
-            adapt_frame_skipping = int(config["adapt_frame_skipping"])
-            if adapt_frame_skipping == 1:
-                scheduler += '-adapt'
-            if "adaptive_encode" in config.keys():
-                adaptive = config["adaptive_encode"]
-            else:
-                adaptive = "0" 
-            if scheduler not in SCHEDULERS: # TODO: Use a set
-                SCHEDULERS.append(scheduler)
-            if network not in BW:
-                BW.append(network)
-            if mobility not in LOC:
-                LOC.append(mobility)
-            if helpee not in HELPEE:
-                HELPEE.append(helpee)
-            if "multi" in config.keys():
-                is_multi = config["multi"]
-                conf_key = (dir, scheduler, network, mobility, is_multi, helpee, adaptive, adapt_frame_skipping)
-            else:
-                conf_key = (dir, scheduler, network, mobility, helpee, adaptive, adapt_frame_skipping)
-
+            conf_key = get_key_from_config(config, dir)
             # insert (sched, network, mobility, helpee) in to config_set
             config_set.add((num_nodes, config["network_trace"], config["location_file"], \
                 config["helpee_conf"], config["t"]))

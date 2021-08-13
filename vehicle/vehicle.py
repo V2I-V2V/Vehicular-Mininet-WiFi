@@ -258,6 +258,9 @@ def get_frame_ready_timestamp(frame_id, fps):
 def get_curr_tranmist_frame_id():
     return int((time.time() - start_timestamp)*FRAMERATE)
 
+def get_time_to_next_ready_frame():
+    offset = time.time() - start_timestamp
+
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
     """
@@ -269,6 +272,8 @@ def v2i_data_send_thread():
             t_start = time.time()
             frame_lock.acquire()
             curr_f_id = curr_frame_id if not is_adaptive_frame_skipped else get_curr_tranmist_frame_id()
+            expected_trasmit_frame = get_curr_tranmist_frame_id()
+            print("Current sending frame %d, latest ready frame %d"%(curr_f_id, expected_trasmit_frame))
             data_f_id = curr_f_id % config.MAX_FRAMES
             # pcd = pcd_data_buffer[data_f_id]
             # pcd = pcd_data_buffer[data_f_id][0]
@@ -289,9 +294,12 @@ def v2i_data_send_thread():
             if capture_finished and is_adaptive_frame_skipped:
                 curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
                 print("Update framerate: ", curr_frame_rate, time.time())
-            if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0:
+            if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0\
+                and expected_trasmit_frame == curr_f_id: 
+                # only sleep and wait if current sending frame is matched to the newest ready frame
                 print("capture finished, sleep %f" % (1.0/curr_frame_rate-t_elapsed))
-                time.sleep(1.0/curr_frame_rate-t_elapsed)
+                time_to_next_ready_frame = (time.time() - start_timestamp) % (1.0/curr_frame_rate)
+                time.sleep(1.0/curr_frame_rate-time_to_next_ready_frame)
             # if curr_frame_rate != 10:
             #     frame_lock.acquire()
             #     curr_frame_id += int(10/curr_frame_rate)
@@ -616,6 +624,8 @@ class VehicleDataSendThread(threading.Thread):
             t_start = time.time()
             frame_lock.acquire()
             curr_f_id = curr_frame_id if not is_adaptive_frame_skipped else get_curr_tranmist_frame_id()
+            expected_trasmit_frame = get_curr_tranmist_frame_id()
+            print("Current sending frame %d, latest ready frame %d"%(curr_f_id, expected_trasmit_frame))
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
             # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
@@ -636,7 +646,9 @@ class VehicleDataSendThread(threading.Thread):
             if capture_finished and is_adaptive_frame_skipped:
                 curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
                 print("Update framerate: ", curr_frame_rate)
-            if capture_finished and (1/curr_frame_rate - t_elapsed) > 0:
+            if capture_finished and (1/curr_frame_rate - t_elapsed) > 0 \
+                and expected_trasmit_frame == curr_f_id: 
+                # only sleep and wait if current sending frame is matched to the newest ready frame
                 time.sleep(1/curr_frame_rate - t_elapsed)
 
         print("[Change helper/reconnect to server] close the prev conn thread " + str(time.time()))
@@ -737,6 +749,8 @@ def check_connection_state(disconnect_timestamps):
             # print("Disconnected to server... broadcast " + str(time.time()))
             send_control_msgs(HELPEE)
         if check_if_disconnected(disconnect_timestamps):
+            if connection_state == "Connected":
+                print("disconnect to server ", time.time())
             connection_state = "Disconnected"
         else:
             connection_state = "Connected"
