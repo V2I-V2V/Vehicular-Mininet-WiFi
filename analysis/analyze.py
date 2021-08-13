@@ -36,8 +36,8 @@ config_set = set()
 ## with each node's latecy and assignment
 
 def compare_two_sched(setting1, setting2):
+    result_sched1, result_sched2 = result_each_run[setting1], result_each_run[setting2]
     
-    pass
 
 def generate_keys(locs, bws, helpees, schedulers=None):
     keys = []
@@ -233,37 +233,37 @@ def plot_based_on_setting(num_nodes):
     # plt.savefig('analysis-results/combined-improvement.png')
     selected_schedulers = SCHEDULERS
     # selected_schedulers = ['combined', 'distributed']
-    for loc in LOC:
-        for bw in BW:
-            for helpee in HELPEE: 
-                titles = []                
-                print("lat ency-all-sched_figure:", (loc, bw, helpee))
-                for i in range(num_nodes):
-                    fig = plt.figure(figsize=(18,16)) 
+    # for loc in LOC:
+    #     for bw in BW:
+    #         for helpee in HELPEE: 
+    #             titles = []                
+    #             print("lat ency-all-sched_figure:", (loc, bw, helpee))
+    #             for i in range(num_nodes):
+    #                 fig = plt.figure(figsize=(18,16)) 
                     
-                    cnt = 1
+    #                 cnt = 1
                       
-                    for sched in selected_schedulers:
-                        ax = fig.add_subplot(len(selected_schedulers), 1, cnt)     
-                        # folder = get_folder_based_on_setting('./', (loc, bw, helpee, sched))[0]
-                        for k, v in result_each_run.items():
-                            matched = check_keys_matched((loc, bw, helpee, sched), k)
-                            if matched:
-                                titles.append(k[0])
-                                data_one_setting = v
-                                break                     
-                            ts, latency = construct_ts_latency_array(data_one_setting[i])
-                            ax.plot(ts, latency, '--.', label="node%i"%i)
-                            ax.legend()
-                            ax.set_ylabel(sched, fontsize=20)
+    #                 for sched in selected_schedulers:
+    #                     ax = fig.add_subplot(len(selected_schedulers), 1, cnt)     
+    #                     # folder = get_folder_based_on_setting('./', (loc, bw, helpee, sched))[0]
+    #                     for k, v in result_each_run.items():
+    #                         matched = check_keys_matched((loc, bw, helpee, sched), k)
+    #                         if matched:
+    #                             titles.append(k[0])
+    #                             data_one_setting = v
+    #                             break                     
+    #                         ts, latency = construct_ts_latency_array(data_one_setting[i])
+    #                         ax.plot(ts, latency, '--.', label="node%i"%i)
+    #                         ax.legend()
+    #                         ax.set_ylabel(sched, fontsize=20)
 
-                    cnt += 1
-                    plt.title(str(titles))
-                    plt.xlabel('Time (s)')
-                    plt.tight_layout()
-                    print(titles)
+    #                 cnt += 1
+    #                 plt.title(str(titles))
+    #                 plt.xlabel('Time (s)')
+    #                 plt.tight_layout()
+    #                 print(titles)
 
-                    plt.savefig('analysis-results/%s-node%d-latency.png'%(str((loc, bw, helpee)),cnt))
+    #                 plt.savefig('analysis-results/%s-node%d-latency.png'%(str((loc, bw, helpee)),cnt))
 
 
 

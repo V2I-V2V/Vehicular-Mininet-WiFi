@@ -20,9 +20,9 @@ def get_disconnect_id_durations(disconnect_array):
     else:
         disconnect_ids = np.array(disconnect_array[0],dtype=int)
     id_to_disconnect_tses = {}
-    for idx in disconnect_array.shape[1]:
+    for idx in range(disconnect_array.shape[1]):
         id_to_disconnect_tses[disconnect_array[0][idx]] = \
-            id_to_disconnect_tses[disconnect_array[1:, idx]]
+            disconnect_array[1:, idx]
     return id_to_disconnect_tses
 
 
@@ -38,7 +38,7 @@ def get_disconect_duration_in_percentage(disconnect_trace, run_time, num_nodes):
             if i+1 < len(disconnect_array):
                 sum_disconnect_time += min(run_time-disconnect_array[i],\
                                             disconnect_array[i+1]-disconnect_array[i])
-    num_helpees = id_to_disconnect_tses.keys()
+    num_helpees = len(id_to_disconnect_tses.keys())
     disconnect_percentage = sum_disconnect_time / (run_time * num_nodes) * 100.0
     return num_helpees, disconnect_percentage
 

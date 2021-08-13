@@ -39,6 +39,7 @@ def get_node_dists(loc):
         traj = traj.reshape(1, -1)
     for i in range(int(traj.shape[1]/2)):
         trajs[i] = traj[:,2*i:2*i+2]
+    
     return plot_distance_for_each_node(trajs, save_plot=False)
     
 def plot_distance_for_each_node(trajs, save_dir='./', save_plot=True):
@@ -70,7 +71,7 @@ def plot_distance_for_each_node(trajs, save_dir='./', save_plot=True):
     if save_plot:
         plt.savefig(save_dir + 'node-distances.png')
 
-    return node_to_distances[start_node]
+    return node_to_distances
 
 def plot_loc_at_timestamp(loc_file, timestamp, save_dir='./'):
     traj = np.loadtxt(loc_file)

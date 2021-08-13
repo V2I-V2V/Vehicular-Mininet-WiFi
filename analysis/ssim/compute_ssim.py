@@ -83,7 +83,7 @@ def main():
     num_of_nodes = int(configs["num_of_nodes"])
     frameinfo = []
     start = time.time()
-    n_engs = 6
+    n_engs = 10
     engs = [matlab.engine.start_matlab() for x in range(n_engs)]
     now = time.time()
     print("time taken to start " + str(n_engs) + " matlab(s): " + str("{:.2f}".format(now - start)) + " sec")

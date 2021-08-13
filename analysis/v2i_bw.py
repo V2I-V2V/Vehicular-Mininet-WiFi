@@ -21,7 +21,7 @@ def get_nodes_v2i_bw(bw_file, time, num_nodes, helpee_conf):
     conn_status = get_connection_status(helpee_conf, time, num_nodes)
     for i in range(num_nodes):
         if i in conn_status.keys():
-            used_thrpts[:,i] *= conn_status[i]
+            used_thrpts[:time,i] *= conn_status[i]
     return used_thrpts
 
 def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
