@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import json
 from util import *
+from analyze_single_exp import construct_ts_assignment_array
 
 font = {'family' : 'DejaVu Sans',
         'size'   : 15}
@@ -64,17 +65,46 @@ def get_key_from_config(config, dir=''):
 ## with each node's latecy and assignment
 
 def compare_two_sched(data_folder1, data_folder2):
-    assignment1 = util.get_server_assignments(data_folder1+'/logs/server.log')   
-    assignment2 = util.get_server_assignments(data_folder2+'/logs/server.log')
+    ass1_mode, server_ass1, ts_to_scores = get_server_assignments(data_folder1+'/logs/server.log')   
+    ass2_mode, server_ass2, ts_to_scores = get_server_assignments(data_folder2+'/logs/server.log')
     config1 = run_experiment.parse_config_from_file(data_folder1 + '/config.txt')
     config2 = run_experiment.parse_config_from_file(data_folder2 + '/config.txt')
     sched1_key, sched2_key = get_key_from_config(config1, data_folder1), get_key_from_config(config2, data_folder2)
+    ass1_rst, ass2_rst = result_each_run[sched1_key], result_each_run[sched2_key]
 
-    fig = plt.figure()
-    total_num_subfigures = (num_nodes + 1) * 2
+    fig = plt.figure(figsize=(18,12))
+    # total_num_subfigures = (num_nodes + 1) * 2
     
+    for i in range(num_nodes):
+        ax1 = fig.add_subplot(num_nodes+1, 2, 2*i+1)
+        s1_ts, s1_latency = construct_ts_latency_array(ass1_rst[i])
+        ax1.plot(s1_ts, s1_latency,\
+             label='node%d'%i)
+        ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
+        s2_ts, s2_latency = construct_ts_latency_array(ass2_rst[i])
+        ax2.plot(s2_ts, s2_latency, label='node%d'%i)
+        ax1.legend()
+        ax2.legend()
 
-    # ax = fig.add_subplot()
+    # plot assignments
+    ax = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+1)
+    timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass1)
+    ax.plot(timestamps, assignments, color='darkblue', label='assignment')
+    ax.set_ylabel('Assignment\n(helpee: helper)')
+    ax.set_xlabel(config1['scheduler'], fontsize=30)
+    ax.set_yticks(np.arange(0, len(assignment_enums), 1))
+    ax.set_yticklabels(assignment_enums)
+
+    ax2 = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+2)
+    timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass2)
+    ax2.plot(timestamps, assignments, color='darkblue', label='assignment')
+    ax2.set_ylabel('Assignment\n(helpee: helper)')
+    ax2.set_xlabel(config2['scheduler'], fontsize=30)
+    ax2.set_yticks(np.arange(0, len(assignment_enums), 1))
+    ax2.set_yticklabels(assignment_enums)
+
+    plt.tight_layout()
+    plt.savefig('analysis-results/compare-ass.png')
 
     
 def generate_keys(locs, bws, helpees, schedulers=None):
@@ -642,12 +672,17 @@ def main():
     # for folder in rst:
     #     os.system("rm -rf %s"%folder)
     
+    compare_sched_in_one_plot = False
     if len(args.task)>0:
         if args.task[0] == 'get_folder_on_setting':        
             print(tuple(args.task[1:]))
             rst = get_folder_based_on_setting(data_dir, tuple(args.task[1:]))
             print(rst)
             return
+        elif args.task[0] == 'compare_sched':
+            compare_sched_in_one_plot = True
+            sched1_folder, sched2_folder = args.task[1], args.task[2]
+
     
     os.system('mkdir %s/analysis-results/'%data_dir)
 
@@ -655,14 +690,11 @@ def main():
     get_all_runs_results(data_dir, key, with_ssim=with_ssim)
     get_summary_of_settings(config_set)
 
-    # plot_bar_across_runs()
-
-    # for sched in SCHEDULERS:
-    #     # plot_bars_of_a_schedule(sched)
-    #     plot_bar_based_on_schedule(sched)
+    if compare_sched_in_one_plot:
+        compare_two_sched(sched1_folder, sched2_folder)
+        return 
     
     # compare schedule
-    # schedules = ['combined', 'distributed']
     schedules = SCHEDULERS
     plot_bars_compare_schedules(schedules) # plot_bars_comapring_schedules(SCHEDULERS)
 

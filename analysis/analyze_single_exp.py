@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import analysis.util as util
 import analysis.v2i_bw as v2i_bw, analysis.trajectory as trajectory, analysis.disconnection as disconnection
 
+import run_experiment
+
 font = {'family' : 'DejaVu Sans',
         'size'   : 15}
 matplotlib.rc('font', **font)
@@ -15,7 +17,6 @@ matplotlib.rc('font', **font)
 MAX_FRAMES = 80
 
 np.set_printoptions(precision=3)
-
 
 
 def get_helper_receive_ts(filename):
@@ -76,6 +77,17 @@ def construct_ts_scores_array(scores):
     return ts, dist_scores, bw_scores, intf_scores
 
 
+def plot_all_delay(dir, delay_all):
+    # plot overall delay
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_axisbelow(True)
+    sns.ecdfplot(delay_all)
+    plt.xlabel("Latency (s)")
+    plt.ylabel("CDF")
+    plt.savefig(dir+'latency-cdf.png')
+
+
 def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time):
     # plot node bw
     v2i_bw.plot_v2i_bw(bw_file, exp_time, num_nodes, dir, helpee_conf)
@@ -85,7 +97,6 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
 
     # plot disconnect trace
     disconnection.plot_disconnect(helpee_conf, exp_time, num_nodes, dir)
-
 
     sender_ts_dict = {}
     sender_adaptive_choice = {}
@@ -104,10 +115,8 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     delay_all = np.empty((300,))
     for i in range(num_nodes):
         delay_dict[i], delay_dict_ts[i] = calculate_latency(sender_ts_dict[i], receiver_ts_dict[i])
-        # print(len(delay_dict[i]))
         if i == 0:
             delay_all = np.fromiter(delay_dict[i].values(), dtype=float)
-            # print(delay_all)
         else:
             delay = np.fromiter(delay_dict[i].values(), dtype=float)
             delay_all = np.concatenate((delay_all, delay))
@@ -138,18 +147,6 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     plt.tight_layout()
     plt.savefig(dir+'latency-over-time.png')
 
-    fig = plt.figure(figsize=(9, 12))
-    for i in range(num_nodes):
-        # plot time series data
-        ax = fig.add_subplot(num_nodes,1, i+1)
-        ts, delay = construct_ts_latency_array(delay_dict_ts[i])
-        ax.plot(ts, delay, '--o', label='node%d'%i)
-        ax.legend()
-    plt.xlabel("Time (s)")
-    plt.ylabel("Latency (s)")
-    plt.tight_layout()
-    plt.savefig(dir+'latency-over-time-each-node.png')
-
     # plot adaptive encode
     if len(sender_adaptive_choice[0]) != 0:
         bw = np.loadtxt(bw_file)
@@ -169,8 +166,6 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
             ax.set_xlabel('Time (s)')
             ax.set_ylabel('Latency (s)')
             ax2.set_ylabel('Bandwidth (Mbps)')
-            # ax2.set_ylim(-4, 22)
-            # ax.set_ylim(0, 5)
             ax.legend(loc='upper left')
             ax2.legend()
 
@@ -194,8 +189,6 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         ts_combined = np.concatenate((ts_node, ts[ts>ts_node[-1]]))
         val_combined = np.concatenate((np.ones(len(ts_node)), np.zeros(len(ts[ts>ts_node[-1]]))))
         ax2.plot(ts_combined, val_combined+i/50, '--',  label='node %d frame arrival pattern'%i)
-        # ax2.scatter(ts_combined, val_combined+i/50,  label='node %d frame arrival pattern'%i)
-    # ax2.plot(ts[ts>ts_node[-1]], np.zeros(len(ts[ts>ts_node[-1]])))
     ax2.set_ylabel("Frame Arrival")
     ax2.set_yticks([-1, 0, 1, 2])
     ax2.legend(loc='lower right')
@@ -237,24 +230,41 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         plt.tight_layout()
         plt.savefig(dir+'assignments.png')
 
-    # plot overall delay
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.set_axisbelow(True)
-    sns.ecdfplot(delay_all)
-    # plt.xlim([0, 0.5])
-    # np.savetxt(dir+'all_delay.txt', delay_all)
-    plt.xlabel("Latency (s)")
-    plt.ylabel("CDF")
-    # plt.legend()
-    plt.savefig(dir+'latency-cdf.png')
+    plot_all_delay(dir, delay_all)
+
+    # plot the summary figure
+    fig = plt.figure(figsize=(18, 12))
+    bws = v2i_bw.get_nodes_v2i_bw(bw_file,exp_time,num_nodes,helpee_conf)
+    for i in range(num_nodes):
+        # plot time series data
+        ax = fig.add_subplot(num_nodes+1, 2, 2*i+1)
+        ts, delay = construct_ts_latency_array(delay_dict_ts[i])
+        ax.plot(ts, delay, '--o', label='node%d'%i)
+        ax.legend()
+        ax.set_ylabel("Latency (s)")
+        ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
+        ax2.plot(np.arange(bws[:,i].shape[0]), bws[:,i])
+        ax2.set_ylabel('BW')
+        ax2.set_ylim(top=50)
+
+    if len(server_assignments) != 0:
+        ax = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+1)
+        ax.plot(timestamps, assignments, color='darkblue', label='assignment')
+        ax.set_ylabel('Assignment\n(helpee: helper)')
+        ax.set_yticks(np.arange(0, len(assignment_enums), 1))
+        ax.set_yticklabels(assignment_enums)
+
+    plt.xlabel("Time (s)")
+    plt.tight_layout()
+    plt.savefig(dir+'summary.png')
 
 
 if __name__ == '__main__':
     dir=sys.argv[1]
-    num_nodes = int(sys.argv[2])
-    bw_file = sys.argv[3]
-    loc_file = sys.argv[4]
-    helpee_conf = sys.argv[5]
-    exp_time = int(sys.argv[6])
+    config_params = run_experiment.parse_config_from_file(dir + "/config.txt")
+    num_nodes = int(config_params['num_of_nodes'])
+    bw_file = config_params['network_trace']
+    loc_file = config_params['location_file']
+    helpee_conf = config_params['helpee_conf']
+    exp_time = int(config_params['t'])
     single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time)
