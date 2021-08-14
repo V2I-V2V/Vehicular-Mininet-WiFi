@@ -42,14 +42,16 @@ def get_sender_ts(filename):
         lines = f.readlines()
         for line in lines:
             parse = line.split()
-            if line.startswith("[V2I"):
-                ts = float(parse[-1])
+            if line.startswith('[start timestamp]'):
+                start_ts = float(parse[-1])
+            elif line.startswith('fps '):
+                fps = int(parse[-1])
+            elif line.startswith("[V2I"):
                 frame = int(parse[-2])
-                sender_ts[frame] = ts
+                sender_ts[frame] = frame * 1.0/fps + start_ts
             elif line.startswith("[V2V"):
-                ts = float(parse[-1])
                 frame = int(parse[-5])
-                sender_ts[frame] = ts
+                sender_ts[frame] = frame * 1.0/fps + start_ts
             elif line.startswith("frame id:"):
                 num_chunks = int(parse[-1])
                 frame = int(parse[2])
@@ -156,6 +158,11 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
         for frame_idx, recv_ts in receiver_ts_dict[i].items():
             send_ts = sender_ts_dict[i][frame_idx]
             latency = recv_ts-sender_ts_dict[i][frame_idx]
+            # if latency < 0:
+            #     print("negative latency! %f, %d"%(latency, frame_idx))
+            #     print(dir)
+            #     print(i)
+            #     exit(1)
             latency_dict[i][send_ts] = [latency, frame_idx] # add adptation choice
             if with_ssim:                
                 latency_dict[i][send_ts] = [latency, frame_idx, get_ssim(node_to_ssims[i], frame_idx)]

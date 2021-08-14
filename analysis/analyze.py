@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import json
 from util import *
+from analyze_single_exp import construct_ts_assignment_array
 
 font = {'family' : 'DejaVu Sans',
         'size'   : 15}
@@ -32,13 +33,80 @@ HELPEE = []
 config_set = set()
 
 
+def get_key_from_config(config, dir=''):
+    global num_nodes
+    scheduler = config["scheduler"]
+    network = config["network_trace"].split('/')[-1][:-4] # TODO: do we really need to split?
+    mobility = config["location_file"].split('/')[-1][:-4]
+    helpee = config["helpee_conf"].split('/')[-1][:-4] # TODO: helpe_config instead of helpee
+    num_nodes = int(config["num_of_nodes"])
+    adapt_frame_skipping = int(config["adapt_frame_skipping"])
+    if adapt_frame_skipping == 1:
+        scheduler += '-adapt'
+    if "adaptive_encode" in config.keys():
+        adaptive = config["adaptive_encode"]
+    else:
+        adaptive = "0" 
+    if scheduler not in SCHEDULERS: # TODO: Use a set
+        SCHEDULERS.append(scheduler)
+    if network not in BW:
+        BW.append(network)
+    if mobility not in LOC:
+        LOC.append(mobility)
+    if helpee not in HELPEE:
+        HELPEE.append(helpee)
+    if "multi" in config.keys():
+        is_multi = config["multi"]
+        conf_key = (dir, scheduler, network, mobility, is_multi, helpee, adaptive, adapt_frame_skipping)
+    else:
+        conf_key = (dir, scheduler, network, mobility, helpee, adaptive, adapt_frame_skipping)
+    return conf_key
 ## TODO: define a function that plot comparison for only two schedulers
 ## with each node's latecy and assignment
 
-def compare_two_sched(setting1, setting2):
-    
-    pass
+def compare_two_sched(data_folder1, data_folder2):
+    ass1_mode, server_ass1, ts_to_scores = get_server_assignments(data_folder1+'/logs/server.log')   
+    ass2_mode, server_ass2, ts_to_scores = get_server_assignments(data_folder2+'/logs/server.log')
+    config1 = run_experiment.parse_config_from_file(data_folder1 + '/config.txt')
+    config2 = run_experiment.parse_config_from_file(data_folder2 + '/config.txt')
+    sched1_key, sched2_key = get_key_from_config(config1, data_folder1), get_key_from_config(config2, data_folder2)
+    ass1_rst, ass2_rst = result_each_run[sched1_key], result_each_run[sched2_key]
 
+    fig = plt.figure(figsize=(18,12))
+    # total_num_subfigures = (num_nodes + 1) * 2
+    
+    for i in range(num_nodes):
+        ax1 = fig.add_subplot(num_nodes+1, 2, 2*i+1)
+        s1_ts, s1_latency = construct_ts_latency_array(ass1_rst[i])
+        ax1.plot(s1_ts, s1_latency,\
+             label='node%d'%i)
+        ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
+        s2_ts, s2_latency = construct_ts_latency_array(ass2_rst[i])
+        ax2.plot(s2_ts, s2_latency, label='node%d'%i)
+        ax1.legend()
+        ax2.legend()
+
+    # plot assignments
+    ax = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+1)
+    timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass1)
+    ax.plot(timestamps, assignments, color='darkblue', label='assignment')
+    ax.set_ylabel('Assignment\n(helpee: helper)')
+    ax.set_xlabel(config1['scheduler'], fontsize=30)
+    ax.set_yticks(np.arange(0, len(assignment_enums), 1))
+    ax.set_yticklabels(assignment_enums)
+
+    ax2 = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+2)
+    timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass2)
+    ax2.plot(timestamps, assignments, color='darkblue', label='assignment')
+    ax2.set_ylabel('Assignment\n(helpee: helper)')
+    ax2.set_xlabel(config2['scheduler'], fontsize=30)
+    ax2.set_yticks(np.arange(0, len(assignment_enums), 1))
+    ax2.set_yticklabels(assignment_enums)
+
+    plt.tight_layout()
+    plt.savefig('analysis-results/compare-ass.png')
+
+    
 def generate_keys(locs, bws, helpees, schedulers=None):
     keys = []
     for l in locs:
@@ -233,37 +301,37 @@ def plot_based_on_setting(num_nodes):
     # plt.savefig('analysis-results/combined-improvement.png')
     selected_schedulers = SCHEDULERS
     # selected_schedulers = ['combined', 'distributed']
-    for loc in LOC:
-        for bw in BW:
-            for helpee in HELPEE: 
-                titles = []                
-                print("lat ency-all-sched_figure:", (loc, bw, helpee))
-                for i in range(num_nodes):
-                    fig = plt.figure(figsize=(18,16)) 
+    # for loc in LOC:
+    #     for bw in BW:
+    #         for helpee in HELPEE: 
+    #             titles = []                
+    #             print("lat ency-all-sched_figure:", (loc, bw, helpee))
+    #             for i in range(num_nodes):
+    #                 fig = plt.figure(figsize=(18,16)) 
                     
-                    cnt = 1
+    #                 cnt = 1
                       
-                    for sched in selected_schedulers:
-                        ax = fig.add_subplot(len(selected_schedulers), 1, cnt)     
-                        # folder = get_folder_based_on_setting('./', (loc, bw, helpee, sched))[0]
-                        for k, v in result_each_run.items():
-                            matched = check_keys_matched((loc, bw, helpee, sched), k)
-                            if matched:
-                                titles.append(k[0])
-                                data_one_setting = v
-                                break                     
-                            ts, latency = construct_ts_latency_array(data_one_setting[i])
-                            ax.plot(ts, latency, '--.', label="node%i"%i)
-                            ax.legend()
-                            ax.set_ylabel(sched, fontsize=20)
+    #                 for sched in selected_schedulers:
+    #                     ax = fig.add_subplot(len(selected_schedulers), 1, cnt)     
+    #                     # folder = get_folder_based_on_setting('./', (loc, bw, helpee, sched))[0]
+    #                     for k, v in result_each_run.items():
+    #                         matched = check_keys_matched((loc, bw, helpee, sched), k)
+    #                         if matched:
+    #                             titles.append(k[0])
+    #                             data_one_setting = v
+    #                             break                     
+    #                         ts, latency = construct_ts_latency_array(data_one_setting[i])
+    #                         ax.plot(ts, latency, '--.', label="node%i"%i)
+    #                         ax.legend()
+    #                         ax.set_ylabel(sched, fontsize=20)
 
-                    cnt += 1
-                    plt.title(str(titles))
-                    plt.xlabel('Time (s)')
-                    plt.tight_layout()
-                    print(titles)
+    #                 cnt += 1
+    #                 plt.title(str(titles))
+    #                 plt.xlabel('Time (s)')
+    #                 plt.tight_layout()
+    #                 print(titles)
 
-                    plt.savefig('analysis-results/%s-node%d-latency.png'%(str((loc, bw, helpee)),cnt))
+    #                 plt.savefig('analysis-results/%s-node%d-latency.png'%(str((loc, bw, helpee)),cnt))
 
 
 
@@ -315,32 +383,7 @@ def get_all_runs_results(data_dir, key, with_ssim=False):
         if key in dir:
             # put this is a function def 
             config = run_experiment.parse_config_from_file(data_dir+dir+'/config.txt')
-            scheduler = config["scheduler"]
-            network = config["network_trace"].split('/')[-1][:-4] # TODO: do we really need to split?
-            mobility = config["location_file"].split('/')[-1][:-4]
-            helpee = config["helpee_conf"].split('/')[-1][:-4] # TODO: helpe_config instead of helpee
-            num_nodes = int(config["num_of_nodes"])
-            adapt_frame_skipping = int(config["adapt_frame_skipping"])
-            if adapt_frame_skipping == 1:
-                scheduler += '-adapt'
-            if "adaptive_encode" in config.keys():
-                adaptive = config["adaptive_encode"]
-            else:
-                adaptive = "0" 
-            if scheduler not in SCHEDULERS: # TODO: Use a set
-                SCHEDULERS.append(scheduler)
-            if network not in BW:
-                BW.append(network)
-            if mobility not in LOC:
-                LOC.append(mobility)
-            if helpee not in HELPEE:
-                HELPEE.append(helpee)
-            if "multi" in config.keys():
-                is_multi = config["multi"]
-                conf_key = (dir, scheduler, network, mobility, is_multi, helpee, adaptive, adapt_frame_skipping)
-            else:
-                conf_key = (dir, scheduler, network, mobility, helpee, adaptive, adapt_frame_skipping)
-
+            conf_key = get_key_from_config(config, dir)
             # insert (sched, network, mobility, helpee) in to config_set
             config_set.add((num_nodes, config["network_trace"], config["location_file"], \
                 config["helpee_conf"], config["t"]))
@@ -629,12 +672,17 @@ def main():
     # for folder in rst:
     #     os.system("rm -rf %s"%folder)
     
+    compare_sched_in_one_plot = False
     if len(args.task)>0:
         if args.task[0] == 'get_folder_on_setting':        
             print(tuple(args.task[1:]))
             rst = get_folder_based_on_setting(data_dir, tuple(args.task[1:]))
             print(rst)
             return
+        elif args.task[0] == 'compare_sched':
+            compare_sched_in_one_plot = True
+            sched1_folder, sched2_folder = args.task[1], args.task[2]
+
     
     os.system('mkdir %s/analysis-results/'%data_dir)
 
@@ -642,14 +690,11 @@ def main():
     get_all_runs_results(data_dir, key, with_ssim=with_ssim)
     get_summary_of_settings(config_set)
 
-    # plot_bar_across_runs()
-
-    # for sched in SCHEDULERS:
-    #     # plot_bars_of_a_schedule(sched)
-    #     plot_bar_based_on_schedule(sched)
+    if compare_sched_in_one_plot:
+        compare_two_sched(sched1_folder, sched2_folder)
+        return 
     
     # compare schedule
-    # schedules = ['combined', 'distributed']
     schedules = SCHEDULERS
     plot_bars_compare_schedules(schedules) # plot_bars_comapring_schedules(SCHEDULERS)
 
