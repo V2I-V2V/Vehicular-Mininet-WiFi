@@ -65,8 +65,12 @@ def get_key_from_config(config, dir=''):
 ## with each node's latecy and assignment
 
 def compare_two_sched(data_folder1, data_folder2):
-    ass1_mode, server_ass1, ts_to_scores = get_server_assignments(data_folder1+'/logs/server.log')   
+    ass1_mode, server_ass1, ts_to_scores = get_server_assignments(data_folder1+'/logs/server.log') 
+    if ass1_mode == 'distributed':
+        ass1_mode, server_ass1 = get_distributed_helper_assignments(data_folder1, num_nodes)
     ass2_mode, server_ass2, ts_to_scores = get_server_assignments(data_folder2+'/logs/server.log')
+    if ass2_mode == 'distributed':
+        ass2_mode, server_ass2 = get_distributed_helper_assignments(data_folder2, num_nodes)
     config1 = run_experiment.parse_config_from_file(data_folder1 + '/config.txt')
     config2 = run_experiment.parse_config_from_file(data_folder2 + '/config.txt')
     sched1_key, sched2_key = get_key_from_config(config1, data_folder1), get_key_from_config(config2, data_folder2)
@@ -640,10 +644,7 @@ def repeat_exp_analysis():
 
 def main():
     parser = argparse.ArgumentParser()
-    # parser.add_argument('-t', '--type', default="multi", type=str, help="analyze type multi|single")
     parser.add_argument('-d', '--data_dir', default="~/v2x/", type=str, help="data directory")
-    # parser.add_argument('-n', '--num_nodes', default=6, type=int, help="number of nodes")
-    # parser.add_argument('-f', '--frames', default=80, type=int, help='number of frames considered')
     parser.add_argument('-p', '--prefix', default='data-', type=str, help='prefix on data dir to analyze')
     ## high level task to anal e.g. compare_scheduler, compare_effect_multi, 
     ## one-help-many can be parsed from config

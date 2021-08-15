@@ -17,7 +17,6 @@ def get_nodes_v2i_bw(bw_file, time, num_nodes, helpee_conf):
     v2i_thrpts = np.loadtxt(bw_file)
     used_thrpts = v2i_thrpts[:, :num_nodes]
     if used_thrpts.shape[0] < time:
-        # print(np.tile(used_thrpts[-1], time-used_thrpts.shape[0]))
         used_thrpts = np.vstack((used_thrpts, np.tile(used_thrpts[-1], time-used_thrpts.shape[0]).reshape(-1, num_nodes)))
     conn_status = get_connection_status(helpee_conf, time, num_nodes)
     for i in range(num_nodes):
