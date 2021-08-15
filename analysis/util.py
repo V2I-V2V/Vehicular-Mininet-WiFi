@@ -4,6 +4,7 @@ from ast import literal_eval
 from analysis.v2i_bw import get_nodes_v2i_bw
 from analysis.disconnection import get_disconect_duration_in_percentage
 from analysis.trajectory import get_node_dists
+import matplotlib.pyplot as plt
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
@@ -49,13 +50,16 @@ def get_sender_ts(filename):
             elif line.startswith("[V2I"):
                 frame = int(parse[-2])
                 sender_ts[frame] = frame * 1.0/fps + start_ts
+                last_t = float(parse[-1])
             elif line.startswith("[V2V"):
                 frame = int(parse[-5])
                 sender_ts[frame] = frame * 1.0/fps + start_ts
+                last_t = float(parse[-1])
             elif line.startswith("frame id:"):
                 num_chunks = int(parse[-1])
                 frame = int(parse[2])
                 encode_choice[frame] = num_chunks
+                last_t = float(parse[-1])
             elif line.startswith("read and encode takes"):
                 encode_t = math.ceil(float(parse[-1]))
             elif line.startswith("[relay throughput]"):
@@ -92,6 +96,27 @@ def get_receiver_ts(filename):
                 
         f.close()
     return receiver_ts_dict, receiver_throughput, server_node_dict
+
+
+def get_distributed_helper_assignments(data_dir, num_nodes):
+    assignment_mode, ts_to_assignment = 'distributed', {}
+    helpee_to_helper = {}
+    for i in range(num_nodes):
+        filename = data_dir + '/logs/node%d.log'%i
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                if line.startswith("[Helpee decide to use helper assignment]"):
+                    parse = line.split()
+                    helper, ts = int(parse[-2]), float(parse[-1])
+                    # helpee_to_helper = {i: helper}
+                    helpee_to_helper[i] = helper
+                    break
+
+    ts_to_assignment[ts] = helpee_to_helper
+    ts_to_assignment[ts+56] = helpee_to_helper
+
+    return assignment_mode, ts_to_assignment
 
 
 def get_ssims(filename):
@@ -221,6 +246,7 @@ def construct_ts_latency_array(delay_dict_ts, expected_frames=550):
 
 def get_summary_of_settings(settings):
     setting_summary = open("setting_summary.txt", 'w')
+    loc_mean, bw_mean, connect = [], [], []
     for setting in settings:
         setting_summary.write(str(setting) + '\n')
         print("Get stats for setting", setting)
@@ -230,19 +256,34 @@ def get_summary_of_settings(settings):
         setting_summary.write("-------BW_Summary------\n")
         for i in range(num_nodes):
             setting_summary.write("node%d_bw_mean/std=%f/%f\n"%(i, np.mean(v2i_bw[:, i]), np.std(v2i_bw[:, i])))
+        bw_mean.append(np.mean(v2i_bw))
         num_helpees, disconnect_percentage = \
             get_disconect_duration_in_percentage(helpee_conf, run_time, num_nodes)
+        connect.append(disconnect_percentage)
         setting_summary.write("------Helpee_Summary------\n")
         setting_summary.write("num_helpees=%d\n"%(num_helpees))
         setting_summary.write("helpee_disconnect_time_percentage=%f\n"%(disconnect_percentage))
         node_dists = get_node_dists(loc)
         setting_summary.write("------Dist_Summay------\n")
+        mean_dists = []
         for i in range(num_nodes):
             dists = node_dists[i]
             mean, std = np.mean(dists), np.std(dists)
+            mean_dists.append(mean)
             setting_summary.write("node%d_to_other_distances_mean/std=%f/%f\n"%(i,mean, std))
         setting_summary.write("\n")
+        loc_mean = np.mean(mean_dists)
     setting_summary.close()
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(loc_mean, bw_mean, connect)
+    ax.set_xlabel('Dist mean (m)')
+    ax.set_ylabel('BW mean (Mbps)')
+    ax.set_zlabel('Disconnection percentage (%)')
+    plt.tight_layout()
+    plt.savefig('configurations.png')
+
         
         
 
