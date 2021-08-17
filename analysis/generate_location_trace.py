@@ -46,7 +46,10 @@ miny = np.min(merged_loc[:, 1::2])
 merged_loc[:, ::2] -= minx
 merged_loc[:, 1::2] -= miny
 
-np.savetxt('test-2.txt', merged_loc, fmt='%f')
+if len(sys.argv) > 1:
+    np.savetxt(sys.argv[1]+'.txt', merged_loc, fmt='%f')
+else:
+    np.savetxt('sample-loc-trace.txt', merged_loc, fmt='%f')
 
 
 
