@@ -36,6 +36,7 @@ routing = 'olsrd'
 no_control = 0
 adaptive_encode = 0
 adaptive_frame_skip = False
+combine_method = "harmonic_sum"
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -143,7 +144,7 @@ def kill_application():
 
 
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
-                    save=0, is_one_to_many=1):
+                    save=0, is_one_to_many=1, combine_method="harmonic_sum"):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
@@ -151,8 +152,8 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
              % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s > %s/logs/server.log 2>&1 &"\
-             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, CODE_DIR)
+        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s --combine_method %s > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, CODE_DIR)
         print(server_cmd)
     server.cmd(server_cmd)
     vehicle_app_commands = []
@@ -188,7 +189,8 @@ def run_custom_routing(nodes):
 def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, \
                 assignment_str=None, v2i_bw=default_v2i_bw, enable_plot=False, \
                 enable_tcpdump=False, run_app=False, scheduler="minDist",
-                helpee_conf=None, fps=1, save=0, mininet_replay_mob=False, is_one_to_many=1):
+                helpee_conf=None, fps=1, save=0, mininet_replay_mob=False, is_one_to_many=1,
+                combine_method="harmonic_sum"):
     net = Mininet_wifi(link=wmediumd, wmediumd_mode=interference)
     
     info("*** Creating nodes\n")
@@ -237,7 +239,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### Run application ###
     if run_app is True:
         info("\n*** Running vehicuar server\n")
-        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save, is_one_to_many)
+        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save, is_one_to_many, combine_method)
     
     ### Collect tcpdump trace ###
     if enable_tcpdump is True:
@@ -368,9 +370,12 @@ if __name__ == '__main__':
     
     if '--adapt_frame_skipping' in sys.argv:
         adaptive_frame_skip = True
+    
+    if '--combine_method' in sys.argv:
+        combine_method = sys.argv[sys.argv.index('--combine_method') + 1]
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
             enable_tcpdump=enable_tcpdump, run_app=run_app, scheduler=scheduler,
             helpee_conf=helpee_conf_file, fps=fps, save=data_save,\
-            mininet_replay_mob=mininet_mob_replay, is_one_to_many=is_one_to_many) 
+            mininet_replay_mob=mininet_mob_replay, is_one_to_many=is_one_to_many, combine_method=combine_method) 
