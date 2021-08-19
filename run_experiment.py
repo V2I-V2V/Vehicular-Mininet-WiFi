@@ -32,7 +32,7 @@ def init_config():
                      "network_trace": input_path + "/traces/trace-mindist-bw.txt", "ptcl_config": input_path + "/pcds/pcd-data-config.txt",
                      "scheduler": "minDist", "fps": "10", "t": "70", "helpee_conf": input_path + "/helpee_conf/helpee-nodes.txt",
                      "routing": "custom", "frames": "300", "one_to_many": '1', "adaptive_encode": "0",
-                     "adapt_frame_skipping": "0"}
+                     "adapt_frame_skipping": "0", "combine_method": "harmonic_sum"}
     return config_params
 
 
@@ -81,7 +81,8 @@ def run_experiment(config_params, is_save_data=False, is_run_app=True):
          config_params["network_trace"] + " -p " + config_params["ptcl_config"] + " -s " + config_params["scheduler"] +\
          " --helpee_conf " + config_params["helpee_conf"] +\
          " -t " + config_params["t"] + " --fps " + config_params["fps"] + " -r " + config_params["routing"] +\
-         " --multi " + config_params["one_to_many"] + " --adaptive_encode " + config_params["adaptive_encode"]
+         " --multi " + config_params["one_to_many"] + " --adaptive_encode " + config_params["adaptive_encode"] +\
+         " --combine_method " + config_params["combine_method"]
     if config_params["adapt_frame_skipping"] == "1":
         cmd += " --adapt_frame_skipping"
     if is_save_data:
