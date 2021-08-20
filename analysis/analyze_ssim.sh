@@ -9,6 +9,6 @@ for folder in *; do
         echo $folder
         # python3 -W ignore ~/Vehicular-Mininet-WiFi/ptcl/pcd_process.py dis $folder
         cd ~/Vehicular-Mininet-WiFi/analysis/ssim
-        python2 compute_ssim.py $3 $dir/$folder/ $2 20
+        python2 compute_ssim.py $3 $dir/$folder/ $2 10
     fi
 done
