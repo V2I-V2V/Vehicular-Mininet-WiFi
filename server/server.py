@@ -165,7 +165,6 @@ class SchedThread(threading.Thread):
                     if real_helper in client_sockets.keys():
                         client_sockets[real_helper].send(msg)
             elif self.ready_to_schedule(scheduler_mode):
-                # print(scheduler_mode)
                 positions = []
                 routing_tables = {}
                 helper_list = []
@@ -178,6 +177,8 @@ class SchedThread(threading.Thread):
                         helper_count += 1
                         helper_list.append(HELPER)
                 if helpee_count == 0: # skip scheduling if no helpee
+                    print("Assignment: " + str(()) + ' ' + str([]) +  ' ' + str(time.time()))
+                    time.sleep(SCHED_PERIOD)
                     continue
                 helper_list = np.array(helper_list)
                 mapped_nodes = np.array(current_connected_vids)[np.argsort(helper_list)]
@@ -213,12 +214,6 @@ class SchedThread(threading.Thread):
                     if score < last_score + self.assignment_change_threshold:
                         print("Skip assignment ", score, self.last_assignment_score, current_assignment)
                         skip_sending_assignment = True
-                    # if score < self.last_assignment_score + self.assignment_change_threshold and \
-                    #     score > self.last_assignment_score:
-                    #     print("Skip assignment ", score, self.last_assignment_score, current_assignment)
-                    #     print("Assignment: " + str(self.last_assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
-                    #     time.sleep(0.2)
-                    #     continue
                     else:
                         self.last_assignment_score = score
                 elif scheduler_mode == 'minDist':
@@ -473,7 +468,7 @@ def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
-    print("Vehicular perception server started", flush=True)
+    print("Vehicular perception server started ", time.time(), flush=True)
     print("Waiting for client request..", flush=True)
     sched_thread = SchedThread()
     sched_thread.daemon = True

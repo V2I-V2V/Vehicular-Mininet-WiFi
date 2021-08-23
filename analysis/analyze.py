@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import json
 from util import *
-from analyze_single_exp import construct_ts_assignment_array
+from analyze_single_exp import construct_ts_assignment_array, construct_ts_scores_array
 
 font = {'family' : 'DejaVu Sans',
         'size'   : 15}
@@ -36,13 +36,19 @@ config_set = set()
 def get_key_from_config(config, dir=''):
     global num_nodes
     scheduler = config["scheduler"]
-    network = config["network_trace"].split('/')[-1][:-4] # TODO: do we really need to split?
+    network = config["network_trace"].split('/')[-1][:-4]
     mobility = config["location_file"].split('/')[-1][:-4]
-    helpee = config["helpee_conf"].split('/')[-1][:-4] # TODO: helpe_config instead of helpee
+    helpee = config["helpee_conf"].split('/')[-1][:-4]
     num_nodes = int(config["num_of_nodes"])
-    adapt_frame_skipping = int(config["adapt_frame_skipping"])
+    if "adapt_frame_skipping" in config.keys():
+        adapt_frame_skipping = int(config["adapt_frame_skipping"])
+    else:
+        adapt_frame_skipping = 0
     if adapt_frame_skipping == 1:
         scheduler += '-adapt'
+    if 'combine_method' in config.keys() and config['combine_method'] == 'sum_min':
+        scheduler += '-sum-min'
+
     if "adaptive_encode" in config.keys():
         adaptive = config["adaptive_encode"]
     else:
@@ -61,14 +67,16 @@ def get_key_from_config(config, dir=''):
     else:
         conf_key = (dir, scheduler, network, mobility, helpee, adaptive, adapt_frame_skipping)
     return conf_key
-## TODO: define a function that plot comparison for only two schedulers
-## with each node's latecy and assignment
+
 
 def compare_two_sched(data_folder1, data_folder2):
-    ass1_mode, server_ass1, ts_to_scores = get_server_assignments(data_folder1+'/logs/server.log') 
+    ass1_mode, server_ass1, ts_to_scores1, score_combined, score_min = get_server_assignments(data_folder1+'/logs/server.log') 
     if ass1_mode == 'distributed':
         ass1_mode, server_ass1 = get_distributed_helper_assignments(data_folder1, num_nodes)
-    ass2_mode, server_ass2, ts_to_scores = get_server_assignments(data_folder2+'/logs/server.log')
+    ass2_mode, server_ass2, ts_to_scores2, _, _ = get_server_assignments(data_folder2+'/logs/server.log')
+
+
+
     if ass2_mode == 'distributed':
         ass2_mode, server_ass2 = get_distributed_helper_assignments(data_folder2, num_nodes)
     config1 = run_experiment.parse_config_from_file(data_folder1 + '/config.txt')
@@ -78,37 +86,123 @@ def compare_two_sched(data_folder1, data_folder2):
 
     fig = plt.figure(figsize=(18,12))
     # total_num_subfigures = (num_nodes + 1) * 2
-    
+    sched1_ax_list, sched2_ax_list = [], []
     for i in range(num_nodes):
-        ax1 = fig.add_subplot(num_nodes+1, 2, 2*i+1)
+        if i == 0:
+            ax1 = fig.add_subplot(num_nodes+1, 2, 2*i+1)
+            ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
+        else:
+            ax1 = fig.add_subplot(num_nodes+1, 2, 2*i+1, sharex=ax1)
+            ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2, sharex=ax2)
         s1_ts, s1_latency = construct_ts_latency_array(ass1_rst[i])
-        ax1.plot(s1_ts, s1_latency,\
-             label='node%d'%i)
-        ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
+        ax1.plot(s1_ts, s1_latency, color=sched_to_color[config1['scheduler']], label='node%d'%i)
+        ax1.set_ylabel('Latency (s)')
         s2_ts, s2_latency = construct_ts_latency_array(ass2_rst[i])
-        ax2.plot(s2_ts, s2_latency, label='node%d'%i)
+        ax2.plot(s2_ts, s2_latency, color=sched_to_color[config2['scheduler']], label='node%d'%i)
+        ax2.set_ylabel('Latency (s)')
         ax1.legend()
         ax2.legend()
+        sched1_ax_list.append(ax1)
+        sched2_ax_list.append(ax2)
 
     # plot assignments
     ax = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+1)
     timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass1)
-    ax.plot(timestamps, assignments, color='darkblue', label='assignment')
+    ax.plot(timestamps, assignments, color=sched_to_color[config1['scheduler']], label='assignment')
     ax.set_ylabel('Assignment\n(helpee: helper)')
-    ax.set_xlabel(config1['scheduler'], fontsize=30)
+    ax.set_xlabel(sched1_key[1], fontsize=30)
     ax.set_yticks(np.arange(0, len(assignment_enums), 1))
     ax.set_yticklabels(assignment_enums)
+    sched1_ax_list.append(ax)
 
     ax2 = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+2)
     timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass2)
-    ax2.plot(timestamps, assignments, color='darkblue', label='assignment')
+    ax2.plot(timestamps, assignments, color=sched_to_color[config2['scheduler']], label='assignment')
     ax2.set_ylabel('Assignment\n(helpee: helper)')
-    ax2.set_xlabel(config2['scheduler'], fontsize=30)
+    ax2.set_xlabel(sched2_key[1], fontsize=30)
     ax2.set_yticks(np.arange(0, len(assignment_enums), 1))
     ax2.set_yticklabels(assignment_enums)
+    sched2_ax_list.append(ax2)
+
+    sched1_ax_list[0].get_shared_x_axes().join(*sched2_ax_list)
+    sched2_ax_list[0].get_shared_x_axes().join(*sched2_ax_list)
 
     plt.tight_layout()
     plt.savefig('analysis-results/compare-ass.png')
+
+    timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass1)
+    timestamps2, assignments2, assignment_enums2 = construct_ts_assignment_array(server_ass2)
+    fig, axes = plt.subplots(2, 5, sharex=True, figsize=(72,9))
+    print(score_combined['comb'])
+    axes[0, 0].plot(np.linspace(0, len(score_combined['min'])*0.2, len(score_combined['min'])), score_combined['comb'], label='combined')
+    axes[0, 0].plot(np.linspace(0, len(score_combined['min'])*0.2, len(score_combined['min'])), score_combined['min'], '--', label='assignment score\nchose by combined-min')
+    axes[0, 0].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # axes[0, 0].set_xticks(np.linspace(0, len(score_combined['min'])*0.2, 0.2))
+    axes[0, 0].legend()
+    axes[0, 0].set_ylabel('Combiend sched\nscores')
+    axes[1, 0].plot(np.linspace(0, len(score_min['min'])*0.2, len(score_min['min'])), score_min['min'], label='combined-min')
+    axes[1, 0].plot(np.linspace(0, len(score_min['comb'])*0.2, len(score_min['comb'])), score_min['comb'], '--', label='assignment score\nchose by combined')
+    # axes[1, 0].set_xticks(np.linspace(0, int(len(score_min['min'])*0.2), 0.2))
+    axes[1, 0].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    axes[1, 0].legend()
+    axes[1, 0].set_ylabel('Combiend-min sched\nscores')
+    axes[0, 1].plot(timestamps, assignments, color=sched_to_color[config1['scheduler']], label=sched1_key[1])
+    axes[0, 1].set_ylabel('Assignment\n(helpee: helper)')
+    axes[0, 1].set_yticks(np.arange(0, len(assignment_enums), 1))
+    axes[0, 1].set_yticklabels(assignment_enums)
+    axes[0, 1].legend()
+    axes[1, 1].plot(timestamps2, assignments2, color=sched_to_color[config2['scheduler']], label=sched2_key[1])
+    print(timestamps[7])
+    axes[1, 1].set_ylabel('Assignment\n(helpee: helper)')
+    axes[1, 1].set_yticks(np.arange(0, len(assignment_enums2), 1))
+    axes[1, 1].set_yticklabels(assignment_enums2)
+    axes[1, 1].legend()
+
+    ts1, dist_scores1, bw_scores1, intf_scores1, dist_scores_min1, bw_scores_min1, intf_scores_min1 =\
+                construct_ts_scores_array(ts_to_scores1)
+    ts2, dist_scores2, bw_scores2, intf_scores2, dist_scores_min2, bw_scores_min2, intf_scores_min2 =\
+                construct_ts_scores_array(ts_to_scores2)
+
+    # axes[0, 2].plot(ts2, dist_scores2[:, 0], label='combined')
+    # axes[0, 2].plot(ts2, dist_scores2[:, 1], label='combined')
+    # axes[0, 2].plot(ts1, dist_scores1[:, 0], '--', label='assignment score\nchose by combined-min')
+    # axes[0, 2].plot(ts1, dist_scores1[:, 1], '--', label='assignment score\nchose by combined-min')
+    # axes[0, 2].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # axes[0, 2].legend()
+    # axes[0, 3].plot(ts2, bw_scores2, label='combined')
+    # axes[0, 3].plot(ts1, bw_scores1, '--', label='assignment score\nchose by combined-min')
+    # axes[0, 3].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # axes[0, 3].legend()
+    # axes[0, 4].plot(ts2, intf_scores2, label='combined')
+    # axes[0, 4].plot(ts1, intf_scores1, '--', label='assignment score\nchose by combined-min')
+    # axes[0, 4].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # axes[0, 4].legend()
+
+    axes[1, 2].plot(ts1, dist_scores_min1[:, 0], label='combined-min')
+    axes[1, 2].plot(ts1, dist_scores_min1[:, 1], label='combined-min')
+    axes[1, 2].plot(ts1, dist_scores1[:, 0], '--', label='assignment score\nchose by combined')
+    axes[1, 2].plot(ts1, dist_scores1[:, 1], '--', label='assignment score\nchose by combined')
+    axes[1, 2].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    axes[1, 2].set_ylabel('dist-score')
+    axes[1, 2].legend()
+    axes[1, 3].plot(ts1, bw_scores_min1[:, 0], label='combined-min')
+    axes[1, 3].plot(ts1, bw_scores_min1[:, 1], label='combined-min')
+    axes[1, 3].plot(ts1, bw_scores1[:, 0], '--', label='assignment score\nchose by combined')
+    axes[1, 3].plot(ts1, bw_scores1[:, 1], '--', label='assignment score\nchose by combined')
+    
+    axes[1, 3].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    axes[1, 3].set_ylabel('bw-score')
+    axes[1, 3].legend()
+    axes[1, 4].plot(ts1, intf_scores_min1[:, 0], label='combined-min')
+    axes[1, 4].plot(ts1, intf_scores_min1[:, 1], label='combined-min')
+    axes[1, 4].plot(ts1, intf_scores1[:, 0], '--', label='assignment score\nchose by combined')
+    axes[1, 4].plot(ts1, intf_scores1[:, 1], '--', label='assignment score\nchose by combined')
+    axes[1, 4].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    axes[1, 4].set_ylabel('intf-score')
+    axes[1, 4].legend()
+
+    plt.tight_layout()
+    plt.savefig('analysis-results/compare-score.pdf')
 
     
 def generate_keys(locs, bws, helpees, schedulers=None):
@@ -217,12 +311,14 @@ def plot_full_frame(partial_results, name, idx):
             # calculate mean and std
             one_setting_num_full_frames = []
             for one_run in partial_results[label]:
-                one_setting_num_full_frames.append(get_percentage_frames_within_threshold(one_run, t))
+                one_setting_num_full_frames.append(
+                    get_percentage_frames_within_threshold(one_run, t, key='max_full_frames', num_nodes=num_nodes)
+                )
             setting_to_diff_latency_frames[label].append(np.mean(one_setting_num_full_frames))
             setting_to_diff_latency_frames_std[label].append(np.std(one_setting_num_full_frames))
         ax.errorbar(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], \
-                yerr=setting_to_diff_latency_frames_std[label], capsize=2,
-                label=label[idx])
+                yerr=setting_to_diff_latency_frames_std[label], capsize=2, color=sched_to_color[label[idx]], \
+                ls=linestyles[label[idx]], label=label[idx])
         print(label[idx], "Mean threshold value")
         print(setting_to_diff_latency_frames[label])
         print(setting_to_diff_latency_frames_std[label])
@@ -379,7 +475,7 @@ def get_folder_based_on_setting(data_dir, setting):
     
         
 
-def get_all_runs_results(data_dir, key, with_ssim=False):
+def get_all_runs_results(data_dir, key, with_ssim=False, parse_exp_stats=True):
     global num_nodes
     # TODO: cuurently node number has to start on 0, support node number to be largely different (e.g. 0, 145, etc)
     dirs = os.listdir(data_dir)
@@ -392,9 +488,10 @@ def get_all_runs_results(data_dir, key, with_ssim=False):
             config_set.add((num_nodes, config["network_trace"], config["location_file"], \
                 config["helpee_conf"], config["t"]))
             
-            result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes,\
-                config["helpee_conf"], with_ssim=with_ssim)[0]
-            print(conf_key, result_each_run[conf_key]['sent_frames'])
+            if parse_exp_stats:
+                result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes,\
+                    config["helpee_conf"], with_ssim=with_ssim)[0]
+                print(conf_key, result_each_run[conf_key]['sent_frames'])
             setting_to_folder[str(conf_key)] = dir
     with open('analysis-results/setting_to_folder.json', 'w') as f:
         json.dump(setting_to_folder, f)
@@ -633,13 +730,64 @@ def repeat_exp_analysis():
     all_keys = generate_keys(LOC, BW, HELPEE, SCHEDULERS)
     for key in all_keys:
         node_result = calculate_per_node_mean(key)
-        # frame_mean, frame_std = calculate_per_node_per_frame_mean(key)
-        # plot_per_frame(frame_mean, frame_std, str(key))
-        # print("node results")
-        # print(node_result)
-        plot_bar(node_result, str(key))
+        frame_mean, frame_std = calculate_per_node_per_frame_mean(key)
+        plot_per_frame(frame_mean, frame_std, str(key))
+        # plot_bar(node_result, str(key))
 
         
+def analyze_msg_overhead():
+    # msg size overhead
+    sched_to_num_nodes_to_msg_overhead = {}
+    sched_to_num_nodes_to_performance_overhead = {}
+    for key in result_each_run.keys():
+        data_dir = key[0]
+        config = run_experiment.parse_config_from_file(data_dir + '/config.txt')
+        num_nodes, sched = int(config['num_of_nodes']), config['scheduler']
+        if 'fixed' in sched:
+            sched = 'fixed'
+        if sched not in sched_to_num_nodes_to_msg_overhead.keys():
+            sched_to_num_nodes_to_msg_overhead[sched] = {}
+            sched_to_num_nodes_to_performance_overhead[sched] = {}
+        if num_nodes not in sched_to_num_nodes_to_msg_overhead[sched].keys():
+            sched_to_num_nodes_to_msg_overhead[sched][num_nodes] = []
+            sched_to_num_nodes_to_performance_overhead[sched][num_nodes] = []
+        sched_to_num_nodes_to_msg_overhead[sched][num_nodes].append(get_control_msg_data_overhead(data_dir, num_nodes))
+        sched_to_num_nodes_to_performance_overhead[sched][num_nodes].append(np.mean(result_each_run[key]['all']))
+    
+    fig, axes = plt.subplots(2, 1, sharex=True)
+    # get baseline performance
+    nodes_base, perf_mean_base, perf_std_base = [], [], []
+    for node, performance_overhead in sorted(sched_to_num_nodes_to_performance_overhead['fixed'].items()):
+        print(node, performance_overhead)
+        nodes_base.append(node)
+        perf_mean_base.append(np.mean(performance_overhead))
+        perf_std_base.append(np.std(performance_overhead))
+    for sched, nodes_to_msg_overhead in sched_to_num_nodes_to_msg_overhead.items():
+        nodes, overhead_mean, overhead_std = [], [], []
+        for node, overheads in sorted(nodes_to_msg_overhead.items()):
+            nodes.append(node)
+            overhead_mean.append(np.mean(overheads))
+            overhead_std.append(np.std(overheads))
+        axes[0].errorbar(nodes, overhead_mean, yerr=overhead_std, capsize=2, label=sched)
+        print('data overhead', overhead_mean, overhead_std)
+        nodes, overhead_mean, overhead_std = [], [], []
+        for node, performance_overhead in sorted(sched_to_num_nodes_to_performance_overhead[sched].items()):
+            nodes.append(node)
+            overhead_mean.append(np.mean(performance_overhead))
+            overhead_std.append(np.std(performance_overhead))
+        print("perf_overhead", overhead_mean, perf_mean_base, overhead_std, perf_std_base)
+        perf_improvement_mean, perf_improvement_std = 100. * (np.array(overhead_mean)/np.array(perf_mean_base) - 1), \
+            np.array(overhead_std)/np.array(perf_std_base)
+        print("percentage std ", perf_improvement_std)
+
+        axes[1].errorbar(nodes, perf_improvement_mean, yerr=perf_improvement_std, capsize=2, label=sched)
+    axes[0].set_ylabel('Data overhead (%)')
+    axes[0].legend()
+    axes[1].set_ylabel('Avg Latency increase (%)')
+    axes[1].set_xlabel('Number of nodes')
+    fig.tight_layout()
+    plt.savefig('analysis-results/overhead.png')
+
 
 
 def main():
@@ -648,7 +796,6 @@ def main():
     parser.add_argument('-p', '--prefix', default='data-', type=str, help='prefix on data dir to analyze')
     ## high level task to anal e.g. compare_scheduler, compare_effect_multi, 
     ## one-help-many can be parsed from config
-    # parser.add_argument('-m', '--multi', default=False, type=bool, help='compare multi helper')  # delete this arg
     parser.add_argument('-t', '--time_threshold', default=0.2, type=float, help='threshold to evaluate a good frame latency')
     parser.add_argument('--task', default=[], nargs='+', type=str, help='additional analysis task to do (ssim|compare_adaptive_encode|get_folder_on_setting)')
     parser.add_argument('--ssim_threshold', default=None, type=float, help='threshold to evaluate a good SSIM')
@@ -674,6 +821,8 @@ def main():
     #     os.system("rm -rf %s"%folder)
     
     compare_sched_in_one_plot = False
+    parse_exp_stats = True 
+    msg_overhead_analyze = False
     if len(args.task)>0:
         if args.task[0] == 'get_folder_on_setting':        
             print(tuple(args.task[1:]))
@@ -683,17 +832,27 @@ def main():
         elif args.task[0] == 'compare_sched':
             compare_sched_in_one_plot = True
             sched1_folder, sched2_folder = args.task[1], args.task[2]
+        elif args.task[0] == 'plot_settings_summary':
+            parse_exp_stats = False
+        elif args.task[0] == 'analyze_msg_overhead':
+            msg_overhead_analyze = True
 
     
     os.system('mkdir %s/analysis-results/'%data_dir)
 
     # # read all exp data, need a return value 
-    get_all_runs_results(data_dir, key, with_ssim=with_ssim)
-    get_summary_of_settings(config_set)
+    get_all_runs_results(data_dir, key, with_ssim=with_ssim, parse_exp_stats=parse_exp_stats)
+    if not parse_exp_stats:
+        get_summary_of_settings(config_set)
+        return
 
     if compare_sched_in_one_plot:
         compare_two_sched(sched1_folder, sched2_folder)
         return 
+    
+    if msg_overhead_analyze:
+        analyze_msg_overhead()
+        return
     
     # compare schedule
     schedules = SCHEDULERS

@@ -67,14 +67,18 @@ def construct_ts_assignment_array(server_assignments):
 
 
 def construct_ts_scores_array(scores):
-    ts, dist_scores, bw_scores, intf_scores = [], [], [], []
+    ts, dist_scores, bw_scores, intf_scores, dist_scores_min, bw_scores_min, intf_scores_min  = [], [], [], [], [], [], []
     for timestamp, score in scores.items():
         ts.append(timestamp)
-        dist_scores.append(score[0])
-        bw_scores.append(score[1])
-        intf_scores.append(score[2])
+        dist_scores.append([score[0], score[1]])
+        bw_scores.append([score[2], score[3]])
+        intf_scores.append([score[4], score[5]])
+        dist_scores_min.append([score[6], score[7]])
+        bw_scores_min.append([score[8], score[9]])
+        intf_scores_min.append([score[10], score[11]])
     ts = np.array(ts) - np.min(ts)
-    return ts, dist_scores, bw_scores, intf_scores
+    return ts, np.array(dist_scores), np.array(bw_scores), np.array(intf_scores),\
+         np.array(dist_scores_min), np.array(bw_scores_min), np.array(intf_scores_min)
 
 
 def plot_all_delay(dir, delay_all):
@@ -97,6 +101,9 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
 
     # plot disconnect trace
     disconnection.plot_disconnect(helpee_conf, exp_time, num_nodes, dir)
+
+        
+    latency_dict, node_to_encode_choices = util.get_stats_on_one_run(dir, num_nodes, helpee_conf)
 
     sender_ts_dict = {}
     sender_adaptive_choice = {}
@@ -173,31 +180,32 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         plt.savefig(dir+'latency-adaptive-decisions.png')
 
     # Plot helpees, helpers
-    fig = plt.figure(figsize=(9, 10))
-    ax = fig.add_subplot(111)
-    ts = np.array(server_node_dict['time']) - np.min(server_node_dict['time'])
-    ax.plot(ts, server_node_dict['helper_num'], label='# of helpers')
-    ax.plot(ts, server_node_dict['helpee_num'], label='# of helpees')
-    ax.legend()
-    ax.set_ylabel("Number of helpee, helpers")
+    if len(server_node_dict['time']) > 0:
+        fig = plt.figure(figsize=(9, 10))
+        ax = fig.add_subplot(111)
+        ts = np.array(server_node_dict['time']) - np.min(server_node_dict['time'])
+        ax.plot(ts, server_node_dict['helper_num'], label='# of helpers')
+        ax.plot(ts, server_node_dict['helpee_num'], label='# of helpees')
+        ax.legend()
+        ax.set_ylabel("Number of helpee, helpers")
 
-    ax2 = ax.twinx()
-    for i in range(num_nodes):
-        ts_node, delay = construct_ts_latency_array(delay_dict_ts[i])
-        ts_node = np.array(sorted(delay_dict_ts[i].keys()))-np.min(server_node_dict['time'])
-        # ts_node += 8 # offset timestamp
-        ts_combined = np.concatenate((ts_node, ts[ts>ts_node[-1]]))
-        val_combined = np.concatenate((np.ones(len(ts_node)), np.zeros(len(ts[ts>ts_node[-1]]))))
-        ax2.plot(ts_combined, val_combined+i/50, '--',  label='node %d frame arrival pattern'%i)
-    ax2.set_ylabel("Frame Arrival")
-    ax2.set_yticks([-1, 0, 1, 2])
-    ax2.legend(loc='lower right')
-    ax.set_xlabel('Time (s)')
-    plt.tight_layout()
-    plt.savefig(dir+'server-helper-helpee-change.png')
+        ax2 = ax.twinx()
+        for i in range(num_nodes):
+            ts_node, delay = construct_ts_latency_array(delay_dict_ts[i])
+            ts_node = np.array(sorted(delay_dict_ts[i].keys()))-np.min(server_node_dict['time'])
+            # ts_node += 8 # offset timestamp
+            ts_combined = np.concatenate((ts_node, ts[ts>ts_node[-1]]))
+            val_combined = np.concatenate((np.ones(len(ts_node)), np.zeros(len(ts[ts>ts_node[-1]]))))
+            ax2.plot(ts_combined, val_combined+i/50, '--',  label='node %d frame arrival pattern'%i)
+        ax2.set_ylabel("Frame Arrival")
+        ax2.set_yticks([-1, 0, 1, 2])
+        ax2.legend(loc='lower right')
+        ax.set_xlabel('Time (s)')
+        plt.tight_layout()
+        plt.savefig(dir+'server-helper-helpee-change.png')
 
     # plot assignments
-    assignment_mode, server_assignments, ts_to_scores = util.get_server_assignments(dir + 'logs/server.log')
+    assignment_mode, server_assignments, ts_to_scores, _, _ = util.get_server_assignments(dir + 'logs/server.log')
     if len(server_assignments) != 0: # proceed if there are assignments
         timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_assignments)
         print(assignment_enums)
@@ -213,14 +221,22 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         for i in range(3):
             axes.append(fig.add_subplot(5,1,i+2))
         if len(ts_to_scores) != 0:
-            ts, dist_scores, bw_scores, intf_scores = construct_ts_scores_array(ts_to_scores)
-            axes[0].plot(ts, dist_scores, '--.', label='dist score')
-            axes[1].plot(ts, bw_scores, '--.', label='bw score')
-            axes[2].plot(ts, intf_scores, '--.', label='intf score')
+            print(ts_to_scores)
+            ts, dist_scores, bw_scores, intf_scores, dist_scores_min, bw_scores_min, intf_scores_min =\
+                 construct_ts_scores_array(ts_to_scores)
+            axes[0].plot(ts, dist_scores[:0], '--.', label='dist score (harmonic)')
+            axes[0].plot(ts, dist_scores_min[:0], '--', label='dist score (min)')
+            axes[1].plot(ts, bw_scores[:0], '--.', label='bw score (harmonic)')
+            axes[1].plot(ts, bw_scores_min[:0], '--', label='bw score (min)')
+            axes[2].plot(ts, intf_scores[:0], '--.', label='intf score (harmonic)')
+            axes[2].plot(ts, intf_scores_min[:0], '--', label='intf score (min)')
             # plot the sum of three scores
             ax_sum_score = fig.add_subplot(5,1,5)
             ax_sum_score.plot(ts, np.array(dist_scores) + np.array(bw_scores) + np.array(intf_scores), '--.',\
-                label='sum score')
+                label='sum score (harmonic)')
+            ax_sum_score.plot(ts, np.array(dist_scores_min) + np.array(bw_scores_min) + np.array(intf_scores_min), '--.',\
+                label='sum score (min)')
+            ax_sum_score.legend()
         for ax in axes:
             ax.legend()
         ax2.set_xlabel('Time (s)')
@@ -238,7 +254,10 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     for i in range(num_nodes):
         # plot time series data
         ax = fig.add_subplot(num_nodes+1, 2, 2*i+1)
-        ts, delay = construct_ts_latency_array(delay_dict_ts[i])
+        # ts, delay = construct_ts_latency_array(delay_dict_ts[i])
+        ts, delay = util.construct_ts_latency_array(latency_dict[i])
+        delay = np.array(delay)
+        # print(np.argwhere(delay < 0))
         ax.plot(ts, delay, '--o', label='node%d'%i)
         ax.legend()
         ax.set_ylabel("Latency (s)")
