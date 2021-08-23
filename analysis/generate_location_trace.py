@@ -17,7 +17,7 @@ def get_random_vehicle_traj(df, vehicle_number_pool):
     return x, y
 
 
-df = pd.read_csv('../rows.csv', low_memory=False)
+df = pd.read_csv('../NGSIM-data.csv', low_memory=False)
 print("Number of vehicles", len(df['Vehicle_ID'].unique()))
 vehicle_number_pool = df['Vehicle_ID'].to_numpy()
 
@@ -26,7 +26,8 @@ print(df.columns)
 print('data shape: ', df.shape)
 
 merged_loc = None
-for i in range(6):
+for i in range(6): # make node a argument
+    # right now the syncing between 
     x,y = get_random_vehicle_traj(df, vehicle_number_pool)
     if merged_loc is None:
         merged_loc = np.hstack((x.reshape(-1,1),y.reshape(-1,1)))
