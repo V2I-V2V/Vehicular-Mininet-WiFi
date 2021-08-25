@@ -336,13 +336,21 @@ def get_score(scores, score_method="harmonic"):
         print("score method does not exist")
 
 
-def get_combined_scores(assignment_id, distance_scores, bw_scores, interference_scores, combine_method, score_method):
+def get_path_score(distance_score, bw_score, interference_score, score_method):
+    if score_method == "sum":
+        return distance_score + bw_score + interference_score
+    elif score_method == "min":
+        return min(distance_score, bw_score, interference_score)
+
+
+def get_combined_scores(distance_scores, bw_scores, interference_scores, combine_method, score_method):
     if combine_method == "op_sum":
         return get_score(distance_scores, score_method) + get_score(bw_scores, score_method) + get_score(interference_scores, score_method)
-    elif combine_method == "sum_min":
+    elif combine_method == "op_min":
         min_score = 3
         for i in range(len(distance_scores)):
-            min_score = min(min_score, distance_scores[i] + bw_scores[i] + interference_scores[i])
+            path_score = get_path_score(distance_scores[i], bw_scores[i], interference_scores[i], score_method)
+            min_score = min(min_score, path_score)
         return min_score
     else:
         print("combine method not supported yet")
@@ -366,7 +374,7 @@ def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_table
         scores_dist[assignment_id] = get_score(distance_scores, score_method)
         scores_bw[assignment_id] = get_score(bw_scores, score_method)
         scores_intf[assignment_id] = get_score(interference_scores, score_method)
-        scores[assignment_id] = get_combined_scores(get_id_from_assignment(assignment), distance_scores, bw_scores, interference_scores, combine_method, score_method)
+        scores[assignment_id] = get_combined_scores(distance_scores, bw_scores, interference_scores, combine_method, score_method)
         # if not_reachable_cnt > 0:
         #     scores[get_id_from_assignment(assignment)] = 0
         # print(assignment, scores[get_id_from_assignment(assignment)], 

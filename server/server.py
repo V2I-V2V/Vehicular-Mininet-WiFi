@@ -48,7 +48,7 @@ parser.add_argument('-d', '--data_save', default=0, type=int,
 parser.add_argument('-m', '--multi', default=1, type=int, 
                     help='whether to use one-to-many assignment')
 parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
-parser.add_argument('--combine_method', default="op_sum", choices=["op_sum", "sum_min"])
+parser.add_argument('--combine_method', default="op_sum", choices=["op_sum", "op_min"])
 parser.add_argument('--score_method', default="harmonic", choices=["harmonic", "min"])
 
 args = parser.parse_args()
