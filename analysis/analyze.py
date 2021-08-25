@@ -48,6 +48,8 @@ def get_key_from_config(config, dir=''):
         scheduler += '-adapt'
     if 'combine_method' in config.keys() and config['combine_method'] == 'sum_min':
         scheduler += '-sum-min'
+    if 'add_loc_noise' in config.keys() and config['add_loc_noise'] == '1':
+        scheduler += '-loc'
 
     if "adaptive_encode" in config.keys():
         adaptive = config["adaptive_encode"]
@@ -611,7 +613,7 @@ def plot_bars_compare_schedules(schedules):
         for t in selected_thresholds:
             sched_to_different_latency_mean[schedule].append(np.mean(sched_to_different_latency_cnts[schedule][t]))
             sched_to_different_latency_std[schedule].append(np.std(sched_to_different_latency_cnts[schedule][t]))
-        ax.plot(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], label=schedule)
+        ax.plot(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], '-o', label=schedule)
         # ax.errorbar(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], yerr=sched_to_different_latency_std[schedule], capsize=2, label=schedule)
         ax.set_xticks(np.arange(0, len(selected_thresholds)))
         ax.set_xticklabels(selected_thresholds)
@@ -777,14 +779,16 @@ def analyze_msg_overhead():
             overhead_std.append(np.std(performance_overhead))
         print("perf_overhead", overhead_mean, perf_mean_base, overhead_std, perf_std_base)
         perf_improvement_mean, perf_improvement_std = 100. * (np.array(overhead_mean)/np.array(perf_mean_base) - 1), \
-            np.array(overhead_std)/np.array(perf_std_base)
+            np.array(overhead_std)/np.array(perf_mean_base)
         print("percentage std ", perf_improvement_std)
 
         axes[1].errorbar(nodes, perf_improvement_mean, yerr=perf_improvement_std, capsize=2, label=sched)
     axes[0].set_ylabel('Data overhead (%)')
     axes[0].legend()
-    axes[1].set_ylabel('Avg Latency increase (%)')
-    axes[1].set_xlabel('Number of nodes')
+    axes[1].set_ylabel('Avg latency\nincrease (%)')
+    axes[1].set_xlabel('Number of nodes (helpees)')
+    axes[1].set_xticks([2,3,4,5,6])
+    axes[1].set_xticklabels(['2(1)', '3(1)', '4(2)','5(2)', '6(2)'])
     fig.tight_layout()
     plt.savefig('analysis-results/overhead.png')
 

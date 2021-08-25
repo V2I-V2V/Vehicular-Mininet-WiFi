@@ -1,6 +1,8 @@
 # Control the locations of vehicles
 import numpy as np
 import network.message
+import time
+import mobility_noise
 
 def read_locations(location_filename):
     # TODO
@@ -38,10 +40,15 @@ def update_location(node, locations):
 
 
 
-def broadcast_location(vehicle_id, self_loc, source_socket, seq_num):
-    msg = vehicle_id.to_bytes(2, 'big') + int(self_loc[0]).to_bytes(2, 'big') \
-        + int(self_loc[1]).to_bytes(2, 'big') + seq_num.to_bytes(4, 'big')
+def broadcast_location(vehicle_id, self_loc, source_socket, seq_num, add_noise=True):
+    if add_noise:
+        x,y = mobility_noise.add_random_noise_on_loc(self_loc[0], self_loc[1])
+    else:
+        x, y = self_loc[0], self_loc[1]
+    msg = vehicle_id.to_bytes(2, 'big') + int(x).to_bytes(2, 'big') \
+        + int(y).to_bytes(2, 'big') + seq_num.to_bytes(4, 'big')
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)
+    print("[Loc msg size] %d %f"%(len(msg)+len(header), time.time()))
     network.message.send_msg(source_socket, header, msg, is_udp=True,\
                         remote_addr=("10.255.255.255", 8888))
     # source_socket.sendto(msg, ("10.255.255.255", 8888))

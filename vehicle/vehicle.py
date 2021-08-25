@@ -47,11 +47,14 @@ parser.add_argument('--adaptive', default=0, type=int, \
     help="adaptive encoding type (0 for no adaptive encoding, 1 for adaptive, 2 for adaptive but always use full 4 chunks")
 parser.add_argument('--adapt_skip_frames', default=False, action="store_true", \
     help="enable adaptive frame skipping when sending takes too long")
+parser.add_argument('--add_loc_noise', default=False, action='store_true', \
+    help="enable noise to location")
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
 is_adaptive_frame_skipped = args.adapt_skip_frames
+add_noise_to_loc = args.add_loc_noise
 
 pcd_data_type = args.data_type
 if args.data_type == "GTA":
@@ -724,9 +727,9 @@ def send_control_msgs(node_type):
         or scheduler_mode == 'random':
         # send helpee/helper info/loc 
         if node_type == HELPER:
-            wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, control_seq_num)
+            wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, control_seq_num, add_noise=add_noise_to_loc)
         else:
-            mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num)
+            mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num, add_noise=add_noise_to_loc)
         control_seq_num += 1
     if scheduler_mode == 'combined' or scheduler_mode == 'routeAware':
         # send routing info
