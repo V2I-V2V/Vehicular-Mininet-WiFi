@@ -39,8 +39,8 @@ def get_disconect_duration_in_percentage(disconnect_trace, run_time, num_nodes):
                 sum_disconnect_time += min(run_time-disconnect_array[i],\
                                             disconnect_array[i+1]-disconnect_array[i])
     num_helpees = len(id_to_disconnect_tses.keys())
-    print("num helpees", num_helpees)
-    print("sum_disconnect_time", sum_disconnect_time)
+    # print("num helpees", num_helpees)
+    # print("sum_disconnect_time", sum_disconnect_time)
     disconnect_percentage = sum_disconnect_time / (run_time * num_nodes) * 100.0
     return num_helpees, disconnect_percentage
 
@@ -54,6 +54,7 @@ def get_connection_status(disconnect_trace, run_time, num_nodes):
         disconnect_ids = np.array([disconnect[0]],dtype=int)
     else:
         disconnect_ids = np.array(disconnect[0],dtype=int)
+        
     
     node_to_conn_array = {}
     for i in range(num_nodes):
