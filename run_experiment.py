@@ -32,7 +32,7 @@ def init_config():
                      "network_trace": input_path + "/traces/trace-mindist-bw.txt", "ptcl_config": input_path + "/pcds/pcd-data-config.txt",
                      "scheduler": "minDist", "fps": "10", "t": "70", "helpee_conf": input_path + "/helpee_conf/helpee-nodes.txt",
                      "routing": "custom", "frames": "300", "one_to_many": '1', "adaptive_encode": "0",
-                     "adapt_frame_skipping": "0", "combine_method": "harmonic_sum"}
+                     "adapt_frame_skipping": "0", "combine_method": "op_sum", "score_method": "harmonic"}
     return config_params
 
 

@@ -327,9 +327,18 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
     return scores, not_reachable_cnt
 
 
-def get_combined_scores(assignment_id, distance_scores, bw_scores, interference_scores, combine_method):
-    if combine_method == "harmonic_sum":
-        return statistics.harmonic_mean(distance_scores) + statistics.harmonic_mean(bw_scores) + statistics.harmonic_mean(interference_scores)
+def get_score(scores, score_method="harmonic"):
+    if score_method == "harmonic":
+        return statistics.harmonic_mean(scores)
+    elif score_method == "min":
+        return min(scores)
+    else:
+        print("score method does not exist")
+
+
+def get_combined_scores(assignment_id, distance_scores, bw_scores, interference_scores, combine_method, score_method):
+    if combine_method == "op_sum":
+        return get_score(distance_scores, score_method) + get_score(bw_scores, score_method) + get_score(interference_scores, score_method)
     elif combine_method == "sum_min":
         min_score = 3
         for i in range(len(distance_scores)):
@@ -339,7 +348,7 @@ def get_combined_scores(assignment_id, distance_scores, bw_scores, interference_
         print("combine method not supported yet")
 
 
-def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables, is_one_to_one=False, combine_method="harmonic_sum"):
+def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables, is_one_to_one=False, combine_method="op_sum", score_method="harmonic"):
     # print("Using the combined sched", num_of_helpees, num_of_helpers)
     scores, scores_dist, scores_bw, scores_intf = {}, {}, {}, {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
@@ -354,10 +363,10 @@ def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_table
         print("bw score", bw_scores)
         print(assignment, statistics.harmonic_mean(distance_scores), statistics.harmonic_mean(bw_scores), statistics.harmonic_mean(interference_scores), not_reachable_cnt)
         assignment_id = get_id_from_assignment(assignment)
-        scores_dist[assignment_id] = statistics.harmonic_mean(distance_scores)
-        scores_bw[assignment_id] = statistics.harmonic_mean(bw_scores)
-        scores_intf[assignment_id] = statistics.harmonic_mean(interference_scores)
-        scores[assignment_id] = get_combined_scores(get_id_from_assignment(assignment), distance_scores, bw_scores, interference_scores, combine_method)
+        scores_dist[assignment_id] = get_score(distance_scores, score_method)
+        scores_bw[assignment_id] = get_score(bw_scores, score_method)
+        scores_intf[assignment_id] = get_score(interference_scores, score_method)
+        scores[assignment_id] = get_combined_scores(get_id_from_assignment(assignment), distance_scores, bw_scores, interference_scores, combine_method, score_method)
         # if not_reachable_cnt > 0:
         #     scores[get_id_from_assignment(assignment)] = 0
         # print(assignment, scores[get_id_from_assignment(assignment)], 
