@@ -48,7 +48,8 @@ parser.add_argument('-d', '--data_save', default=0, type=int,
 parser.add_argument('-m', '--multi', default=1, type=int, 
                     help='whether to use one-to-many assignment')
 parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
-parser.add_argument('--combine_method', default="harmonic_sum", choices=["harmonic_sum", "sum_min"])
+parser.add_argument('--combine_method', default="op_sum", choices=["op_sum", "op_min"])
+parser.add_argument('--score_method', default="harmonic", choices=["harmonic", "min"])
 
 args = parser.parse_args()
 trace_filename = args.trace_filename
@@ -59,6 +60,7 @@ save = args.data_save
 num_vehicles = args.num_vehicles
 is_one_to_one = 1 - args.multi
 combine_method = args.combine_method
+score_method = args.score_method
 if args.fixed_assignment is not None:
     scheduler_mode = "fixed"
     fixed_assignment = scheduling.get_assignment_tuple(args.fixed_assignment)
@@ -204,7 +206,8 @@ class SchedThread(threading.Thread):
                 if scheduler_mode == 'combined':
                     # get_bws() # need to map here
                     bws = get_mapped_bw(mapped_nodes)
-                    assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, is_one_to_one, combine_method)
+                    assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, 
+                                                                          is_one_to_one, combine_method, score_method)
                     if self.last_assignment is not None:
                         last_assignment_id = scheduling.get_id_from_assignment(self.last_assignment)
                     else:
