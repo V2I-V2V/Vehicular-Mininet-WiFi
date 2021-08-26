@@ -7,6 +7,7 @@ import utils
 import fcntl, os
 import network.message
 import config
+import mobility_noise
 
 
 def setup_p2p_links(vehicle_id, ip, port, recv_sched_scheme=False):
@@ -26,14 +27,19 @@ def setup_p2p_links(vehicle_id, ip, port, recv_sched_scheme=False):
         return client_socket
 
 
-def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num):
+def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num, add_noise=True):
     v_type = vehicle_type.to_bytes(2, 'big')
     v_id = vehicle_id.to_bytes(2, 'big')
-    x = int(position[0]).to_bytes(2, 'big')
-    y = int(position[1]).to_bytes(2, 'big')
+    if add_noise:
+        loc_x, loc_y = mobility_noise.add_random_noise_on_loc(position[0], position[1])
+    else:
+        loc_x, loc_y = position[0], position[1]
+    x = int(loc_x).to_bytes(2, 'big')
+    y = int(loc_y).to_bytes(2, 'big')
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + x + y + seq
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)
+    print('[Loc msg size] ', len(header)+len(msg), time.time())
     network.message.send_msg(client_socket, header, msg)
 
 
@@ -43,6 +49,7 @@ def send_route(vehicle_type, vehicle_id, route_bytes, client_socket, seq_num):
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + route_bytes + seq
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_ROUTE)
+    print('[route msg] %d %f'%(len(header)+len(msg), time.time()))
     network.message.send_msg(client_socket, header, msg)
 
 

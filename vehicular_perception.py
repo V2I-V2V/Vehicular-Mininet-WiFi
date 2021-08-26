@@ -36,6 +36,7 @@ routing = 'olsrd'
 no_control = 0
 adaptive_encode = 0
 adaptive_frame_skip = False
+add_noise_to_loc = False
 combine_method = "op_sum"
 score_method = "harmonic"
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -163,6 +164,8 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
             % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, adaptive_encode)
         if adaptive_frame_skip:
             vehicle_app_cmd += ' --adapt_skip_frames '
+        if add_noise_to_loc:
+            vehicle_app_cmd += ' --add_loc_noise '
         vehicle_app_cmd += ' --data_type %s > %s/logs/node%d.log 2>&1 &'%(pcd_data_type, CODE_DIR, node_num)
         print(vehicle_app_cmd)
         vehicle_app_commands.append(vehicle_app_cmd)
@@ -175,7 +178,8 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
 def collect_tcpdump(nodes):
     tcpdump_cmds = []
     for node_num in range(len(nodes)):
-        tcpdump_cmds.append('tcpdump -nni any -s96 -w pcaps/node%d.pcap >/dev/null 2>&1 &'%node_num)
+        tcpdump_cmds.append('tcpdump -nni any -s96 -w %s/pcaps/node%d.pcap >/dev/null 2>&1 &'%\
+            (CODE_DIR, node_num))
         nodes[node_num].cmd(tcpdump_cmds[node_num])
 
 
@@ -375,6 +379,9 @@ if __name__ == '__main__':
     if '--combine_method' in sys.argv:
         combine_method = sys.argv[sys.argv.index('--combine_method') + 1]
     
+    if '--add_noise_to_loc' in sys.argv:
+        add_noise_to_loc = True
+        
     if '--score_method' in sys.argv:
         score_method = sys.argv[sys.argv.index('--score_method') + 1]
 

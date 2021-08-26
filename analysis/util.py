@@ -10,7 +10,8 @@ from collections import OrderedDict
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
 sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
-    'combined-adapt': 'grey', 'bwAware': 'darkblue', 'combined-sum-min': 'blueviolet'}
+    'combined-adapt': 'grey', 'bwAware': 'darkblue', 'combined-sum-min': 'blueviolet',
+    'combined-loc': 'brown'}
 sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed': '--', 'combined': ':',\
     'combined-adapt': '-', 'bwAware': 'darkblue'}
 
@@ -29,7 +30,7 @@ linestyles = OrderedDict(
      ('densely dashdotted',  (0, (3, 1, 1, 1))),
 
      ('loosely dashdotdotted', (0, (3, 10, 1, 10, 1, 10))),
-     ('dashdotdotted',         (0, (3, 5, 1, 5, 1, 5))),
+     ('combined-loc',         (0, (3, 5, 1, 5, 1, 5))),
      ('bwAware', (0, (3, 1, 1, 1, 1, 1)))])
 
 def get_server_assignments(filename):
@@ -358,6 +359,7 @@ def get_control_msg_data_overhead(data_dir, num_nodes):
     for i in range(num_nodes):
         overhead = get_control_msg_data_overhead_per_node(data_dir + '/logs/node%d.log'%i)
         node_overheads.append(overhead)
+    print("per node overhead ", node_overheads)
     return np.mean(node_overheads)
 
 

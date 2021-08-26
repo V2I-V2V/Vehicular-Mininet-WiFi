@@ -32,6 +32,8 @@ def init_config():
                      "network_trace": input_path + "/traces/trace-mindist-bw.txt", "ptcl_config": input_path + "/pcds/pcd-data-config.txt",
                      "scheduler": "minDist", "fps": "10", "t": "70", "helpee_conf": input_path + "/helpee_conf/helpee-nodes.txt",
                      "routing": "custom", "frames": "300", "one_to_many": '1', "adaptive_encode": "0",
+                     "adapt_frame_skipping": "0",
+                     "add_loc_noise": "0",
                      "adapt_frame_skipping": "0", "combine_method": "op_sum", "score_method": "harmonic"}
     return config_params
 
@@ -75,7 +77,7 @@ def create_folder():
     return folder
 
 
-def run_experiment(config_params, is_save_data=False, is_run_app=True):
+def run_experiment(config_params, is_save_data=False, is_run_app=True, is_tcpdump_enabled=False):
     cmd = "sudo python3 " +  os.path.dirname(os.path.abspath(__file__)) + "/vehicular_perception.py -n " +\
          config_params["num_of_nodes"] + " -l " + config_params["location_file"] + " --trace " +\
          config_params["network_trace"] + " -p " + config_params["ptcl_config"] + " -s " + config_params["scheduler"] +\
@@ -85,8 +87,12 @@ def run_experiment(config_params, is_save_data=False, is_run_app=True):
          " --combine_method " + config_params["combine_method"]
     if config_params["adapt_frame_skipping"] == "1":
         cmd += " --adapt_frame_skipping"
+    if config_params["add_loc_noise"] == "1":
+        cmd += " --add_noise_to_loc"
     if is_save_data:
         cmd += " --save_data 1"
+    if is_tcpdump_enabled:
+        cmd += " --collect-traffic"
     if is_run_app:
         cmd += " --run_app"
     os.system(cmd)

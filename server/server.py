@@ -261,6 +261,7 @@ class SchedThread(threading.Thread):
                     #         client_sockets[node_id].send(msg)
             sched_elapsed_t = time.time() - sched_start_t
             print("One round sched takes", sched_elapsed_t)
+            print("[T3] Sched finished at ", time.time())
             time.sleep(SCHED_PERIOD)
 
 
@@ -294,6 +295,7 @@ class ControlConnectionThread(threading.Thread):
                 node_seq_nums[v_id] < seq_num:
                     # only update location when seq num is larger
                     print("Recv loc msg with seq num %d from vehicle %d" % (seq_num, v_id))
+                    print("[T2] recv loc msg from ", v_id, time.time())
                     location_map[v_id] = (x, y)
                     vehicle_types[v_id] = v_type
                     node_seq_nums[v_id] = seq_num
