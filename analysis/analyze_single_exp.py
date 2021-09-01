@@ -118,7 +118,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     for i in range(num_nodes):
         sender_ts_dict[i], sender_adaptive_choice[i], encode_time, end_t = util.get_sender_ts(dir + 'logs/node%d.log'%i)
         helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
-    receiver_ts_dict, receiver_thrpt, server_node_dict = util.get_receiver_ts(dir + 'logs/server.log')
+    receiver_ts_dict, receiver_thrpt, server_node_dict, _ = util.get_receiver_ts(dir + 'logs/server.log')
     delay_all = np.empty((300,))
     for i in range(num_nodes):
         delay_dict[i], delay_dict_ts[i] = calculate_latency(sender_ts_dict[i], receiver_ts_dict[i])
@@ -261,6 +261,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         ax.plot(ts, delay, '--o', label='node%d'%i)
         ax.legend()
         ax.set_ylabel("Latency (s)")
+        ax.set_xlim(0, exp_time-14)
         ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
         ax2.plot(np.arange(bws[:,i].shape[0]), bws[:,i])
         ax2.set_ylabel('BW')
