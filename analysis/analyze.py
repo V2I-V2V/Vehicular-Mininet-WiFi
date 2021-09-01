@@ -46,10 +46,12 @@ def get_key_from_config(config, dir=''):
         adapt_frame_skipping = 0
     if adapt_frame_skipping == 1:
         scheduler += '-adapt'
-    if 'combine_method' in config.keys() and config['combine_method'] == 'sum_min':
-        scheduler += '-sum-min'
+    # if 'combine_method' in config.keys() and scheduler == 'combined':
+    #     scheduler += ('-' + config['combine_method'])
     if 'add_loc_noise' in config.keys() and config['add_loc_noise'] == '1':
         scheduler += '-loc'
+    # if 'score_method' in config.keys() and scheduler == 'combined-op_sum':
+    #     scheduler += ('-' + config['score_method'])
 
     if "adaptive_encode" in config.keys():
         adaptive = config["adaptive_encode"]
@@ -132,79 +134,79 @@ def compare_two_sched(data_folder1, data_folder2):
     plt.tight_layout()
     plt.savefig('analysis-results/compare-ass.png')
 
-    timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass1)
-    timestamps2, assignments2, assignment_enums2 = construct_ts_assignment_array(server_ass2)
-    fig, axes = plt.subplots(2, 5, sharex=True, figsize=(72,9))
-    print(score_combined['comb'])
-    axes[0, 0].plot(np.linspace(0, len(score_combined['min'])*0.2, len(score_combined['min'])), score_combined['comb'], label='combined')
-    axes[0, 0].plot(np.linspace(0, len(score_combined['min'])*0.2, len(score_combined['min'])), score_combined['min'], '--', label='assignment score\nchose by combined-min')
-    axes[0, 0].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
-    # axes[0, 0].set_xticks(np.linspace(0, len(score_combined['min'])*0.2, 0.2))
-    axes[0, 0].legend()
-    axes[0, 0].set_ylabel('Combiend sched\nscores')
-    axes[1, 0].plot(np.linspace(0, len(score_min['min'])*0.2, len(score_min['min'])), score_min['min'], label='combined-min')
-    axes[1, 0].plot(np.linspace(0, len(score_min['comb'])*0.2, len(score_min['comb'])), score_min['comb'], '--', label='assignment score\nchose by combined')
-    # axes[1, 0].set_xticks(np.linspace(0, int(len(score_min['min'])*0.2), 0.2))
-    axes[1, 0].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
-    axes[1, 0].legend()
-    axes[1, 0].set_ylabel('Combiend-min sched\nscores')
-    axes[0, 1].plot(timestamps, assignments, color=sched_to_color[config1['scheduler']], label=sched1_key[1])
-    axes[0, 1].set_ylabel('Assignment\n(helpee: helper)')
-    axes[0, 1].set_yticks(np.arange(0, len(assignment_enums), 1))
-    axes[0, 1].set_yticklabels(assignment_enums)
-    axes[0, 1].legend()
-    axes[1, 1].plot(timestamps2, assignments2, color=sched_to_color[config2['scheduler']], label=sched2_key[1])
-    print(timestamps[7])
-    axes[1, 1].set_ylabel('Assignment\n(helpee: helper)')
-    axes[1, 1].set_yticks(np.arange(0, len(assignment_enums2), 1))
-    axes[1, 1].set_yticklabels(assignment_enums2)
-    axes[1, 1].legend()
+    # timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass1)
+    # timestamps2, assignments2, assignment_enums2 = construct_ts_assignment_array(server_ass2)
+    # fig, axes = plt.subplots(2, 5, sharex=True, figsize=(72,9))
+    # print(score_combined['comb'])
+    # axes[0, 0].plot(np.linspace(0, len(score_combined['min'])*0.2, len(score_combined['min'])), score_combined['comb'], label='combined')
+    # axes[0, 0].plot(np.linspace(0, len(score_combined['min'])*0.2, len(score_combined['min'])), score_combined['min'], '--', label='assignment score\nchose by combined-min')
+    # axes[0, 0].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # # axes[0, 0].set_xticks(np.linspace(0, len(score_combined['min'])*0.2, 0.2))
+    # axes[0, 0].legend()
+    # axes[0, 0].set_ylabel('Combiend sched\nscores')
+    # axes[1, 0].plot(np.linspace(0, len(score_min['min'])*0.2, len(score_min['min'])), score_min['min'], label='combined-min')
+    # axes[1, 0].plot(np.linspace(0, len(score_min['comb'])*0.2, len(score_min['comb'])), score_min['comb'], '--', label='assignment score\nchose by combined')
+    # # axes[1, 0].set_xticks(np.linspace(0, int(len(score_min['min'])*0.2), 0.2))
+    # axes[1, 0].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # axes[1, 0].legend()
+    # axes[1, 0].set_ylabel('Combiend-min sched\nscores')
+    # axes[0, 1].plot(timestamps, assignments, color=sched_to_color[config1['scheduler']], label=sched1_key[1])
+    # axes[0, 1].set_ylabel('Assignment\n(helpee: helper)')
+    # axes[0, 1].set_yticks(np.arange(0, len(assignment_enums), 1))
+    # axes[0, 1].set_yticklabels(assignment_enums)
+    # axes[0, 1].legend()
+    # axes[1, 1].plot(timestamps2, assignments2, color=sched_to_color[config2['scheduler']], label=sched2_key[1])
+    # print(timestamps[7])
+    # axes[1, 1].set_ylabel('Assignment\n(helpee: helper)')
+    # axes[1, 1].set_yticks(np.arange(0, len(assignment_enums2), 1))
+    # axes[1, 1].set_yticklabels(assignment_enums2)
+    # axes[1, 1].legend()
 
-    ts1, dist_scores1, bw_scores1, intf_scores1, dist_scores_min1, bw_scores_min1, intf_scores_min1 =\
-                construct_ts_scores_array(ts_to_scores1)
-    ts2, dist_scores2, bw_scores2, intf_scores2, dist_scores_min2, bw_scores_min2, intf_scores_min2 =\
-                construct_ts_scores_array(ts_to_scores2)
+    # ts1, dist_scores1, bw_scores1, intf_scores1, dist_scores_min1, bw_scores_min1, intf_scores_min1 =\
+    #             construct_ts_scores_array(ts_to_scores1)
+    # # ts2, dist_scores2, bw_scores2, intf_scores2, dist_scores_min2, bw_scores_min2, intf_scores_min2 =\
+    # #             construct_ts_scores_array(ts_to_scores2)
 
-    # axes[0, 2].plot(ts2, dist_scores2[:, 0], label='combined')
-    # axes[0, 2].plot(ts2, dist_scores2[:, 1], label='combined')
-    # axes[0, 2].plot(ts1, dist_scores1[:, 0], '--', label='assignment score\nchose by combined-min')
-    # axes[0, 2].plot(ts1, dist_scores1[:, 1], '--', label='assignment score\nchose by combined-min')
-    # axes[0, 2].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
-    # axes[0, 2].legend()
-    # axes[0, 3].plot(ts2, bw_scores2, label='combined')
-    # axes[0, 3].plot(ts1, bw_scores1, '--', label='assignment score\nchose by combined-min')
-    # axes[0, 3].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
-    # axes[0, 3].legend()
-    # axes[0, 4].plot(ts2, intf_scores2, label='combined')
-    # axes[0, 4].plot(ts1, intf_scores1, '--', label='assignment score\nchose by combined-min')
-    # axes[0, 4].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
-    # axes[0, 4].legend()
+    # # axes[0, 2].plot(ts2, dist_scores2[:, 0], label='combined')
+    # # axes[0, 2].plot(ts2, dist_scores2[:, 1], label='combined')
+    # # axes[0, 2].plot(ts1, dist_scores1[:, 0], '--', label='assignment score\nchose by combined-min')
+    # # axes[0, 2].plot(ts1, dist_scores1[:, 1], '--', label='assignment score\nchose by combined-min')
+    # # axes[0, 2].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # # axes[0, 2].legend()
+    # # axes[0, 3].plot(ts2, bw_scores2, label='combined')
+    # # axes[0, 3].plot(ts1, bw_scores1, '--', label='assignment score\nchose by combined-min')
+    # # axes[0, 3].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # # axes[0, 3].legend()
+    # # axes[0, 4].plot(ts2, intf_scores2, label='combined')
+    # # axes[0, 4].plot(ts1, intf_scores1, '--', label='assignment score\nchose by combined-min')
+    # # axes[0, 4].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # # axes[0, 4].legend()
 
-    axes[1, 2].plot(ts1, dist_scores_min1[:, 0], label='combined-min')
-    axes[1, 2].plot(ts1, dist_scores_min1[:, 1], label='combined-min')
-    axes[1, 2].plot(ts1, dist_scores1[:, 0], '--', label='assignment score\nchose by combined')
-    axes[1, 2].plot(ts1, dist_scores1[:, 1], '--', label='assignment score\nchose by combined')
-    axes[1, 2].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
-    axes[1, 2].set_ylabel('dist-score')
-    axes[1, 2].legend()
-    axes[1, 3].plot(ts1, bw_scores_min1[:, 0], label='combined-min')
-    axes[1, 3].plot(ts1, bw_scores_min1[:, 1], label='combined-min')
-    axes[1, 3].plot(ts1, bw_scores1[:, 0], '--', label='assignment score\nchose by combined')
-    axes[1, 3].plot(ts1, bw_scores1[:, 1], '--', label='assignment score\nchose by combined')
+    # axes[1, 2].plot(ts1, dist_scores_min1[:, 0], label='combined-min')
+    # axes[1, 2].plot(ts1, dist_scores_min1[:, 1], label='combined-min')
+    # axes[1, 2].plot(ts1, dist_scores1[:, 0], '--', label='assignment score\nchose by combined')
+    # axes[1, 2].plot(ts1, dist_scores1[:, 1], '--', label='assignment score\nchose by combined')
+    # axes[1, 2].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # axes[1, 2].set_ylabel('dist-score')
+    # axes[1, 2].legend()
+    # axes[1, 3].plot(ts1, bw_scores_min1[:, 0], label='combined-min')
+    # axes[1, 3].plot(ts1, bw_scores_min1[:, 1], label='combined-min')
+    # axes[1, 3].plot(ts1, bw_scores1[:, 0], '--', label='assignment score\nchose by combined')
+    # axes[1, 3].plot(ts1, bw_scores1[:, 1], '--', label='assignment score\nchose by combined')
     
-    axes[1, 3].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
-    axes[1, 3].set_ylabel('bw-score')
-    axes[1, 3].legend()
-    axes[1, 4].plot(ts1, intf_scores_min1[:, 0], label='combined-min')
-    axes[1, 4].plot(ts1, intf_scores_min1[:, 1], label='combined-min')
-    axes[1, 4].plot(ts1, intf_scores1[:, 0], '--', label='assignment score\nchose by combined')
-    axes[1, 4].plot(ts1, intf_scores1[:, 1], '--', label='assignment score\nchose by combined')
-    axes[1, 4].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
-    axes[1, 4].set_ylabel('intf-score')
-    axes[1, 4].legend()
+    # axes[1, 3].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # axes[1, 3].set_ylabel('bw-score')
+    # axes[1, 3].legend()
+    # axes[1, 4].plot(ts1, intf_scores_min1[:, 0], label='combined-min')
+    # axes[1, 4].plot(ts1, intf_scores_min1[:, 1], label='combined-min')
+    # axes[1, 4].plot(ts1, intf_scores1[:, 0], '--', label='assignment score\nchose by combined')
+    # axes[1, 4].plot(ts1, intf_scores1[:, 1], '--', label='assignment score\nchose by combined')
+    # axes[1, 4].axvline(1.4579229354858398, linestyle='-.', color='r', alpha=0.7, label='assignment change')
+    # axes[1, 4].set_ylabel('intf-score')
+    # axes[1, 4].legend()
 
-    plt.tight_layout()
-    plt.savefig('analysis-results/compare-score.pdf')
+    # plt.tight_layout()
+    # plt.savefig('analysis-results/compare-score.pdf')
 
     
 def generate_keys(locs, bws, helpees, schedulers=None):
@@ -531,21 +533,25 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
     x_positions = np.arange(len(schedules))
     cnt = 0
-    schedule_data = {}
+    schedule_data, schedule_overhead, server_compute_time = {}, {}, {}
     schedule_helpee_data, schedule_helper_data = {}, {}
     schedule_to_frames_within_threshold = {}
     for schedule in schedules:
         for k, v in result_each_run.items():
             if schedule in k:
                 if schedule not in schedule_data.keys():
+                    schedule_overhead[schedule] = v['overhead']
+                    server_compute_time[schedule] = v['sched_latency']
                     schedule_data[schedule] = v['all']
                     schedule_helpee_data[schedule] = v['helpee']
                     schedule_helper_data[schedule] = v['helper']
                     schedule_to_frames_within_threshold[schedule] = [get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)]
                 else:
+                    schedule_overhead[schedule] = np.hstack((schedule_overhead[schedule], v['overhead']))
                     schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
                     schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
                     schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
+                    server_compute_time[schedule] = np.hstack((server_compute_time[schedule], v['sched_latency']))
                     schedule_to_frames_within_threshold[schedule] = \
                         np.hstack((schedule_to_frames_within_threshold[schedule], \
                             get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)))
@@ -559,6 +565,29 @@ def plot_bars_compare_schedules(schedules):
     ax.set_xticklabels(schedules)
     plt.ylabel('Latency (s)')
     plt.savefig('analysis-results/schedule_compare.png')
+
+    fig = plt.figure(figsize=(9,6))
+    ax = fig.add_subplot(111)
+    cnt = 0
+    for schedule in schedule_data.keys():
+        ax.boxplot(schedule_overhead[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
+        cnt += 1
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(schedules)
+    plt.ylabel('Computational Overhead (s)')
+    plt.savefig('analysis-results/schedule_overhead.png')   
+
+    fig = plt.figure(figsize=(9,6))
+    ax = fig.add_subplot(111)
+    cnt = 0
+    for schedule in schedule_data.keys():
+        ax.boxplot(server_compute_time[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
+        cnt += 1
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(schedules)
+    plt.ylabel('Time to compute schedule (s)')
+    plt.savefig('analysis-results/server_schedule_time.png')      
+    
 
     fig = plt.figure(figsize=(9,6))
     ax = fig.add_subplot(111)
@@ -603,7 +632,7 @@ def plot_bars_compare_schedules(schedules):
             if schedule in k:
                 for t in selected_thresholds:
                     sched_to_different_latency_cnts[schedule][t].append(
-                        get_percentage_frames_within_threshold(v, t, SSIM_THRESHOLD)
+                        get_percentage_frames_within_threshold(v, t, SSIM_THRESHOLD, key='max_full_frames')
                     )
     sched_to_different_latency_mean = {}
     sched_to_different_latency_std = {}
@@ -613,10 +642,15 @@ def plot_bars_compare_schedules(schedules):
         for t in selected_thresholds:
             sched_to_different_latency_mean[schedule].append(np.mean(sched_to_different_latency_cnts[schedule][t]))
             sched_to_different_latency_std[schedule].append(np.std(sched_to_different_latency_cnts[schedule][t]))
-        ax.plot(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], '-o', label=schedule)
+        print("*******")
+        print(schedule, sched_to_different_latency_mean[schedule])
+        print(sched_to_different_latency_std[schedule][1])
+        ax.plot(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], '-o', label=schedule if schedule is not 'combined-loc' else 'combined-loc-3.5m')
         # ax.errorbar(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], yerr=sched_to_different_latency_std[schedule], capsize=2, label=schedule)
         ax.set_xticks(np.arange(0, len(selected_thresholds)))
         ax.set_xticklabels(selected_thresholds)
+    # ax.plot(np.arange(0, len(selected_thresholds)), [69.49424460431654, 70.58603117505996, 71.09562350119904, 71.49280575, 71.92745803357315, 73.8459232613909, 74.92505995203837, 76.01918465227818], '--o', label='combined-loc-12m')
+    # ax.plot(np.arange(0, len(selected_thresholds)), [59.59232613908873, 62.18025579536371, 64.8880895283773, 66.207034372502, 67.3960831334932, 72.06235011990408, 74.82014388489209, 78.28737010391687], '--o', label='combined-loc-30m')
     plt.legend()
     plt.ylabel("% of Frames within the latency threshold")
     plt.gca().set_ylim(bottom=0)

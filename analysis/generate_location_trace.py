@@ -17,28 +17,59 @@ def get_random_vehicle_traj(df, vehicle_number_pool):
     return x, y
 
 
-df = pd.read_csv('../NGSIM-data.csv', low_memory=False)
-print("Number of vehicles", len(df['Vehicle_ID'].unique()))
-vehicle_number_pool = df['Vehicle_ID'].to_numpy()
+# df = pd.read_csv('../NGSIM-data.csv', low_memory=False)
+# print("Number of vehicles", len(df['Vehicle_ID'].unique()))
+# vehicle_number_pool = df['Vehicle_ID'].to_numpy()
 
-print(df.columns)
+# print(df.columns)
 
-print('data shape: ', df.shape)
+# print('data shape: ', df.shape)
+
+# merged_loc = None
+# for i in range(6): # make node a argument
+#     # right now the syncing between 
+#     x,y = get_random_vehicle_traj(df, vehicle_number_pool)
+#     if merged_loc is None:
+#         merged_loc = np.hstack((x.reshape(-1,1),y.reshape(-1,1)))
+#     else:
+#         min_size = min(merged_loc.shape[0], x.shape[0])
+#         merged_loc = np.hstack((merged_loc[:min_size], x.reshape(-1,1)[:min_size]))
+#         merged_loc = np.hstack((merged_loc[:min_size], y.reshape(-1,1)[:min_size]))
+
+# print(merged_loc.shape)
+
+# # scale to x, y value to 0 by subtracting the minimum
+# minx = np.min(merged_loc[:, ::2])
+# # print(minx)
+# miny = np.min(merged_loc[:, 1::2])
+# # print(miny)
+
+# merged_loc[:, ::2] -= minx
+# merged_loc[:, 1::2] -= miny
+
+# merged_loc[merged_loc > 200] = merged_loc[merged_loc > 200] % 200
+
+# if len(sys.argv) > 1:
+#     np.savetxt(sys.argv[1]+'.txt', merged_loc, fmt='%f')
+# else:
+#     np.savetxt('sample-loc-trace.txt', merged_loc, fmt='%f')
+
+
+trace_dir = '../../NGSIM-Analysis/trajs/us-101/'
+trajs = os.listdir(trace_dir)
 
 merged_loc = None
-for i in range(6): # make node a argument
-    # right now the syncing between 
-    x,y = get_random_vehicle_traj(df, vehicle_number_pool)
+for i in range(6):
+    randidx = randint(0, len(trajs)-1)
+    trace_name = trajs[randidx]
+    data = pd.read_csv(trace_dir+trace_name)
+    x, y = data['Global_X'].to_numpy(), data['Global_Y'].to_numpy()
     if merged_loc is None:
         merged_loc = np.hstack((x.reshape(-1,1),y.reshape(-1,1)))
     else:
         min_size = min(merged_loc.shape[0], x.shape[0])
         merged_loc = np.hstack((merged_loc[:min_size], x.reshape(-1,1)[:min_size]))
         merged_loc = np.hstack((merged_loc[:min_size], y.reshape(-1,1)[:min_size]))
-
-print(merged_loc.shape)
-
-# scale to x, y value to 0 by subtracting the minimum
 minx = np.min(merged_loc[:, ::2])
 # print(minx)
 miny = np.min(merged_loc[:, 1::2])
@@ -46,11 +77,4 @@ miny = np.min(merged_loc[:, 1::2])
 
 merged_loc[:, ::2] -= minx
 merged_loc[:, 1::2] -= miny
-
-if len(sys.argv) > 1:
-    np.savetxt(sys.argv[1]+'.txt', merged_loc, fmt='%f')
-else:
-    np.savetxt('sample-loc-trace.txt', merged_loc, fmt='%f')
-
-
-
+np.savetxt('sample-loc-trace.txt', merged_loc, fmt='%f')

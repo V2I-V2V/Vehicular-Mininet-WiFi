@@ -1,3 +1,4 @@
+from typing import overload
 import numpy as np
 import math
 from ast import literal_eval
@@ -10,18 +11,19 @@ from collections import OrderedDict
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
 sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
-    'combined-adapt': 'grey', 'bwAware': 'darkblue', 'combined-sum-min': 'blueviolet',
-    'combined-loc': 'brown'}
+    'combined-adapt': 'grey', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
+    'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
+    'combined-op_sum-harmonic': 'cyan'}
 sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed': '--', 'combined': ':',\
     'combined-adapt': '-', 'bwAware': 'darkblue'}
 
 linestyles = OrderedDict(
     [('combined-adapt',               (0, ())),
      ('minDist',      (0, (1, 10))),
-     ('combined-sum-min',              (0, (1, 5))),
+     ('combined-op_min-min',              (0, (1, 5))),
      ('combined',      (0, (1, 1))),
 
-     ('loosely dashed',      (0, (5, 10))),
+     ('combined-op_sum-min',      (0, (5, 10))),
      ('dashed',              (0, (5, 5))),
      ('random',      (0, (5, 1))),
 
@@ -29,7 +31,7 @@ linestyles = OrderedDict(
      ('distributed',          (0, (3, 5, 1, 5))),
      ('densely dashdotted',  (0, (3, 1, 1, 1))),
 
-     ('loosely dashdotdotted', (0, (3, 10, 1, 10, 1, 10))),
+     ('combined-op_sum-harmonic', (0, (3, 10, 1, 10, 1, 10))),
      ('combined-loc',         (0, (3, 5, 1, 5, 1, 5))),
      ('bwAware', (0, (3, 1, 1, 1, 1, 1)))])
 
@@ -88,6 +90,20 @@ def get_server_assignments(filename):
     return assignment_mode, ts_to_assignment, ts_to_scores, score_combined, score_min
 
 
+def get_computation_overhead(filename):
+    computation_latency = []
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            parse = line.split() 
+            if line.startswith('[Loc msg size]') or line.startswith('[Loc msg size]'):
+                t1 = float(parse[-1])
+            elif line.startswith('[Helpee get helper assignment]'):
+                t5 = float(parse[-1])
+                computation_latency.append(t5-t1)
+    return computation_latency
+
+
 def get_sender_ts(filename):
     sender_ts = {}
     encode_choice = {}
@@ -124,6 +140,7 @@ def get_receiver_ts(filename):
     receiver_throughput = {}
     receiver_ts_dict = {}
     server_node_dict = {'time':[], 'helper_num': [], 'helpee_num': []}
+    sched_latencies = []
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -145,9 +162,12 @@ def get_receiver_ts(filename):
                 server_node_dict['time'].append(ts)
                 server_node_dict['helper_num'].append(helper_cnt)
                 server_node_dict['helpee_num'].append(helpee_cnt)
+            elif line.startswith("One round sched takes"):
+                sched_latency = float(line.split()[-1])
+                sched_latencies.append(sched_latency)
                 
         f.close()
-    return receiver_ts_dict, receiver_throughput, server_node_dict
+    return receiver_ts_dict, receiver_throughput, server_node_dict, sched_latencies
 
 
 def get_distributed_helper_assignments(data_dir, num_nodes):
@@ -221,16 +241,22 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
     latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
     # node_id_to_latencies, node_id 
+    overhead = []
     sent_frames = 0
     for i in range(num_nodes):
         sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t = get_sender_ts(dir + '/logs/node%d.log'%i)
         # sent_frames += int((last_t-min(sender_ts_dict[i].values()))*10)
+        computational_overhead = get_computation_overhead(dir + '/logs/node%d.log'%i)
+        if len(computational_overhead) > 0:
+            print("overhead", np.mean(computational_overhead))
+            overhead.extend(computational_overhead)
+
         sent_frames += 556
         latency_dict[i] = {}
         if with_ssim:
             ssims = get_ssims(dir+'/node%d_ssim.log'%i)
             node_to_ssims[i] = ssims
-    receiver_ts_dict, receiver_thrpt, server_helper_dict = get_receiver_ts(dir + '/logs/server.log')
+    receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies = get_receiver_ts(dir + '/logs/server.log')
     print("Total frames sent in exp", sent_frames)
     # calculate delay
     all_delay, helpee_delay, helper_delay = [], [], []
@@ -264,6 +290,8 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     latency_dict['full_frames'] = np.array(full_frame_delay)
     latency_dict['sent_frames'] = sent_frames
     latency_dict['max_full_frames'] = np.array(full_frame_max_delay)
+    latency_dict['overhead'] = np.array(overhead)
+    latency_dict['sched_latency'] = np.array(sched_latencies)
     
     return latency_dict, node_to_encode_choices
 

@@ -16,7 +16,12 @@ Required arguments:
 Optional arguments:
 
 * `--time_threshold <latency_in_second>`: specify the latency requirement for analysis (# of frames <= `<latency_in_second>`>). Default value is 0.2 s.
-* `--task <task_to_analysis>`: `<task_to_analysis>` can be one of `ssim` (currently only support additional anlysis on ssim). `--task ssim` indicates including the SSIM metric for analysis (calculate frames <= latency threshold and >= ssim threshold).
+* `--task <task_to_analysis>`: `<task_to_analysis>` can be one of `get_folder_on_setting|compare_sched|plot_settings_summary|analyze_msg_overhead|ssim`.  
+  * `--task get_folder_on_setting <setting_attribute1> <setting_attribute2> ...` can find the folders containing the setting attributes (`setting_attribute` can bw, loc, sched_alrgorithms). For example `--task get_folder_on_setting 101 lte-0 combined` will get all folders with loc trace 101.txt, bw trace lte-0.txt and sched combined.
+  * `--task compare_sched <data_folder1> <data_folder2>` compare the scheduler for two data folders (you can get data folders from task `get_folder_on_setting`), it will plot latency of each nodes and assignment in one figure named `analysis-results/compare-sched.png`.
+  * `--task plot_settings_summary` plots the summary of settings in one figure `configurations.png`.
+  * `--task analyze_msg_overhead` plots the control message overhead (Note: `fixed` scheduler must be included as baseline, otherwise the code will not work).
+  * `--task ssim` indicates including the SSIM metric for analysis (calculate frames <= latency threshold and >= ssim threshold).
 * `--ssim_threshold <ssim_threshold_value>`: specify the ssim requirement for analysis (# of frames >= `<ssim_threshold_value>`), must be used with `--task ssim` at the same time. Default value is 0.6.
 * `-p <data_folder_prefix>`: `<data_folder_prefix>` specifies which part of data to analyze. For example, `-k data-0719`  means select all experiments whose folder name begins with `data-0719`.
 
