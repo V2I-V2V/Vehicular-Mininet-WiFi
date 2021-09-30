@@ -19,3 +19,6 @@ analysis/calc_v2v_thrpt.py
 analysis/plot_v2i_thrpt.py
 analysis/plot_position.py
 analysis/cal_avg_thrpt.py
+*.cpu*
+*.trace
+*.dat
