@@ -4,37 +4,42 @@
 import numpy as np
 import open3d as o3d
 import sys
-
-filename = sys.argv[1]
-if '.bin' in filename:
-	ptcl = np.fromfile(sys.argv[1], dtype=np.float32, count=-1).reshape([-1,4])
-elif '.pcd' in filename:
-	ptcl = o3d.io.read_point_cloud(filename)
-	ptcl = np.asarray(ptcl.points)
-elif '.npy' in filename:
-	ptcl = np.load(filename)
-	
-
-count = 0
-print(ptcl.shape[0])
-for p in ptcl:
-	if np.isnan(p[0]):
-		count = count + 1
-# print(count)
-ptcl = ptcl[np.logical_not(np.isnan(ptcl[:,0]))]
-print(ptcl.shape[0])
-
-pcd = o3d.geometry.PointCloud()
-pcd.points = o3d.utility.Vector3dVector(ptcl[:,:3])
-pcd.paint_uniform_color([0, 0, 1])
-o3d.visualization.draw_geometries([pcd])
+import ptcl_utils
+import argparse
 
 
-# vis = o3d.visualization.Visualizer()
-# vis.create_window()
-# vis.add_geometry(pcd)
-# vis.update_geometry(pcd)
-# vis.poll_events()
-# vis.update_renderer()
-# vis.capture_screen_image(path)
-# vis.destroy_window()
+def main(args):
+	filepath = args.filepath
+	ptcl = ptcl_utils.read_ptcl_data(filepath)
+	print(ptcl.shape)
+	render, save, save_path = True, False, None
+	if args.no_render:
+		print("no rendering")
+		render = False
+	if args.savepath != "":
+		print("save")
+		save = True
+		save_path = args.savepath
+	ptcl_utils.draw_ptcl(ptcl, args.mode, show=render, save=save, save_path=save_path)
+
+
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser(description="Script to visualize point clouds")
+	parser.add_argument("--filepath", type=str, help="Path to the point cloud file")
+	parser.add_argument("--mode", type=str, default="3d", choices=["3d", "2d"])
+	parser.add_argument("--savepath", type=str, default="", help="path to save")
+	parser.add_argument("--no_render", action="store_true", default=False, help="Do not render")
+	args = parser.parse_args()
+	main(args)
+
+
+### TODO:
+
+# read, write, visualize, draw bounding boxes
+
+# visualize (2D: matplotlib, 3D: Open3D)
+
+# Put Gnd detection repo into the ptcl/dir
+
+
+
