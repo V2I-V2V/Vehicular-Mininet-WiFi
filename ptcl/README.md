@@ -1,6 +1,25 @@
-# Point cloud process scripts
+# Point cloud process/visualization scripts
 
 ## Usage
+
+### `viz.py`
+
+Assume executing the script under `ptcl/` directory
+
+```bash
+python3 viz.py --filepath <ptcl file to show>
+```
+
+Required arguments:
+
+* `--filepath <file>`: ptcl data file to plot/save.
+
+Optional arguments:
+
+* `--mode <3d/2d>`: plot in 3D mode or 2D mode.
+* `--savepath <path>`: path to save point cloud plot
+* `--no_render`: disable plot rendering
+
 
 ### `pcd_process.py`
 Assume the `Vehicular-Mininet-WiFi` is put at home directory.
