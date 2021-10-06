@@ -21,6 +21,10 @@ Optional arguments:
 * `--no_render`: disable plot rendering
 
 
+### Ptcl related API
+
+Please see the docstring inside `ptcl_utils.py`.
+
 ### `pcd_process.py`
 Assume the `Vehicular-Mininet-WiFi` is put at home directory.
 ```
