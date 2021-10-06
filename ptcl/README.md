@@ -12,7 +12,7 @@ python3 viz.py --filepath <ptcl file to show>
 
 Required arguments:
 
-* `--filepath <file>`: ptcl data file to plot/save.
+* `--filepath <file>`: ptcl data file to plot/save (file format can be one of `.pcd`, `.bin`, `.npy`).
 
 Optional arguments:
 
