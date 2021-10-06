@@ -1,0 +1,277 @@
+#!/usr/bin/env python
+
+"""
+Author: Anshul Paigwar
+email: p.anshul6@gmail.com
+"""
+
+
+
+import argparse
+import os
+import shutil
+import yaml
+import time
+import math
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import numpy as np
+import open3d as o3d
+
+
+# from modules import gnd_est_Loss
+from model import GroundEstimatorNet
+from modules.loss_func import MaskedHuberLoss
+from dataset_utils.dataset_provider import get_train_loader, get_valid_loader
+from utils.utils import lidar_to_img, lidar_to_heightmap, segment_cloud
+from utils.point_cloud_ops import points_to_voxel
+import ipdb as pdb
+import matplotlib.pyplot as plt
+
+import numba
+from numba import jit,types
+
+def np_save_semantic_prediction(points, color, idx):
+    points[:, 3] = color
+    np.save('%s.npy'%idx, points)
+    
+
+use_cuda = torch.cuda.is_available()
+
+if use_cuda:
+    print('setting gpu on gpu_id: 0') #TODO: find the actual gpu id being used
+
+
+
+
+
+#############################################xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx#######################################
+
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
+parser.add_argument('--config', default='config/config_kittiSem.yaml', type=str, metavar='PATH', help='path to config file (default: none)')
+parser.add_argument('-v', '--visualize', dest='visualize', action='store_true', help='visualize model on validation set')
+parser.add_argument('-gnd', '--visualize_gnd', dest='visualize_gnd', action='store_true', help='visualize ground elevation')
+parser.add_argument('--data_dir', default="/home/anshul/es3cap/semkitti_gndnet/kitti_semantic/dataset/sequences/07/", 
+                        type=str, metavar='PATH', help='path to config file (default: none)')
+args = parser.parse_args()
+
+
+if os.path.isfile(args.config):
+    print("using config file:", args.config)
+    with open(args.config) as f:
+        config_dict = yaml.load(f, Loader=yaml.FullLoader)
+
+    class ConfigClass:
+        def __init__(self, **entries):
+            self.__dict__.update(entries)
+
+    cfg = ConfigClass(**config_dict) # convert python dict to class for ease of use
+
+else:
+    print("=> no config file found at '{}'".format(args.config))
+
+print("setting batch_size to 1")
+cfg.batch_size = 1
+
+
+# if args.visualize:
+
+#     # Ros Includes
+#     import rospy
+#     from utils.ros_utils import np2ros_pub_2, gnd_marker_pub
+#     from sensor_msgs.msg import PointCloud2
+#     from visualization_msgs.msg import Marker
+
+#     rospy.init_node('gnd_data_provider', anonymous=True)
+#     pcl_pub = rospy.Publisher("/kitti/velo/pointcloud", PointCloud2, queue_size=10)
+#     marker_pub_2 = rospy.Publisher("/kitti/gnd_marker_pred", Marker, queue_size=10)
+
+
+
+
+
+
+model = GroundEstimatorNet(cfg).cuda()
+optimizer = optim.SGD(model.parameters(), lr=cfg.lr, momentum=0.9, weight_decay=0.0005)
+
+
+
+
+def get_GndSeg(sem_label, GndClasses):
+    index = np.isin(sem_label, GndClasses)
+    GndSeg = np.ones(sem_label.shape)
+    GndSeg[index] = 0
+    index = np.isin(sem_label, [0,1])
+    GndSeg[index] = -1
+    return GndSeg
+
+
+
+@jit(nopython=True)
+def remove_outliers(pred_GndSeg, GndSeg): # removes the points outside grid and unlabled points
+    index = pred_GndSeg >= 0
+    pred_GndSeg = pred_GndSeg[index]
+    GndSeg = GndSeg[index]
+
+    index = GndSeg >=0
+    pred_GndSeg = pred_GndSeg[index]
+    GndSeg = GndSeg[index]
+    return 1-pred_GndSeg, 1-GndSeg
+
+
+
+
+@jit(nopython=True)
+def _shift_cloud(cloud, height):
+    cloud += np.array([0,0,height,0], dtype=np.float32)
+    return cloud
+
+
+
+def get_target_gnd(cloud, sem_label):
+    if cloud.shape[0] != sem_label.shape[0]:
+        raise Exception('Points and label MisMatch')
+
+    index = np.isin(sem_label, [40, 44, 48, 49,60,72])
+    gnd = cloud[index]
+    gnd_mask = lidar_to_img(np.copy(gnd), np.asarray(cfg.grid_range), cfg.voxel_size[0], fill = 1)
+    gnd_heightmap = lidar_to_heightmap(np.copy(gnd), np.asarray(cfg.grid_range), cfg.voxel_size[0], max_points = 100)
+    return  gnd_heightmap, gnd_mask
+
+
+
+
+def InferGround(cloud):
+
+    cloud = _shift_cloud(cloud[:,:4], cfg.lidar_height)
+
+    voxels, coors, num_points = points_to_voxel(cloud, cfg.voxel_size, cfg.pc_range, cfg.max_points_voxel, True, cfg.max_voxels)
+    voxels = torch.from_numpy(voxels).float().cuda()
+    coors = torch.from_numpy(coors)
+    coors = F.pad(coors, (1,0), 'constant', 0).float().cuda()
+    num_points = torch.from_numpy(num_points).float().cuda()
+    with torch.no_grad():
+            output = model(voxels, coors, num_points)
+    return output
+
+
+def calculate_grid_label(grid_size, points):
+    x_size, y_size = int(100/grid_size), int(100/grid_size)
+    grid = np.zeros((x_size, y_size), dtype=int)
+    for point in points:
+        x_idx, y_idx = int((point[0]+50)/grid_size), int((point[1]+50)/grid_size)
+        if x_idx < x_size and y_idx < y_size:
+            if point[3] == 1:
+                # obj
+                grid[x_idx][y_idx] -= 1
+            elif point[3] == 0:
+                # ground 
+                grid[x_idx][y_idx] += 1
+    
+    grid[grid > 0] = 1 # drivable
+    grid[grid < 0] = -1 # object
+    # print(len(grid[grid > 0]))
+    
+    return grid
+
+
+# if args.visualize:
+#     plt.ion()
+#     fig = plt.figure()
+
+def evaluate_SemanticKITTI(data_dir):
+
+    velodyne_dir = data_dir # + "velodyne_2/"
+    # label_dir = data_dir + 'labels/'
+    frames = os.listdir(velodyne_dir)
+    # calibration = parse_calibration(os.path.join(data_dir, "calib.txt"))
+    # poses = parse_poses(os.path.join(data_dir, "poses.txt"), calibration)
+    # rate = rospy.Rate(2) # 10hz
+    # angle = 0
+    # increase = True
+    iou_score = 0
+    mse_score = 0
+    prec_score = 0
+    recall_score = 0
+    err_cnt = 0
+    err_frame = []
+    print(len(frames))
+    for f in range(len(frames)):
+        # points_path = os.path.join(velodyne_dir, "%06d.bin" % f)
+        points_path = os.path.join(velodyne_dir, frames[f])
+        print(frames[f])
+        # pcd = o3d.io.read_point_cloud(points_path)
+        # points = np.asarray(pcd.points)
+        # points = np.hstack((points, np.ones((points.shape[0], 1), dtype=np.float32)))
+        points = np.fromfile(points_path, dtype=np.float32).reshape(-1, 4)
+        points = points.astype(np.float32)
+        print(points.shape)
+
+
+        # label_path = os.path.join(label_dir, "%06d.label" % f)
+        # sem_label = np.fromfile(label_path, dtype=np.uint32)
+        # sem_label = sem_label.reshape((-1))
+        try:
+            pred_gnd = InferGround(points)
+        except:
+            print("err on frame", frames[f])
+            err_cnt += 1
+            dummy = np.zeros((100, 100))
+            np.savetxt('carla/grid_labels_all_comb/%s.txt'%frames[f][:-4], dummy)
+            err_frame.append(frames[f])
+            continue
+
+        pred_gnd = pred_gnd.cpu().numpy()
+        # TODO: Remove the points which are very below the ground
+        pred_GndSeg = segment_cloud(points.copy(),np.asarray(cfg.grid_range), cfg.voxel_size[0], elevation_map = pred_gnd.T, threshold = 0.2)
+        # GndSeg = get_GndSeg(sem_label, GndClasses = [40, 44, 48, 49,60,72])
+        
+        print('Ground segement shape ', pred_GndSeg.shape)
+        print(pred_GndSeg)
+        print(pred_GndSeg[pred_GndSeg==1].shape)
+        print(pred_GndSeg[pred_GndSeg==-1].shape)
+        points[:, 3] = pred_GndSeg
+        np_save_semantic_prediction(points, pred_GndSeg, frames[f])
+        # grids = calculate_grid_label(1, points)
+        # np.savetxt('carla/grid_labels_all_comb/%s.txt'%frames[f][:-4], grids)
+
+        # if args.visualize:
+        #     np2ros_pub_2(points, pcl_pub, None, pred_GndSeg)
+        #     if args.visualize_gnd:
+        #         gnd_marker_pub(pred_gnd, marker_pub_2, cfg, color = "red")
+            # pdb.set_trace()
+    with open('err_frames.txt', 'w') as f:
+        for item in err_frame:
+            f.write("%s\n" % item)
+
+def main():
+    # rospy.init_node('pcl2_pub_example', anonymous=True)
+    global args
+    # optionally resume from a checkpoint
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            checkpoint = torch.load(args.resume)
+            args.start_epoch = checkpoint['epoch']
+            lowest_loss = checkpoint['lowest_loss']
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+    else:
+        raise Exception('please specify checkpoint to load')
+
+    evaluate_SemanticKITTI(args.data_dir)
+
+
+
+if __name__ == '__main__':
+    main()
