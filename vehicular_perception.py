@@ -245,9 +245,9 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     if routing == 'custom':
         run_custom_routing(stations)
 
-    ### Prioritize Traffic ### 
-    for sta_idx in range(num_nodes):
-        configure_priority(stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+    # ### Prioritize Traffic ### 
+    # for sta_idx in range(num_nodes):
+    #     configure_priority(stations[sta_idx], 'sta%d-wlan0'%sta_idx)
 
     ### Run application ###
     if run_app is True:
