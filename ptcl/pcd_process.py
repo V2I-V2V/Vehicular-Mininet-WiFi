@@ -23,6 +23,10 @@ def convert_decoded_bin_to_pcd(src, dst):
     o3d_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(src[:, :3]))
     o3d.io.write_point_cloud(dst, o3d_pcd)
 
+def save_decoded_bin(src, dst):
+    with open(dst, 'w') as f:
+        src.tofile(f)
+
 
 def merge_bin_to_pcd(bins, oxts, dst):
     """ merge point clouds from different coordinates (oxts)
@@ -81,6 +85,39 @@ def create_ref(n, frame_id, folder_name):
         o3d.io.write_point_cloud(pcd_name, o3d_pcd)
 
 
+def create_encode_decode_ref(n, frame_id, folder_name):
+    if n > 6:
+        return
+    basepath = './DeepGTAV-data/object-0227-1/'
+    pcd_filename = str(frame_id).zfill(6) + ".bin"
+    oxts_filename = str(frame_id).zfill(6) + ".txt" 
+    ptcl_paths = [basepath + x for x in ['velodyne_2/', 'alt_perspective/0022786/velodyne_2/', 'alt_perspective/0037122/velodyne_2/',
+                'alt_perspective/0191023/velodyne_2/', 'alt_perspective/0399881/velodyne_2/', 'alt_perspective/0735239/velodyne_2/']]
+    oxts_paths = [basepath + x for x in ['oxts/', 'alt_perspective/0022786/oxts/', 'alt_perspective/0037122/oxts/', 
+                'alt_perspective/0191023/oxts/', 'alt_perspective/0399881/oxts/', 'alt_perspective/0735239/oxts/']]
+    pcls = []
+    oxtss = [] 
+    for i in range(n):
+        pcl = np.memmap(ptcl_paths[i] + pcd_filename, dtype='float32', mode='r').reshape([-1,4]) 
+        encoded, _ = ptcl.pointcloud.dracoEncode(pcl, 10, 12)
+        decoded_pcl = ptcl.pointcloud.dracoDecode(encoded)
+        decoded_pcl = np.append(decoded_pcl, np.zeros((decoded_pcl.shape[0],1),dtype='float32'), axis=1)
+        pcls.append(decoded_pcl)
+        f = open(oxts_paths[i] + oxts_filename, 'r')
+        oxtss.append([float(x) for x in f.read().split()])
+        f.close()
+    points_oxts_primary = (pcls[0], oxtss[0])
+    points_oxts_secondary = []
+    pcd_name = folder_name + "/" + str(frame_id).zfill(6) + '_' + str(n) + '.bin'
+    for i in range(1, n):
+        points_oxts_secondary.append((pcls[i],oxtss[i]))
+    if n == 1:
+        save_decoded_bin(pcls[0], pcd_name)
+    else:
+        pcl = ptcl.pcd_merge.merge(points_oxts_primary, points_oxts_secondary)
+        save_decoded_bin(pcl, pcd_name)
+
+
 def get_dis(node_id, frame_id, folder):
     prefix = "node" + str(node_id) + "_frame" + str(frame_id) + "_"
     # print("prefix",prefix)
@@ -112,6 +149,11 @@ if __name__ == "__main__":
         for n in range(1, 7):
             for i in range(80):
                 create_ref(n, i, data_folder)
+    elif process_type == 'decoded-ref':
+        os.system('mkdir ' + data_folder)
+        for n in range(1, 7):
+            for i in range(80):
+                create_encode_decode_ref(n, i, data_folder)  
     elif process_type == "dis":
         basepath = '/home/'+ getpass.getuser() + '/DeepGTAV-data/object-0227-1/'
         oxts_paths = [basepath + x for x in ['oxts/', 'alt_perspective/0022786/oxts/', 'alt_perspective/0037122/oxts/', 

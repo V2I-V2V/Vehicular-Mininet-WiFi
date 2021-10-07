@@ -63,10 +63,12 @@ def plot_distance_for_each_node(trajs, save_dir='./', save_plot=True):
                 #     ax.set_xticks(np.arange(0, len(dist)/10))
                 ax.set_ylabel('distance (m)')
                 ax.set_xlabel('time (s)')
+                ax.set_ylim(top=160)
                 ax.legend()
         cnt += 1
         
     # plt.ylabel('y (m)')
+    
     plt.tight_layout()
     if save_plot:
         plt.savefig(save_dir + 'node-distances.png')

@@ -22,3 +22,6 @@ analysis/cal_avg_thrpt.py
 *.cpu*
 *.trace
 *.dat
+data*
+ptcl/get_poses.py
+run_experiment_single.py

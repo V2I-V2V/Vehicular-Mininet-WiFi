@@ -112,13 +112,16 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     receiver_throughput = {}
     delay_dict = {}
     delay_dict_ts = {}
+    dl_latency = {}
+    e2e_latency = {}
     for i in range(num_nodes):
         receiver_ts_dict[i] = {}
         receiver_throughput[i] = []
     for i in range(num_nodes):
-        sender_ts_dict[i], sender_adaptive_choice[i], encode_time, end_t = util.get_sender_ts(dir + 'logs/node%d.log'%i)
+        sender_ts_dict[i], sender_adaptive_choice[i], encode_time, end_t, summary = util.get_sender_ts(dir + 'logs/node%d.log'%i)
+        dl_latency[i], e2e_latency[i] = summary['dl-latency'], summary['e2e-latency']
         helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
-    receiver_ts_dict, receiver_thrpt, server_node_dict, _ = util.get_receiver_ts(dir + 'logs/server.log')
+    receiver_ts_dict, receiver_thrpt, server_node_dict, _, _ = util.get_receiver_ts(dir + 'logs/server.log')
     delay_all = np.empty((300,))
     for i in range(num_nodes):
         delay_dict[i], delay_dict_ts[i] = calculate_latency(sender_ts_dict[i], receiver_ts_dict[i])
@@ -134,11 +137,33 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     ax.set_axisbelow(True)
     for i in range(num_nodes):
         sns.ecdfplot(np.fromiter(delay_dict[i].values(), dtype=float), label='node%d'%i)
+        np.savetxt(dir+'node%d_latency.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
     # plt.xlim([0, 0.5])
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
     plt.legend()
     plt.savefig(dir+'latency-cdf-each-node.png')
+
+    fig, axes = plt.subplots(num_nodes, 1, sharex=True, figsize=(6, 3*num_nodes))
+    for i in range(num_nodes):
+        axes[i].plot(np.arange(len(dl_latency[i])), dl_latency[i], '-x', label='node%d'%i)
+        axes[i].set_ylabel("Latency (s)")
+        axes[i].legend()
+        axes[i].set_ylim(top=0.3)
+        np.savetxt(dir+'node_%d_dl_latency.txt'%i, dl_latency[i])
+    plt.tight_layout()
+    plt.xlabel('Frame id')
+    plt.savefig(dir+'dl-latency-each-node.png')
+
+    fig= plt.figure()
+    ax = fig.add_subplot(111)
+    for i in range(num_nodes):
+        ax.plot(np.arange(len(e2e_latency[i])), e2e_latency[i], label='node%d'%i)
+    plt.tight_layout()
+    plt.legend()
+    plt.xlabel('Frame id')
+    plt.ylabel('E2E Latency')
+    plt.savefig(dir+'e2e-latency.png')
 
     # Plot latency vs. time
     fig = plt.figure(figsize=(12, 6))
@@ -157,7 +182,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     # plot adaptive encode
     if len(sender_adaptive_choice[0]) != 0:
         bw = np.loadtxt(bw_file)
-        fig = plt.figure(figsize=(9, 7))
+        fig = plt.figure(figsize=(9, 18))
         for i in range(num_nodes):
             ax = fig.add_subplot(num_nodes, 1, i+1)
             ax2 = ax.twinx()

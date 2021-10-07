@@ -3,6 +3,8 @@ import struct
 
 TYPE_CONTROL_MSG = 0
 TYPE_DATA_MSG = 1
+TYPE_SERVER_REPLY_MSG = 2
+TYPE_SEVER_ACK_MSG = 3
 TYPE_LOCATION = 0
 TYPE_ASSIGNMENT = 1
 TYPE_ROUTE = 2
@@ -10,6 +12,7 @@ TYPE_SOS = 3
 TYPE_SOS_REPLY = 4
 CONTROL_MSG_HEADER_LEN = 6
 DATA_MSG_HEADER_LEN = 36
+SERVER_REPLY_MSG_HEADER_LEN = 16
 MAX_CHUNKS_NUM = 4
 
 def construct_control_msg_header(msg_payload, msg_type):
@@ -63,6 +66,23 @@ def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id, num_c
     return header
 
 
+def construct_reply_msg_header(msg_payload, msg_type, frame_id):
+    """Construct server reply message header
+    |---- 4 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 8 bytes ----|
+    | payload length  |    frame id     |  message type   |    timestamp    |
+
+    Args:
+        msg_payload ([type]): [description]
+        msg_type ([type]): [description]
+        frame_id ([type]): [description]
+    """
+    msg_len = len(msg_payload)
+    encoded_ts = struct.pack('!d', time.time())
+    header = msg_len.to_bytes(4, 'big') + frame_id.to_bytes(2, 'big') \
+                + msg_type.to_bytes(2, 'big') + encoded_ts
+    return header
+
+
 def send_msg(socket, header, msg_payload, is_udp=False, remote_addr=None):
     """ General method to send control/data messages
     """
@@ -84,8 +104,8 @@ def send_msg(socket, header, msg_payload, is_udp=False, remote_addr=None):
             try:
                 bytes_sent = socket.send(msg_payload[total_sent:])
                 total_sent += bytes_sent
-                if bytes_sent == 0:
-                    raise RuntimeError("socket connection broken")
+                # if bytes_sent == 0:
+                #     raise RuntimeError("socket connection broken")
             except:
                 print('[Send error] connection broken')
 
@@ -100,6 +120,8 @@ def recv_msg(socket, type, is_udp=False):
                 header_len = DATA_MSG_HEADER_LEN
             elif type == TYPE_CONTROL_MSG:
                 header_len = CONTROL_MSG_HEADER_LEN
+            elif type == TYPE_SERVER_REPLY_MSG:
+                header_len = SERVER_REPLY_MSG_HEADER_LEN
             header = b''
             header_to_recv = header_len
             while len(header) < header_len:
@@ -115,8 +137,6 @@ def recv_msg(socket, type, is_udp=False):
             payload = b''
             to_recv = msg_payload_size
             start_time = time.time()
-            #### TODO recv 4000 each time, discard interval and data with 0.0s,
-            #### calculate throughput based on first chunk that >0.0s
             buffer_drained = False
             thrpt_cnt_bytes = 0
             first_buffer_empty_recv_time = 0.0
@@ -150,10 +170,18 @@ def recv_msg(socket, type, is_udp=False):
             else:
                 return header, payload
         except:
+            print('exception in receiving')
             if type == TYPE_DATA_MSG:
                 return b'', b'', 0.0, 0.0
             else:
                 return b'', b''
+
+def parse_server_reply_msg_header(data):
+    payload_size = int.from_bytes(data[0:4], 'big')
+    frame_id = int.from_bytes(data[4:6], "big")
+    msg_type = int.from_bytes(data[6:8], 'big')
+    ts = struct.unpack('!d', data[8:16])[0]
+    return payload_size, frame_id, msg_type, ts
 
 
 def parse_control_msg_header(data):
