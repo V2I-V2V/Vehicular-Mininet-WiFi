@@ -84,7 +84,7 @@ def run_experiment(config_params, is_save_data=False, is_run_app=True, is_tcpdum
          " --helpee_conf " + config_params["helpee_conf"] +\
          " -t " + config_params["t"] + " --fps " + config_params["fps"] + " -r " + config_params["routing"] +\
          " --multi " + config_params["one_to_many"] + " --adaptive_encode " + config_params["adaptive_encode"] +\
-         " --combine_method " + config_params["combine_method"]
+         " --combine_method " + config_params["combine_method"] + " --score_method " + config_params["score_method"]
     if config_params["adapt_frame_skipping"] == "1":
         cmd += " --adapt_frame_skipping"
     if config_params["add_loc_noise"] == "1":

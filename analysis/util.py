@@ -1,3 +1,4 @@
+import collections
 from typing import overload
 import numpy as np
 import math
@@ -6,16 +7,17 @@ from analysis.v2i_bw import get_nodes_v2i_bw
 from analysis.disconnection import get_disconect_duration_in_percentage
 from analysis.trajectory import get_node_dists
 import matplotlib.pyplot as plt
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
+import os
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
 sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
     'combined-adapt': 'grey', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
     'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
-    'combined-op_sum-harmonic': 'cyan'}
+    'combined-op_sum-harmonic': 'cyan', 'emp': 'orange'}
 sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed': '--', 'combined': ':',\
-    'combined-adapt': '-', 'bwAware': 'darkblue'}
+    'combined-adapt': '-'}
 
 linestyles = OrderedDict(
     [('combined-adapt',               (0, ())),
@@ -26,6 +28,7 @@ linestyles = OrderedDict(
      ('combined-op_sum-min',      (0, (5, 10))),
      ('dashed',              (0, (5, 5))),
      ('random',      (0, (5, 1))),
+     ('emp',      (0, (5, 1))),
 
      ('loosely dashdotted',  (0, (3, 10, 1, 10))),
      ('distributed',          (0, (3, 5, 1, 5))),
@@ -34,6 +37,30 @@ linestyles = OrderedDict(
      ('combined-op_sum-harmonic', (0, (3, 10, 1, 10, 1, 10))),
      ('combined-loc',         (0, (3, 5, 1, 5, 1, 5))),
      ('bwAware', (0, (3, 1, 1, 1, 1, 1)))])
+
+
+detected_spaces_label = [[[] for _ in range(80)] for _ in range(6)]
+detected_space_label = collections.defaultdict(list)
+
+# for i in range(1, 7):
+#     for j in range(80):
+#         grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(j, i))
+#         detected_space = len(grid_label[grid_label != 0])
+#         detected_spaces_label[i-1][j] = detected_space
+
+# labels = os.listdir('/home/mininet-wifi/grid_labels_all_comb/')
+# for label in sorted(labels):
+#     path = '/home/mininet-wifi/grid_labels_all_comb/' + label
+#     grids = np.loadtxt(path)
+#     detected_space = len(grids[grids != 0])
+#     comb = label[7:-4]
+#     detected_space_label[comb].append(detected_space)
+import json
+# with open("/home/mininet-wifi/all-grid-label.json", 'w') as outfile:
+#     json.dump(detected_space_label, outfile)
+f = open("/home/mininet-wifi/all-grid-label.json", 'r')
+detected_space_label = json.load(f)
+
 
 def get_server_assignments(filename):
     ts_to_assignment, ts_to_scores = {}, {}
@@ -60,9 +87,13 @@ def get_server_assignments(filename):
                 # node_mapping = eval(node_mapping_str)
                 if len(node_mapping_str) != 0:
                     node_mapping = eval(node_mapping_str)
-                for helpee_idx, helper_idx in enumerate(assignment):
-                    helpee_to_helper[node_mapping[helpee_idx]] = node_mapping[helper_idx]
-                ts_to_assignment[ts] = helpee_to_helper
+                try:
+                    for helpee_idx, helper_idx in enumerate(assignment):
+                        # print(node_mapping, helpee_idx)
+                        helpee_to_helper[node_mapping[helpee_idx]] = node_mapping[helper_idx]
+                    ts_to_assignment[ts] = helpee_to_helper
+                except:
+                    pass
             elif line.startswith('Scores '):
                 parse = line.split()
                 ts = float(parse[-1])
@@ -96,7 +127,9 @@ def get_computation_overhead(filename):
         lines = f.readlines()
         for line in lines:
             parse = line.split() 
-            if line.startswith('[Loc msg size]') or line.startswith('[Loc msg size]'):
+            if line.startswith('[start timestamp]'):
+                t1 = float(parse[-1])
+            elif line.startswith('[Loc msg size]') or line.startswith('[Loc msg size]'):
                 t1 = float(parse[-1])
             elif line.startswith('[Helpee get helper assignment]'):
                 t5 = float(parse[-1])
@@ -107,6 +140,7 @@ def get_computation_overhead(filename):
 def get_sender_ts(filename):
     sender_ts = {}
     encode_choice = {}
+    summary_dict = {'dl-latency': [], 'e2e-latency': []} # sumamry of related metrics
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -119,7 +153,7 @@ def get_sender_ts(filename):
                 frame = int(parse[-2])
                 sender_ts[frame] = frame * 1.0/fps + start_ts
                 last_t = float(parse[-1])
-            elif line.startswith("[V2V"):
+            elif line.startswith("[V2V send"):
                 frame = int(parse[-5])
                 sender_ts[frame] = frame * 1.0/fps + start_ts
                 last_t = float(parse[-1])
@@ -132,8 +166,17 @@ def get_sender_ts(filename):
                 encode_t = math.ceil(float(parse[-1]))
             elif line.startswith("[relay throughput]"):
                 last_t = float(parse[-1])
+            elif line.startswith("[Recv rst from server]") \
+                or line.startswith("[V2V Recv rst from helper]"):
+                summary_dict['dl-latency'].append(float(parse[-2]))
+                timestamp = float(parse[-1])
+                frame = int(parse[-5][:-1])
+                e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
+                # if frame in sender_ts:
+                #     e2e_latency = timestamp - sender_ts[frame]
+                summary_dict['e2e-latency'].append(e2e_latency)
                 
-    return sender_ts, encode_choice, encode_t, last_t
+    return sender_ts, encode_choice, encode_t, last_t, summary_dict
 
 
 def get_receiver_ts(filename):
@@ -141,6 +184,7 @@ def get_receiver_ts(filename):
     receiver_ts_dict = {}
     server_node_dict = {'time':[], 'helper_num': [], 'helpee_num': []}
     sched_latencies = []
+    frame_id_to_senders = defaultdict(str)
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -156,6 +200,10 @@ def get_receiver_ts(filename):
                     receiver_ts_dict[sender_id] = {}
                 receiver_throughput[sender_id].append([ts, thrpt])
                 receiver_ts_dict[sender_id][frame] = ts
+                if str(sender_id) not in frame_id_to_senders[frame]:
+                    frame_id_to_senders[frame] += str(sender_id)
+                # if frame_id_to_senders[frame] < 6:
+                #     frame_id_to_senders[frame] += 1
             elif line.startswith("Helpers:"):
                 parse = line.split()
                 helper_cnt, helpee_cnt, ts = int(parse[1]), int(parse[3]), float(parse[-1])
@@ -167,7 +215,29 @@ def get_receiver_ts(filename):
                 sched_latencies.append(sched_latency)
                 
         f.close()
-    return receiver_ts_dict, receiver_throughput, server_node_dict, sched_latencies
+    return receiver_ts_dict, receiver_throughput, server_node_dict, sched_latencies, frame_id_to_senders
+
+
+def construct_comb(vnum_list, truth_list):
+    s = ""
+    for i in vnum_list:
+        s += truth_list[int(i)]
+    return s
+
+def calculate_detected_areas(frame_id_to_senders):
+    detected_spaces = []
+    for frame_id, v_num in frame_id_to_senders.items():
+        if frame_id < 550:
+            wrapped_frame_id = frame_id % 80
+            print(v_num)
+            v_num_comb = sorted(v_num)
+            key = construct_comb(v_num_comb, ['0', '2', '4', '5'])
+            # grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(wrapped_frame_id, v_num))
+            # detected_space = len(grid_label[grid_label != 0])
+            # detected_spaces.append(detected_space)
+            print(type(wrapped_frame_id))
+            detected_spaces.append(detected_space_label[key][wrapped_frame_id])
+    return detected_spaces
 
 
 def get_distributed_helper_assignments(data_dir, num_nodes):
@@ -211,6 +281,10 @@ def get_helpees(helpee_conf):
         return conf[0]
 
 
+def get_num_frames_above_detected_space_threshold(detected_spaces, threshold):
+    return len(detected_spaces[detected_spaces >= threshold])
+
+
 def get_num_frames_within_threshold(node_to_latency, threshold, ssim_t=None, perception_t=None, key='all'):
     if ssim_t is None and perception_t is None:
         all_latency = node_to_latency[key]
@@ -241,12 +315,14 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
     latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
     # node_id_to_latencies, node_id 
-    overhead = []
+    overhead, dl_latencies = [], {}
     sent_frames = 0
     for i in range(num_nodes):
-        sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t = get_sender_ts(dir + '/logs/node%d.log'%i)
+        sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = get_sender_ts(dir + '/logs/node%d.log'%i)
         # sent_frames += int((last_t-min(sender_ts_dict[i].values()))*10)
         computational_overhead = get_computation_overhead(dir + '/logs/node%d.log'%i)
+        # dl_latencies.extend(summary_dict['dl-latency'])
+        dl_latencies[i] = summary_dict['dl-latency']
         if len(computational_overhead) > 0:
             print("overhead", np.mean(computational_overhead))
             overhead.extend(computational_overhead)
@@ -256,7 +332,9 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
         if with_ssim:
             ssims = get_ssims(dir+'/node%d_ssim.log'%i)
             node_to_ssims[i] = ssims
-    receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies = get_receiver_ts(dir + '/logs/server.log')
+    receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies, frame_id_to_senders = get_receiver_ts(dir + '/logs/server.log')
+    detected_areas = calculate_detected_areas(frame_id_to_senders)
+    # detected_areas = None
     print("Total frames sent in exp", sent_frames)
     # calculate delay
     all_delay, helpee_delay, helper_delay = [], [], []
@@ -284,6 +362,12 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
         for i in range(num_nodes):
             full_frame_delay.append(receiver_ts_dict[i][frame]-sender_ts_dict[i][frame])
         full_frame_max_delay.append(max(full_frame_delay[-num_nodes:]))
+    for frame_id in frame_id_to_senders:
+        delay = []
+        for i in range(num_nodes):
+            if frame_id in receiver_ts_dict[i]:
+                delay.append(receiver_ts_dict[i][frame_id]-sender_ts_dict[i][frame_id])
+        # full_frame_max_delay.append(max(delay))
     latency_dict['all'] = np.array(all_delay)
     latency_dict['helpee'] = np.array(helpee_delay)
     latency_dict['helper'] = np.array(helper_delay)
@@ -292,6 +376,8 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     latency_dict['max_full_frames'] = np.array(full_frame_max_delay)
     latency_dict['overhead'] = np.array(overhead)
     latency_dict['sched_latency'] = np.array(sched_latencies)
+    latency_dict['detected_areas'] = detected_areas
+    latency_dict['dl-latency'] = dl_latencies
     
     return latency_dict, node_to_encode_choices
 

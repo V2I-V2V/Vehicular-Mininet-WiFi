@@ -1,22 +1,24 @@
 # this file handles the main process run by each vehicle node
  # -*- coding: utf-8 -*-
-import sys, os
+import os
+import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.stderr = sys.stdout
-import threading
+sys.stderr = sys.stdout # redirect stderr to stdout for debugging
+import argparse
+import bisect
 import socket
+import threading
 import time
-import ptcl.pointcloud
-import ptcl.partition
-import wwan, wlan
 import config
+import network.message
+import numpy as np
+import ptcl.partition
+import ptcl.pointcloud
 import utils
 import mobility
 import route
-import numpy as np
-import argparse
-import network.message
-import bisect
+import wlan
+import wwan
 
 # Define some constants
 HELPEE = 0
@@ -55,6 +57,7 @@ control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
 is_adaptive_frame_skipped = args.adapt_skip_frames
 add_noise_to_loc = args.add_loc_noise
+print("Noise enabled?", add_noise_to_loc)
 
 pcd_data_type = args.data_type
 if args.data_type == "GTA":
@@ -77,9 +80,9 @@ start_timestamp = 0.0
 last_frame_sent_ts = 0.0
 vehicle_locs = mobility.read_locations(LOCATION_FILE)
 self_loc_trace = vehicle_locs[vehicle_id]
-self_loc = self_loc_trace[0]
 if len(self_loc_trace) > 5:
-    self_loc = self_loc[5:] # manually sync location update with vechiular_perception.py
+    self_loc_trace = self_loc_trace[5:] # manually sync location update with vechiular_perception.py
+self_loc = self_loc_trace[0]
 pcd_data_buffer = []
 oxts_data_buffer = []
 e2e_frame_latency = {}
@@ -101,7 +104,6 @@ def self_loc_update_thread():
             time.sleep(0.1-t_passed)
 
 
-
 vehicle_seq_dict = {} # store other vehicle's highest seq
 control_seq_num = 0 # self seq number
 
@@ -112,14 +114,17 @@ v2i_control_socket, scheduler_mode = wwan.setup_p2p_links(vehicle_id, config.ser
 print("server sched mode", scheduler_mode)
 v2i_data_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+v2v_data_control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 curr_frame_id = 0
 v2v_recved_bytes = 0
 
 helper_data_send_thread = []
 helper_data_recv_port = 8080
 helper_control_recv_port = 8888
+helpee_rst_recv_port = 8000 # this is the port that traffic should be prioritized for
 self_ip = "10.0.0." + str(vehicle_id+2)
 capture_finished = False
+
 
 def throughput_calc_thread():
     """ Thread to calculate V2V thrpt
@@ -183,6 +188,7 @@ def get_updated_fps(metric):
     elif metric <= 0.1:
         return 10
 
+
 def get_encoded_frame(frame_id, metric):
     if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
         cnt = 1
@@ -210,7 +216,6 @@ def get_encoded_frame(frame_id, metric):
         print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(4))
     return encoded_frame, cnt
     
-
 
 def get_latency(e2e_frame_latency):
     recent_latency = 0
@@ -283,8 +288,6 @@ def v2i_data_send_thread():
                 time.sleep(1/curr_frame_rate - next_ready_frame_time)
                 continue
             data_f_id = curr_f_id % config.MAX_FRAMES
-            # pcd = pcd_data_buffer[data_f_id]
-            # pcd = pcd_data_buffer[data_f_id][0]
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             curr_frame_id += 1
             frame_lock.release()
@@ -293,8 +296,9 @@ def v2i_data_send_thread():
             last_frame_sent_ts = get_frame_ready_timestamp(curr_f_id, FRAMERATE)
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
             frame_sent_time[curr_f_id] = time.time()
-            send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd_data_buffer[data_f_id][:num_chunks])
-            # if pcd_data_type == "GTA":
+            # pcd = pcd_data_buffer[data_f_id][:num_chunks]
+            # pcd = int.to_bytes(10, 2, 'big')
+            send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd)
             oxts = oxts_data_buffer[data_f_id]
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
             # print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
@@ -318,13 +322,20 @@ def v2i_data_send_thread():
 
 def v2i_ack_recv_thread():
     while True:
-        ack = v2i_data_socket.recv(2)
-        frame_id = int.from_bytes(ack, 'big')
-        frame_latency = time.time() - frame_sent_time[frame_id]
-        print("[Recv ack from server] frame %d, latency %f"%(frame_id, frame_latency))
-        e2e_frame_latency_lock.acquire()
-        e2e_frame_latency[frame_id] = frame_latency
-        e2e_frame_latency_lock.release()
+        header, payload = network.message.recv_msg(v2i_data_socket, 
+                                network.message.TYPE_SERVER_REPLY_MSG)
+        payload_size, frame_id, msg_type, ts = network.message.parse_server_reply_msg_header(header)
+        downlink_latency = time.time() - ts
+        if msg_type == network.message.TYPE_SEVER_ACK_MSG:
+            frame_latency = time.time() - frame_sent_time[frame_id]
+            print("[Recv ack from server] frame %d, latency %f, dl latency %f"%(frame_id, frame_latency, downlink_latency),
+                time.time())
+            e2e_frame_latency_lock.acquire()
+            e2e_frame_latency[frame_id] = frame_latency
+            e2e_frame_latency_lock.release()
+        elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
+            print("[Recv rst from server] frame %d, DL latency %f"%(frame_id, downlink_latency),
+                time.time())
 
 
 def is_helper_recv():
@@ -361,11 +372,11 @@ def if_not_assigned_as_helper(recv_id):
     return recv_id == 65535
 
 
-def v2v_data_recv_thread():
+def v2v_data_recv_thread(port=helper_data_recv_port):
     """ a seperate thread to recv point cloud from helpee node and forward it to the server
     """
     host_ip = ''
-    host_port = helper_data_recv_port
+    host_port = port
     v2v_data_recv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     v2v_data_recv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     v2v_data_recv_sock.bind((host_ip, host_port))
@@ -458,7 +469,7 @@ class VehicleControlThread(threading.Thread):
                         # only send location if received seq num is larger
                         vehicle_seq_dict[helpee_id] = seq_num
                         v2i_control_socket_lock.acquire()
-                        wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket, seq_num)
+                        wwan.send_location(HELPEE, helpee_id, helpee_loc, v2i_control_socket, seq_num, add_noise=False)
                         control_seq_num += 1
                         v2i_control_socket_lock.release()
                 elif msg_type == network.message.TYPE_ROUTE:
@@ -482,9 +493,9 @@ class VehicleControlThread(threading.Thread):
                 # This vehicle is a helpee now
                 if msg_type == network.message.TYPE_ASSIGNMENT:
                     helper_id = int.from_bytes(data[-msg_size:], 'big')
-                    if helper_id != current_helper_id:
-                        print("[Helpee get helper assignment] helper_id: "\
+                    print("[Helpee get helper assignment] helper_id: "\
                             + str(helper_id) + ' ' + str(time.time()), flush=True)
+                    if helper_id != current_helper_id:
                         helper_ip = "10.0.0." + str(helper_id+2)   
                         new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port, helper_id)
                         new_send_thread.daemon = True
@@ -526,6 +537,56 @@ class VehicleControlThread(threading.Thread):
                 print("Exception: no such connection state")
 
 
+class VehicleDataControlRecvThread(threading.Thread):
+    """Thread that handle control messages between nodes (vehicles)
+    """
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+        print("Setup V2V socket to recv data control message")
+        global v2v_data_control_socket
+        host_ip = ''
+        host_port = 8000
+        v2v_data_control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        v2v_data_control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        v2v_data_control_socket.bind((host_ip, host_port))
+        
+
+    def run(self):
+        while True:
+            v2v_data_control_socket.listen()
+            helper_socket, helper_address = v2v_data_control_socket.accept()
+            print("[Start recv V2V ACKs] Get connection from", helper_address)
+            new_data_recv_thread = threading.Thread(target=self.ack_recv_thread, args=(helper_socket,))
+            new_data_recv_thread.start()
+
+
+    def ack_recv_thread(self, helper_socket):
+        while True:
+            try:
+                # recv acknowledgement from server
+                header, payload = network.message.recv_msg(helper_socket, network.message.TYPE_SERVER_REPLY_MSG)
+                # print('[V2V Recv Data Control Msg]')
+                payload_size, frame_id, msg_type, ts = network.message.parse_server_reply_msg_header(header)
+                downlink_latency = time.time() - ts
+                if msg_type == network.message.TYPE_SEVER_ACK_MSG:
+                    frame_latency = time.time() - frame_sent_time[frame_id]
+                    print("[V2V Recv ack from helper] frame %d, latency %f, DL latency %f"
+                        %(frame_id, frame_latency, downlink_latency))
+                    e2e_frame_latency_lock.acquire()
+                    e2e_frame_latency[frame_id] = frame_latency
+                    e2e_frame_latency_lock.release()
+                elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
+                    print("[V2V Recv rst from helper] frame %d, DL latency %f"%
+                    (frame_id, downlink_latency), time.time())
+
+            except Exception as e:
+                # socket might be closed since helper change
+                print("Exception:", e)
+                print('[Helper changed] not recv ACK from prev helper anymore')
+                return 
+
+
 class VehicleDataRecvThread(threading.Thread):
     """Thread that handle data receiving between nodes (vehicles)
         Recv using tcp socket from helpee nodes
@@ -538,24 +599,28 @@ class VehicleDataRecvThread(threading.Thread):
         self._is_closed = False
         self.helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
                                                             config.server_data_port)
+        self.client_ack_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_ack_socket.connect((helpee_addr[0], 8000))
     
 
     def relay_ack_thread(self):
         while not self._is_closed:
             # recv and relay ack from server
             try:
-                ack = self.helper_relay_server_sock.recv(2)
-                self.client_socket.send(ack)
-                print("[helper relay server ack] frame %d" % int.from_bytes(ack[:], 'big'))
-            except:
-                print("[Helpee already closed] skip relaying acks")
+                header, payload = network.message.recv_msg(self.helper_relay_server_sock, 
+                                network.message.TYPE_SERVER_REPLY_MSG)
+                network.message.send_msg(self.client_ack_socket, header, payload)
+                print("[helper relay server ack] frame %d, %f" % (int.from_bytes(header[4:6], 'big'),
+                    time.time()))
+            except Exception as e:
+                print("[Helpee already closed] skip relaying acks", e)
 
     def run(self):
         global v2v_recved_bytes
         ack_relay_thread = threading.Thread(target=self.relay_ack_thread)
         ack_relay_thread.start()
         while not self._is_closed:
-            print('relay conn state: ', connection_state)
+            # print('relay conn state: ', connection_state)
             data = b''
             header_to_recv = network.message.DATA_MSG_HEADER_LEN
             try:
@@ -596,8 +661,8 @@ class VehicleDataRecvThread(threading.Thread):
                 if type == TYPE_PCD:
                     print("[Received a full frame/oxts] %f frame: %d vehicle: %d %f" 
                             % (est_v2v_thrpt, frame_id, v_id, time.time()), flush=True)
-            except:
-                print("[Helpee closed the connection]")
+            except Exception as e:
+                print("[Helpee closed the connection]", e)
                 self._is_closed = True
             
         # self.client_socket.close()
@@ -627,7 +692,7 @@ class VehicleDataSendThread(threading.Thread):
     
     def run(self):
         global curr_frame_id, last_frame_sent_ts, curr_frame_rate
-        self.ack_recv_thread.start()
+        # self.ack_recv_thread.start()
         while (self.is_helper_alive) and (connection_state == "Disconnected"):
             t_start = time.time()
             frame_lock.acquire()
@@ -639,16 +704,14 @@ class VehicleDataSendThread(threading.Thread):
                 next_ready_frame_time = (time.time() - start_timestamp) % (1.0/curr_frame_rate)
                 time.sleep(1.0/curr_frame_rate - next_ready_frame_time)
                 continue
-            # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES]
-            # pcd = pcd_data_buffer[curr_frame_id % config.MAX_FRAMES][0]
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
-            # if pcd_data_type == "GTA":
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
             print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
                     + str(current_helper_id) + ' ' + str(time.time()), flush=True)
             frame_sent_time[curr_f_id] = time.time()
+            # pcd = int.to_bytes(10, 2, 'big')
             if_send_success = send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD, num_chunks,\
                 pcd_data_buffer[curr_f_id%config.MAX_FRAMES][:num_chunks])
             if not if_send_success:
@@ -673,14 +736,19 @@ class VehicleDataSendThread(threading.Thread):
         while self.is_helper_alive:
             try:
                 # recv acknowledgement from server
-                ack = self.v2v_data_send_sock.recv(2)
-                frame_id = int.from_bytes(ack, 'big')
-                recv_time = time.time()
-                frame_latency = recv_time - frame_sent_time[frame_id]
-                print("[Recv ack from helper relay] frame %d latency %f"%(frame_id,frame_latency))
-                e2e_frame_latency_lock.acquire()
-                e2e_frame_latency[frame_id] = frame_latency
-                e2e_frame_latency_lock.release()
+                header, payload = network.message.recv_msg(self.v2v_data_send_sock, 
+                                network.message.TYPE_SERVER_REPLY_MSG)
+                payload_size, frame_id, msg_type, ts = network.message.parse_server_reply_msg_header(header)
+                downlink_latency = time.time() - ts
+                if msg_type == network.message.TYPE_SEVER_ACK_MSG:
+                    frame_latency = time.time() - frame_sent_time[frame_id]
+                    print("[Recv ack from server] frame %d, latency %f"%(frame_id, frame_latency))
+                    e2e_frame_latency_lock.acquire()
+                    e2e_frame_latency[frame_id] = frame_latency
+                    e2e_frame_latency_lock.release()
+                elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
+                    print("[Recv rst from server] frame %d, DL latency %f"%(frame_id, downlink_latency))
+
             except Exception as e:
                 # socket might be closed since helper change
                 print(e)
@@ -718,7 +786,8 @@ def check_if_disconnected(disconnect_timestamps):
 
 def send_control_msgs(node_type):
     global control_seq_num
-    # if node_type == HELPER:
+    if scheduler_mode == 'emp':
+        return
     v2i_control_socket_lock.acquire()
     if scheduler_mode == 'distributed':
         if node_type == HELPEE:
@@ -740,7 +809,6 @@ def send_control_msgs(node_type):
             route.broadcast_route(vehicle_id, route.get_routes(vehicle_id), v2v_control_socket,\
                                 control_seq_num)
         control_seq_num += 1
-    # if node_type == HELPER:
     v2i_control_socket_lock.release()   
     
     
@@ -773,7 +841,6 @@ def check_connection_state(disconnect_timestamps):
             time.sleep(0.2-t_elasped)
 
 
-
 def main():
     global start_timestamp
     # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
@@ -797,17 +864,23 @@ def main():
     loction_update_thread.daemon = True
     loction_update_thread.start()
     v2i_control_thread = ServerControlThread()
+    v2i_control_thread.daemon = True
     v2i_control_thread.start()
     v2v_control_thread = VehicleControlThread()
+    v2v_control_thread.daemon = True
     v2v_control_thread.start()
+    v2v_data_control_thread = VehicleDataControlRecvThread()
+    v2v_data_control_thread.start()
     v2v_data_thread = threading.Thread(target=v2v_data_recv_thread, args=())
+    v2v_data_thread.daemon = True
     v2v_data_thread.start()
     v2i_data_thread = threading.Thread(target=v2i_data_send_thread, args=())
+    v2i_data_thread.daemon = True
     v2i_data_thread.start()
 
-    throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
-    throughput_thread.daemon = True
-    throughput_thread.start()
+    # throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
+    # throughput_thread.daemon = True
+    # throughput_thread.start()
 
     check_connection_state(disconnect_timestamps)
 

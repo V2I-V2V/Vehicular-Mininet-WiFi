@@ -88,16 +88,17 @@ def compare_two_sched(data_folder1, data_folder2):
     sched1_key, sched2_key = get_key_from_config(config1, data_folder1), get_key_from_config(config2, data_folder2)
     ass1_rst, ass2_rst = result_each_run[sched1_key], result_each_run[sched2_key]
 
-    fig = plt.figure(figsize=(18,12))
+    fig = plt.figure(figsize=(18,15))
     # total_num_subfigures = (num_nodes + 1) * 2
     sched1_ax_list, sched2_ax_list = [], []
-    for i in range(num_nodes):
+    n_nodes = num_nodes - 3 
+    for i in range(n_nodes): # num_nodes
         if i == 0:
-            ax1 = fig.add_subplot(num_nodes+1, 2, 2*i+1)
-            ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
+            ax1 = fig.add_subplot(n_nodes+1, 2, 2*i+1)
+            ax2 = fig.add_subplot(n_nodes+1, 2, 2*i+2)
         else:
-            ax1 = fig.add_subplot(num_nodes+1, 2, 2*i+1, sharex=ax1)
-            ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2, sharex=ax2)
+            ax1 = fig.add_subplot(n_nodes+1, 2, 2*i+1, sharex=ax1)
+            ax2 = fig.add_subplot(n_nodes+1, 2, 2*i+2, sharex=ax2)
         s1_ts, s1_latency = construct_ts_latency_array(ass1_rst[i])
         ax1.plot(s1_ts, s1_latency, color=sched_to_color[config1['scheduler']], label='node%d'%i)
         ax1.set_ylabel('Latency (s)')
@@ -106,11 +107,13 @@ def compare_two_sched(data_folder1, data_folder2):
         ax2.set_ylabel('Latency (s)')
         ax1.legend()
         ax2.legend()
+        ax1.set_xlim([10, 15])
+        ax2.set_xlim([10, 15])
         sched1_ax_list.append(ax1)
         sched2_ax_list.append(ax2)
 
     # plot assignments
-    ax = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+1)
+    ax = fig.add_subplot(n_nodes+1, 2, 2*n_nodes+1)
     timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass1)
     ax.plot(timestamps, assignments, color=sched_to_color[config1['scheduler']], label='assignment')
     ax.set_ylabel('Assignment\n(helpee: helper)')
@@ -119,7 +122,7 @@ def compare_two_sched(data_folder1, data_folder2):
     ax.set_yticklabels(assignment_enums)
     sched1_ax_list.append(ax)
 
-    ax2 = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+2)
+    ax2 = fig.add_subplot(n_nodes+1, 2, 2*n_nodes+2)
     timestamps, assignments, assignment_enums = construct_ts_assignment_array(server_ass2)
     ax2.plot(timestamps, assignments, color=sched_to_color[config2['scheduler']], label='assignment')
     ax2.set_ylabel('Assignment\n(helpee: helper)')
@@ -127,6 +130,11 @@ def compare_two_sched(data_folder1, data_folder2):
     ax2.set_yticks(np.arange(0, len(assignment_enums), 1))
     ax2.set_yticklabels(assignment_enums)
     sched2_ax_list.append(ax2)
+
+    ax.set_xlim([10, 15])
+    ax2.set_xlim([10, 15])
+    # ax.set_xlabel('Time (s)')
+    # ax2.set_xlabel('Time (s)')
 
     sched1_ax_list[0].get_shared_x_axes().join(*sched2_ax_list)
     sched2_ax_list[0].get_shared_x_axes().join(*sched2_ax_list)
@@ -305,21 +313,41 @@ def plot_full_frame(partial_results, name, idx):
     ax = fig.add_subplot(111)
     selected_threshold = [0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 1.5, 2.0]
     setting_to_diff_latency_frames, setting_to_diff_latency_frames_std = {}, {}
+    setting_to_detection_rst, setting_to_detection_rst_std, setting_to_good_detection_frames \
+        = {}, {}, {}
     cnt = 0
     for label in labels:
         assert label[idx] == ticks[cnt]
         
         setting_to_diff_latency_frames[label] = []
         setting_to_diff_latency_frames_std[label] = []
+        setting_to_detection_rst[label] = []
+        setting_to_detection_rst_std[label] = []
+        setting_to_good_detection_frames[label] = []
         for t in selected_threshold:
             # calculate mean and std
             one_setting_num_full_frames = []
+            one_setting_mean_detect_area = []
             for one_run in partial_results[label]:
                 one_setting_num_full_frames.append(
                     get_percentage_frames_within_threshold(one_run, t, key='max_full_frames', num_nodes=num_nodes)
                 )
+                # setting_to_detection_rst[label].extend(one_run['detected_areas'])
+                # one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))
+            
+            
             setting_to_diff_latency_frames[label].append(np.mean(one_setting_num_full_frames))
             setting_to_diff_latency_frames_std[label].append(np.std(one_setting_num_full_frames))
+
+        one_setting_mean_detect_area = []
+        for one_run in partial_results[label]:
+            setting_to_detection_rst[label].extend(one_run['detected_areas'])
+            one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))
+            # setting_to_good_detection_frames[label].append(
+            #     get_num_frames_above_detected_space_threshold(one_run['detected_areas'], 5000)
+            # )
+        setting_to_detection_rst_std[label].append(np.std(one_setting_mean_detect_area))
+
         ax.errorbar(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], \
                 yerr=setting_to_diff_latency_frames_std[label], capsize=2, color=sched_to_color[label[idx]], \
                 ls=linestyles[label[idx]], label=label[idx])
@@ -337,6 +365,23 @@ def plot_full_frame(partial_results, name, idx):
     plt.gca().set_ylim(bottom=0)
     plt.tight_layout()
     plt.savefig('analysis-results/%s-diff-latency.png'%name)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    for label in labels:
+        ax.scatter(setting_to_diff_latency_frames[label][3], np.mean(setting_to_detection_rst[label]),
+        color=sched_to_color[label[idx]], label='pure-V2I' if label[idx] == 'emp' else label[idx])
+        ax.errorbar(setting_to_diff_latency_frames[label][3], np.mean(setting_to_detection_rst[label]), \
+            xerr=setting_to_diff_latency_frames_std[label][3], yerr=setting_to_detection_rst_std[label], capsize=2,
+            color=sched_to_color[label[idx]])
+
+    plt.xlabel("% of frame within 0.2s")
+    plt.ylabel("Detected space ($m^2$)")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('analysis-results/%s-two-dim.png'%name)
+
     
             
 
@@ -476,8 +521,6 @@ def get_folder_based_on_setting(data_dir, setting):
     
     return result_dir
                 
-    
-        
 
 def get_all_runs_results(data_dir, key, with_ssim=False, parse_exp_stats=True):
     global num_nodes
@@ -533,21 +576,25 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
     x_positions = np.arange(len(schedules))
     cnt = 0
-    schedule_data, schedule_overhead, server_compute_time = {}, {}, {}
+    schedule_data, schedule_overhead, server_compute_time, schedule_dl_latency = {}, {}, {}, {}
     schedule_helpee_data, schedule_helper_data = {}, {}
     schedule_to_frames_within_threshold = {}
+    schedule_to_detected_spaces = {}
     for schedule in schedules:
         for k, v in result_each_run.items():
             if schedule in k:
                 if schedule not in schedule_data.keys():
                     schedule_overhead[schedule] = v['overhead']
+                    # schedule_dl_latency[schedule] = v['dl-latency']
                     server_compute_time[schedule] = v['sched_latency']
                     schedule_data[schedule] = v['all']
                     schedule_helpee_data[schedule] = v['helpee']
                     schedule_helper_data[schedule] = v['helper']
                     schedule_to_frames_within_threshold[schedule] = [get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)]
+                    schedule_to_detected_spaces[schedule] = [np.mean(v['detected_areas'])]
                 else:
                     schedule_overhead[schedule] = np.hstack((schedule_overhead[schedule], v['overhead']))
+                    # schedule_dl_latency[schedule] = np.hstack((schedule_dl_latency[schedule], v['dl-latency']))
                     schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
                     schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
                     schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
@@ -555,6 +602,7 @@ def plot_bars_compare_schedules(schedules):
                     schedule_to_frames_within_threshold[schedule] = \
                         np.hstack((schedule_to_frames_within_threshold[schedule], \
                             get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)))
+                    schedule_to_detected_spaces[schedule].append(np.mean(v['detected_areas']))
     for schedule in schedule_data.keys():
         ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-0.2]), whis=(5, 95), autorange=True, showfliers=False)
         ax.boxplot(schedule_helpee_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
@@ -575,7 +623,19 @@ def plot_bars_compare_schedules(schedules):
     ax.set_xticks(x_positions)
     ax.set_xticklabels(schedules)
     plt.ylabel('Computational Overhead (s)')
-    plt.savefig('analysis-results/schedule_overhead.png')   
+    plt.savefig('analysis-results/schedule_overhead.png') 
+    
+    # fig = plt.figure(figsize=(9,6))
+    # ax = fig.add_subplot(111)
+    # cnt = 0
+    # for schedule in schedule_data.keys():
+    #     ax.boxplot(schedule_dl_latency[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
+    #     cnt += 1
+    # ax.set_xticks(x_positions)
+    # ax.set_xticklabels(schedules)
+    # plt.ylabel('DL latency (s)')
+    # plt.savefig('analysis-results/schedule_dl_latency.png')     
+
 
     fig = plt.figure(figsize=(9,6))
     ax = fig.add_subplot(111)
@@ -656,7 +716,43 @@ def plot_bars_compare_schedules(schedules):
     plt.gca().set_ylim(bottom=0)
     plt.xlabel('Latency (s)')
     plt.savefig('analysis-results/frames_latency_diff_threshold.png')
-        
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    for schedule in schedule_data.keys():
+        ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]),
+        label='pure-V2I' if schedule == 'emp' else schedule,
+        color=sched_to_color[schedule])
+        ax.errorbar(sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]), \
+            xerr=sched_to_different_latency_std[schedule][1], yerr=np.std(schedule_to_detected_spaces[schedule]), capsize=2,
+            color=sched_to_color[schedule])
+        print(schedule, sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]))
+        print(schedule, sched_to_different_latency_std[schedule][1], np.std(schedule_to_detected_spaces[schedule]))
+
+    plt.ylim([4000, 5200])
+    plt.xlabel("% of frame within 0.2s")
+    plt.ylabel("Detected space ($m^2$)")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('analysis-results/aggregated-two-dim.png')
+
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    cnt = 0
+    xticks = []
+    for schedule in sorted(schedule_data.keys()):
+        xticks.append('pure-V2I' if schedule == 'emp' else schedule)
+        ax.bar(cnt, np.mean(schedule_to_detected_spaces[schedule]), align='center', 
+            label='pure-V2I' if schedule == 'emp' else schedule, color=sched_to_color[schedule],
+            alpha=0.5)
+        cnt += 1
+    plt.xticks(np.arange(len(schedule_data.keys())), xticks)
+    plt.ylim([4000, 5200])
+    plt.ylabel("Detected space ($m^2$)")
+    plt.tight_layout()
+    plt.savefig('analysis-results/detected_space.png')
 
 def plot_bar_compare_encode():
     fig = plt.figure(figsize=(12,6))
@@ -822,7 +918,7 @@ def analyze_msg_overhead():
     axes[1].set_ylabel('Avg latency\nincrease (%)')
     axes[1].set_xlabel('Number of nodes (helpees)')
     axes[1].set_xticks([2,3,4,5,6])
-    axes[1].set_xticklabels(['2(1)', '3(1)', '4(2)','5(2)', '6(2)'])
+    axes[1].set_xticklabels(['2(1)', '3(1)', '4(2)', '5(2)', '6(2)'])
     fig.tight_layout()
     plt.savefig('analysis-results/overhead.png')
 
@@ -853,9 +949,10 @@ def main():
 
     # create a analysis-results/ dir under data_dir
     
-    # rst = get_folder_based_on_setting(data_dir, ('111', 'lte-28', 'helpee-start-middle'))
+    # rst = get_folder_based_on_setting(data_dir, ('helpee-last-two',))
     # print(rst)
     # for folder in rst:
+    #     print("deleting %s"%folder)
     #     os.system("rm -rf %s"%folder)
     
     compare_sched_in_one_plot = False

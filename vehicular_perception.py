@@ -135,6 +135,10 @@ def setup_ip(node, ip, ifname):
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
 
+def configure_priority(node, ifname):
+    node.cmd('sh prioritize_traffic.sh %s'%ifname)
+
+
 def kill_application():
     print("*** Stop server.py and vehicle.py ***")
     cmd = "kill -9 $(ps aux | grep \"[v]ehicle.py\" | awk {'print $2'})"
@@ -146,7 +150,7 @@ def kill_application():
 
 
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
-                    save=0, is_one_to_many=1, combine_method="op_sum", score_method="harmonic"):
+                    save=0, is_one_to_many=1):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
@@ -241,10 +245,14 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     if routing == 'custom':
         run_custom_routing(stations)
 
+    # ### Prioritize Traffic ### 
+    # for sta_idx in range(num_nodes):
+    #     configure_priority(stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+
     ### Run application ###
     if run_app is True:
         info("\n*** Running vehicuar server\n")
-        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save, is_one_to_many, combine_method, score_method)
+        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save, is_one_to_many)
     
     ### Collect tcpdump trace ###
     if enable_tcpdump is True:

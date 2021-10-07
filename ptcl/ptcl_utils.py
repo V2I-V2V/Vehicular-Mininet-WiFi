@@ -109,3 +109,6 @@ def save_ptcl(ptcl, save_path, format='bin'):
 		o3d.io.write_point_cloud(save_path, pointcloud)
 	elif format == 'npy':
 		np.save(save_path, ptcl)
+
+
+## TODO: Transform the ptcl to a global reference?

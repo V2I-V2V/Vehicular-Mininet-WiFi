@@ -153,9 +153,22 @@ def get_distance_scores(assignment, positions):
             if distance_to_helpee > max_distance:
                 max_distance = distance_to_helpee
         # print(max_distance)
+        # avoid the distance to be 0
         scores.append(1 - get_distance(positions[helpee], positions[helper]) / max_distance + 0.001)
     # print(assignment, scores)
     return scores
+
+
+def get_max_distances(num_helpees, positions):
+    max_dist = {}
+    for helpee in range(num_helpees):
+        max_distance = 0
+        for i in range(num_helpees, len(positions)):
+            distance_to_helpee = get_distance(positions[helpee], positions[i])
+            if distance_to_helpee > max_distance:
+                max_distance = distance_to_helpee  
+        max_dist[helpee] = max_distance
+    return max_dist   
 
 
 def min_total_distance_sched(num_of_helpees, num_of_helpers, positions, is_one_to_one=False):
@@ -294,15 +307,15 @@ def get_bw_scores(assignment, v2i_bws):
         counts = get_counts(assignment)
         average_bw = v2i_bws[helpee] / (counts[helper] + 1)
         # print(average_bw)
-        if 5 < average_bw < 25:
-            score = (average_bw - 5) / 20
+        if 5 < average_bw < 10:
+            score = (average_bw - 5) / 10
         elif average_bw <= 5:
             score = 0.001
         scores.append(score)
     return scores
 
 
-def get_interference_scores(assignment, interference_counts, routing_tables):
+def get_interference_scores(assignment, interference_counts, routing_tables, positions):
     # print(assignment)
     scores = []
     not_reachable_cnt = 0 
@@ -311,14 +324,23 @@ def get_interference_scores(assignment, interference_counts, routing_tables):
         routing_path = vehicle.route.get_routing_path(helpee, helper, routing_tables)
         print("routing path", routing_path)
         neighbor_map = get_neighbor_map(assignment, routing_tables)
+        print("neighbour map", neighbor_map)
         max_interference_count = get_path_interference_count(routing_path, neighbor_map)
         nodes_on_routes = get_nodes_on_routes(assignment, routing_tables)
         path_nodes = set(routing_path)
         min_neighbor_map = get_valid_neighbor_map(neighbor_map, nodes_on_routes, path_nodes, assignment, routing_tables)
+        print("min neighbour map", neighbor_map)
         min_interference_count = get_path_interference_count(routing_path, min_neighbor_map)
         print('intf score components: ic(pi,A) %d, ic(pi,pi) %d, ic(pi,G) %d'%\
             (interference_count, min_interference_count, max_interference_count))
-        if len(routing_path) == 0:
+        # check if every node in path is in range
+        reachable = True
+        for node_idx in range(len(routing_path)-1):
+            if not is_in_range(positions[routing_path[node_idx]], positions[routing_path[node_idx+1]], 130):
+                reachable = False
+                print("Non reachiable pair in path ", routing_path)
+                break
+        if len(routing_path) == 0 or interference_count > max_interference_count or not reachable:
             score = 0
             not_reachable_cnt += 1
         elif max_interference_count != min_interference_count:
@@ -343,6 +365,7 @@ def get_path_score(distance_score, bw_score, interference_score, score_method):
     if score_method == "sum":
         return distance_score + bw_score + interference_score
     elif score_method == "min":
+        print("use min path score", distance_score, bw_score, interference_score)
         return min(distance_score, bw_score, interference_score)
 
 
@@ -362,10 +385,11 @@ def get_combined_scores(distance_scores, bw_scores, interference_scores, combine
 
 
 def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables, is_one_to_one=False, combine_method="op_sum", score_method="harmonic"):
-    # print("Using the combined sched", num_of_helpees, num_of_helpers)
-    scores, scores_dist, scores_bw, scores_intf = {}, {}, {}, {}
+    # print("Using the combined sched", num_of_helpees, num_of_helpers, positions, bws, routing_tables)
+    scores, scores_dist, scores_bw, scores_intf, assignment_reachable_cnt  = {}, {}, {}, {}, {}
     scores_combined_base, scores_dist_min, scores_bw_min, scores_intf_min = {}, {}, {}, {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
+    # max_dist_dict = get_max_distances(num_of_helpees, positions)
     for assignment in assignments:
         # distances = get_distances(assignment, positions)
         v2i_bws = get_v2i_bws(assignment, bws)
@@ -373,35 +397,48 @@ def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_table
         # print("Intf cnt ", interference_counts)
         distance_scores = get_distance_scores(assignment, positions)
         bw_scores = get_bw_scores(assignment, v2i_bws)
-        interference_scores, not_reachable_cnt = get_interference_scores(assignment, interference_counts, routing_tables)
-        # print("bw score", bw_scores)
+        interference_scores, not_reachable_cnt = get_interference_scores(assignment, interference_counts, routing_tables, positions)
+        print(distance_scores, bw_scores, interference_scores)
         print(assignment, statistics.harmonic_mean(distance_scores), statistics.harmonic_mean(bw_scores), statistics.harmonic_mean(interference_scores), not_reachable_cnt)
         assignment_id = get_id_from_assignment(assignment)
         scores_dist[assignment_id] = get_score(distance_scores, score_method)
         scores_bw[assignment_id] = get_score(bw_scores, score_method)
         scores_intf[assignment_id] = get_score(interference_scores, score_method)
+        assignment_reachable_cnt[assignment_id] = num_of_helpees - not_reachable_cnt
         scores[assignment_id] = get_combined_scores(distance_scores, bw_scores, interference_scores, combine_method, score_method)
-        # if not_reachable_cnt > 0:
-        #     scores[get_id_from_assignment(assignment)] = 0
+        if not_reachable_cnt > 0:
+            scores[get_id_from_assignment(assignment)] = 0
         # print(assignment, scores[get_id_from_assignment(assignment)], 
         #       statistics.harmonic_mean(distance_scores), statistics.harmonic_mean(bw_scores), statistics.harmonic_mean(interference_scores))
 
     sorted_scores = sorted(scores.items(), key=lambda item: -item[1]) # decreasing order
-    sorted_base_scores = sorted(scores_combined_base.items(), key=lambda item: -item[1]) # decreasing order
-    print("Selected score:", scores[sorted_scores[0][0]], get_assignment_from_id(sorted_scores[0][0]))
+    max_in_range_num = 0
     selected_score = scores[sorted_scores[0][0]]
+    max_assignment_id = sorted_scores[0][0]
+    for item in sorted_scores:
+        assignment_id = item[0]
+        in_range_num = assignment_reachable_cnt[assignment_id]
+        # print(assignment_id, in_range_num, item[1])
+        if in_range_num > max_in_range_num:
+            max_in_range_num = in_range_num
+            max_assignment_id = assignment_id
+            selected_score = scores[item[0]]
+
+    # sorted_base_scores = sorted(scores_combined_base.items(), key=lambda item: -item[1]) # decreasing order
+    print("Selected score:", selected_score, get_assignment_from_id(max_assignment_id))
+    # selected_score = scores[sorted_scores[0][0]]
     # print("Scores harmonic: ", \
     #     scores_dist_min[sorted_base_scores[0][0]], scores_bw_min[sorted_base_scores[0][0]], scores_intf_min[sorted_base_scores[0][0]],\
     #     scores_dist_min[sorted_scores[0][0]], scores_bw_min[sorted_scores[0][0]], scores_intf_min[sorted_scores[0][0]], \
     #     time.time())
-    print("Best choice (min_sum/combined) scores: ", sorted_scores[0][0], sorted_base_scores[0][0], \
-        scores[sorted_scores[0][0]], scores[sorted_base_scores[0][0]], \
-        scores_combined_base[sorted_scores[0][0]], scores_combined_base[sorted_base_scores[0][0]])
+    # print("Best choice (min_sum/combined) scores: ", sorted_scores[0][0], sorted_base_scores[0][0], \
+    #     scores[sorted_scores[0][0]], scores[sorted_base_scores[0][0]], \
+    #     scores_combined_base[sorted_scores[0][0]], scores_combined_base[sorted_base_scores[0][0]])
 
 
     # print("Best scores:", max(scores_dist, key=scores_dist.get), max(scores_bw,  key=scores_bw.get), max(scores_intf, key=scores_intf.get))
     # print("Worst scores: ", min(scores_dist, key=scores_dist.get), min(scores_bw,  key=scores_bw.get), min(scores_intf, key=scores_intf.get))
-    return get_assignment_from_id(sorted_scores[0][0]), selected_score, scores
+    return get_assignment_from_id(max_assignment_id), selected_score, scores
 
 
 def bipartite():
