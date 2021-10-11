@@ -111,4 +111,78 @@ def save_ptcl(ptcl, save_path, format='bin'):
 		np.save(save_path, ptcl)
 
 
+
+def calculate_grid_label(grid_size, points):
+    x_size, y_size = int(100 / grid_size), int(100 / grid_size)
+    grid = np.zeros((x_size, y_size), dtype=int)
+    for point in points:
+        x_idx, y_idx = int((point[0] + 50) / grid_size), int((point[1] + 50) / grid_size)
+        if point[3] == 0:
+            # obj
+            grid[x_idx][y_idx] -= 1
+        elif point[3] == 1:
+            # ground
+            grid[x_idx][y_idx] += 1
+
+    grid[grid > 0] = 1  # drivable
+    grid[grid < 0] = -1  # object
+    # print(len(grid[grid > 0]))
+
+    return grid
+
+
+def calculate_grid_label_before(grid_size, points):
+    x_size, y_size = int(100 / grid_size), int(100 / grid_size)
+    grid = np.zeros((x_size, y_size), dtype=int)
+    for point in points:
+        x_idx, y_idx = int((point[0] + 50) / grid_size), int((point[1] + 50) / grid_size)
+        if x_idx < 100 and y_idx < 100:
+            if point[3] == 1:
+                # obj
+                grid[x_idx][y_idx] -= 1
+            elif point[3] == 0:
+                # ground
+                grid[x_idx][y_idx] += 1
+
+    grid[grid > 0] = 1  # drivable
+    grid[grid < 0] = -1  # object
+    # print(len(grid[grid > 0]))
+
+    return grid
+
+
+def calculate_precision(grid_pred, grid_truth):
+    correct, total = 0, 0
+
+    TP, FP, FN, TN = 0, 0, 0, 0
+
+    for x_idx in range(grid_truth.shape[0]):
+        for y_idx in range(grid_truth.shape[1]):
+            if grid_truth[x_idx][y_idx] != 0:
+                if grid_pred[x_idx][y_idx] == grid_truth[x_idx][y_idx]:
+                    correct += 1
+                total += 1
+            if grid_truth[x_idx][y_idx] == 1 and grid_pred[x_idx][y_idx] != 1:
+                FN += 1
+            elif grid_truth[x_idx][y_idx] != 1 and grid_pred[x_idx][y_idx] == 1:
+                FP += 1
+            elif grid_truth[x_idx][y_idx] == 1 and grid_pred[x_idx][y_idx] == 1:
+                TP += 1
+            elif grid_truth[x_idx][y_idx] == -1 and grid_pred[x_idx][y_idx] == -1:
+                TN += 1
+    precision = correct/total
+
+    pre = TP/(TP+FP)
+    recall = TP/(TP+FN)
+
+    print(pre, recall)
+    print(TP, FP, FN, TN, TP+FP+FN+TN)
+
+
+    # rst = grid_pred == grid_truth
+    # # precision
+    # precision = len(rst[rst == True])/grid_truth.size
+
+    return precision
+
 ## TODO: Transform the ptcl to a global reference?
