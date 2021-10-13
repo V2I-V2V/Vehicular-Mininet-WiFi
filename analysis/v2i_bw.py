@@ -9,7 +9,8 @@ from analysis.disconnection import get_connection_status
 font = {'family' : 'DejaVu Sans',
         'size'   : 18}
 matplotlib.rc('font', **font)
-colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey', 'cyan', 'brown', 'coral', 'lightgreen', 'orchid', 'navy', 'forestgreen']
+colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey', 'cyan', 'brown', 'coral', 'lightgreen', 
+          'orchid', 'navy', 'forestgreen', 'salmon', 'gold', 'lime']
 # if len(sys.argv) < 3:
 #     print("Usage: python3 analysis-scripts/plot_v2i_thrpt.py <thrpt_trace> <time_to_take>")
 
