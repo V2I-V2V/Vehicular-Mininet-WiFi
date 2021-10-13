@@ -9,8 +9,9 @@ import random
 font = {'family' : 'DejaVu Sans',
         'size'   : 15}
 matplotlib.rc('font', **font)
-colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey', 'cyan', 'brown', 'coral', 'lightgreen', 'orchid', 'navy', 'forestgreen']
-
+colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey', 'cyan', 'brown', 'coral', 'lightgreen', 
+          'orchid', 'navy', 'forestgreen', 'salmon', 'gold', 'lime']
+          
 def get_disconnect_id_durations(disconnect_array):
     if disconnect_array.shape[0] == 0:
         return
