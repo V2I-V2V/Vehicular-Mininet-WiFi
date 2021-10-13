@@ -15,7 +15,7 @@ colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
     'combined-adapt': 'grey', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
     'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
-    'combined-op_sum-harmonic': 'cyan', 'emp': 'orange'}
+    'combined-op_sum-harmonic': 'cyan', 'emp': 'orange', 'combined-deadline': 'olive'}
 sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed': '--', 'combined': ':',\
     'combined-adapt': '-'}
 
@@ -30,7 +30,7 @@ linestyles = OrderedDict(
      ('random',      (0, (5, 1))),
      ('emp',      (0, (5, 1))),
 
-     ('loosely dashdotted',  (0, (3, 10, 1, 10))),
+     ('combined-deadline',  (0, (3, 10, 1, 10))),
      ('distributed',          (0, (3, 5, 1, 5))),
      ('densely dashdotted',  (0, (3, 1, 1, 1))),
 
@@ -140,7 +140,7 @@ def get_computation_overhead(filename):
 def get_sender_ts(filename):
     sender_ts = {}
     encode_choice = {}
-    summary_dict = {'dl-latency': [], 'e2e-latency': []} # sumamry of related metrics
+    summary_dict = {'dl-latency': [], 'e2e-latency': [], 'frames-with-result': []} # sumamry of related metrics
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -167,14 +167,20 @@ def get_sender_ts(filename):
             elif line.startswith("[relay throughput]"):
                 last_t = float(parse[-1])
             elif line.startswith("[Recv rst from server]") \
-                or line.startswith("[V2V Recv rst from helper]"):
-                summary_dict['dl-latency'].append(float(parse[-2]))
+                or line.startswith("[V2V Recv rst from helper]"):                
                 timestamp = float(parse[-1])
                 frame = int(parse[-5][:-1])
-                e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
-                # if frame in sender_ts:
-                #     e2e_latency = timestamp - sender_ts[frame]
-                summary_dict['e2e-latency'].append(e2e_latency)
+                if frame not in summary_dict['frames-with-result']:
+                    e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
+                    # if frame in sender_ts:
+                    #     e2e_latency = timestamp - sender_ts[frame]
+                    # if len(summary_dict['frames-with-result']) > 0 \
+                    #     and frame != summary_dict['frames-with-result'][-1] + 1:
+                    #     print("lost frame result!!!", frame, summary_dict['frames-with-result'][-1])
+                    summary_dict['e2e-latency'].append(e2e_latency)
+                    summary_dict['frames-with-result'].append(frame)
+                    summary_dict['dl-latency'].append(float(parse[-2]))
+
                 
     return sender_ts, encode_choice, encode_t, last_t, summary_dict
 
@@ -200,8 +206,8 @@ def get_receiver_ts(filename):
                     receiver_ts_dict[sender_id] = {}
                 receiver_throughput[sender_id].append([ts, thrpt])
                 receiver_ts_dict[sender_id][frame] = ts
-                if str(sender_id) not in frame_id_to_senders[frame]:
-                    frame_id_to_senders[frame] += str(sender_id)
+                # if str(sender_id) not in frame_id_to_senders[frame]:
+                #     frame_id_to_senders[frame] += str(sender_id)
                 # if frame_id_to_senders[frame] < 6:
                 #     frame_id_to_senders[frame] += 1
             elif line.startswith("Helpers:"):
@@ -213,6 +219,23 @@ def get_receiver_ts(filename):
             elif line.startswith("One round sched takes"):
                 sched_latency = float(line.split()[-1])
                 sched_latencies.append(sched_latency)
+            elif line.startswith("[All frame in schedule, Send rst back to node]"):
+                # get node id
+                parse = line.split()
+                node_num = int(parse[-2])
+                senders = ""
+                for i in range(node_num):
+                    senders += str(i)
+                frame_id_to_senders[frame] = senders
+            elif line.startswith("[Deadline passed, Send rst back to node]"):
+                # get node id
+                recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
+                recved_node_arr = eval(recved_node_str)
+                node_ids = [idx for idx, ele in enumerate(recved_node_arr) if ele == 1]
+                senders = ""
+                for i in node_ids:
+                    senders += str(i)
+                frame_id_to_senders[frame] = senders
                 
         f.close()
     return receiver_ts_dict, receiver_throughput, server_node_dict, sched_latencies, frame_id_to_senders
@@ -225,18 +248,24 @@ def construct_comb(vnum_list, truth_list):
     return s
 
 def calculate_detected_areas(frame_id_to_senders):
+    # return 10
     detected_spaces = []
     for frame_id, v_num in frame_id_to_senders.items():
+        if len(v_num) > 4:
+            return 10 # return a dummy variable for now
         if frame_id < 550:
             wrapped_frame_id = frame_id % 80
-            print(v_num)
+            # print(v_num)
             v_num_comb = sorted(v_num)
-            key = construct_comb(v_num_comb, ['0', '2', '4', '5'])
+            key = construct_comb(v_num_comb, ['0', '2', '4', '5']) # , '0', '2', '4', '5', '0', '2', '4', '5'
             # grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(wrapped_frame_id, v_num))
             # detected_space = len(grid_label[grid_label != 0])
             # detected_spaces.append(detected_space)
-            print(type(wrapped_frame_id))
-            detected_spaces.append(detected_space_label[key][wrapped_frame_id])
+            # print(type(wrapped_frame_id))
+            if key is not '':
+                detected_spaces.append(detected_space_label[key][wrapped_frame_id])
+            else:
+                detected_spaces.append(0)
     return detected_spaces
 
 
@@ -315,7 +344,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
     latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
     # node_id_to_latencies, node_id 
-    overhead, dl_latencies = [], {}
+    overhead, dl_latencies, e2e_latencies,frames_with_rst, e2e_latency_each_node = [], {}, [], {}, {}
     sent_frames = 0
     for i in range(num_nodes):
         sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = get_sender_ts(dir + '/logs/node%d.log'%i)
@@ -323,6 +352,9 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
         computational_overhead = get_computation_overhead(dir + '/logs/node%d.log'%i)
         # dl_latencies.extend(summary_dict['dl-latency'])
         dl_latencies[i] = summary_dict['dl-latency']
+        e2e_latencies += summary_dict['e2e-latency']
+        e2e_latency_each_node[i] = summary_dict['e2e-latency']
+        frames_with_rst[i] = summary_dict['frames-with-result']
         if len(computational_overhead) > 0:
             print("overhead", np.mean(computational_overhead))
             overhead.extend(computational_overhead)
@@ -368,18 +400,48 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
             if frame_id in receiver_ts_dict[i]:
                 delay.append(receiver_ts_dict[i][frame_id]-sender_ts_dict[i][frame_id])
         # full_frame_max_delay.append(max(delay))
+    
     latency_dict['all'] = np.array(all_delay)
     latency_dict['helpee'] = np.array(helpee_delay)
     latency_dict['helper'] = np.array(helper_delay)
     latency_dict['full_frames'] = np.array(full_frame_delay)
     latency_dict['sent_frames'] = sent_frames
     latency_dict['max_full_frames'] = np.array(full_frame_max_delay)
+    latency_dict['e2e-latency'] = np.array(e2e_latencies)
+    latency_dict['e2e-latency-each-node'] = e2e_latency_each_node
+    latency_dict['frame-to-senders'] = frame_id_to_senders
+    latency_dict['frames-with-rst'] = frames_with_rst
     latency_dict['overhead'] = np.array(overhead)
     latency_dict['sched_latency'] = np.array(sched_latencies)
     latency_dict['detected_areas'] = detected_areas
-    latency_dict['dl-latency'] = dl_latencies
-    
+    latency_dict['dl-latency'] = dl_latencies   
     return latency_dict, node_to_encode_choices
+
+
+def get_num_frames_within_latency_above_detected_space(node_to_latency_dict, latency_t, space_t):
+    satisfied_frame_num = 0
+    # get frame ids higher than space threshold
+    detected_spaces = node_to_latency_dict['detected_areas']
+    frame_to_senders = node_to_latency_dict['frame-to-senders']
+    sorted_frames_with_detected_spaces = sorted(frame_to_senders.keys())
+    frame_ids_higher = set()
+    for frame_idx in range(len(frame_to_senders.keys())):
+        if frame_idx < len(detected_spaces) and detected_spaces[frame_idx] >= space_t:
+            frame_ids_higher.add(sorted_frames_with_detected_spaces[frame_idx])
+    
+    # get frame ids less than latency
+    e2e_latency_each_node = node_to_latency_dict['e2e-latency-each-node']
+    frames_with_rst = node_to_latency_dict['frames-with-rst']
+    for node_id in e2e_latency_each_node.keys():
+        frame_ids_lower = set()
+        for frame_idx in range(len(e2e_latency_each_node[node_id])):
+            if e2e_latency_each_node[node_id][frame_idx] <= latency_t:
+                frame_ids_lower.add(frames_with_rst[node_id][frame_idx])
+        
+        frame_ids_both = frame_ids_lower & frame_ids_higher
+        satisfied_frame_num += len(frame_ids_both)
+    return satisfied_frame_num    
+
 
 def construct_ts_latency_array(delay_dict_ts, expected_frames=550):
     ts, delay = [], []

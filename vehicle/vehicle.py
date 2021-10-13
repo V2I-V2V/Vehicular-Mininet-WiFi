@@ -237,7 +237,8 @@ def get_latency(e2e_frame_latency):
 
 def send(socket, data, id, type, num_chunks=1, chunks=None):
     msg_len = len(data)
-    header = network.message.construct_data_msg_header(data, type, id, vehicle_id, num_chunks, chunks)
+    frame_ready_timestamp = start_timestamp + id * 1.0 / FRAMERATE
+    header = network.message.construct_data_msg_header(data, type, id, vehicle_id, frame_ready_timestamp, num_chunks, chunks)
     print("[send header] vehicle %d, frame %d, data len: %d" % (vehicle_id, id, msg_len))
     hender_sent = 0
     while hender_sent < len(header):
@@ -548,12 +549,33 @@ class VehicleDataControlRecvThread(threading.Thread):
         host_ip = ''
         host_port = 8000
         v2v_data_control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # v2v_data_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         v2v_data_control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         v2v_data_control_socket.bind((host_ip, host_port))
         
 
-    def run(self):
+    def run(self):   
         while True:
+            # udp type
+            # try:
+            #     header, payload = network.message.recv_msg(v2v_data_control_socket, network.message.TYPE_SERVER_REPLY_MSG, is_udp=True)
+            #     payload_size, frame_id, msg_type, ts = network.message.parse_server_reply_msg_header(header)
+            #     downlink_latency = time.time() - ts
+            #     if msg_type == network.message.TYPE_SEVER_ACK_MSG:
+            #         frame_latency = time.time() - frame_sent_time[frame_id]
+            #         print("[V2V Recv ack from helper] frame %d, latency %f, DL latency %f"
+            #             %(frame_id, frame_latency, downlink_latency))
+            #         e2e_frame_latency_lock.acquire()
+            #         e2e_frame_latency[frame_id] = frame_latency
+            #         e2e_frame_latency_lock.release()
+            #     elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
+            #         print("[V2V Recv rst from helper] frame %d, DL latency %f"%
+            #         (frame_id, downlink_latency), time.time())            
+            # except Exception as e:
+            #     print("Exception:", e)
+            #     print('[Helper changed] not recv ACK from prev helper anymore')
+            #     return
+            # tcp type
             v2v_data_control_socket.listen()
             helper_socket, helper_address = v2v_data_control_socket.accept()
             print("[Start recv V2V ACKs] Get connection from", helper_address)
@@ -602,14 +624,20 @@ class VehicleDataRecvThread(threading.Thread):
         self.client_ack_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_ack_socket.connect((helpee_addr[0], 8000))
     
-
     def relay_ack_thread(self):
         while not self._is_closed:
             # recv and relay ack from server
             try:
                 header, payload = network.message.recv_msg(self.helper_relay_server_sock, 
                                 network.message.TYPE_SERVER_REPLY_MSG)
-                network.message.send_msg(self.client_ack_socket, header, payload)
+                # tcp type relay
+                for i in range(3):
+                    network.message.send_msg(self.client_ack_socket, header, payload)
+                    # time.sleep(0.01)
+                # udp type relay
+                # send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+                # network.message.send_msg(send_note_sock, header, payload, is_udp=True,\
+                #                     remote_addr=(self.client_address[0], 8000))
                 print("[helper relay server ack] frame %d, %f" % (int.from_bytes(header[4:6], 'big'),
                     time.time()))
             except Exception as e:

@@ -32,7 +32,7 @@ def construct_control_msg_header(msg_payload, msg_type):
     return header
 
 
-def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id, num_chucks=1,\
+def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id, frame_ready_timestamp, num_chucks=1,\
     chunk=None):
     """Construct a data message header
     |---- 4 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 8 bytes ----| ---2 bytes--- |---- 4 bytes ----|---- 4 bytes ----|---- 4 bytes ----| ---- 4 bytes ----|
@@ -51,10 +51,11 @@ def construct_data_msg_header(msg_payload, msg_type, frame_id, vehicle_id, num_c
     """
     msg_len = len(msg_payload)
     encoded_ts = struct.pack('!d', time.time())
+    encoded_frame_ready_time =  struct.pack('!d', frame_ready_timestamp)
     
     header = msg_len.to_bytes(4, "big") + frame_id.to_bytes(2, "big") \
                 + vehicle_id.to_bytes(2, "big") + msg_type.to_bytes(2, 'big') \
-                + encoded_ts + num_chucks.to_bytes(2, "big")
+                + encoded_frame_ready_time + num_chucks.to_bytes(2, "big")
         
     for chunk_i in range(MAX_CHUNKS_NUM):
         base_size = 0
@@ -243,6 +244,7 @@ def vehicle_parse_route_packet_data(data):
 def vehicle_parse_sos_packet_data(data):
     vehicle_id = int.from_bytes(data[0:2], 'big')
     return vehicle_id
+
 
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")
