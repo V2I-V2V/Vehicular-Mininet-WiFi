@@ -15,7 +15,7 @@ import network.message
 import config
 import pickle
 
-MAX_VEHICLES = 8
+MAX_VEHICLES = 100
 MAX_FRAMES = 80
 TYPE_PCD = 0
 TYPE_OXTS = 1
@@ -25,6 +25,7 @@ NODE_LEFT_TIMEOUT = 0.5
 SCHED_PERIOD = 0.2
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEADLINE = 0.05
+DIVIDE_THRESHOLD = 6
 
 sys.stderr = sys.stdout
 
@@ -52,6 +53,7 @@ parser.add_argument('-m', '--multi', default=1, type=int,
 parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
 parser.add_argument('--combine_method', default="op_sum", choices=["op_sum", "op_min"])
 parser.add_argument('--score_method', default="harmonic", choices=["harmonic", "min"])
+parser.add_argument('--deadline_enable', default=1, type=int, help='enable-deadline')
 
 args = parser.parse_args()
 trace_filename = args.trace_filename
@@ -86,9 +88,31 @@ current_connected_vids = []
 pcds = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
 oxts = [[[] for _ in range(MAX_FRAMES)] for _ in range(MAX_VEHICLES)]
 curr_processed_frame = 0
-data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES))
+data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES), dtype=int)
 current_assignment = {}
 first_frame_arrival_ts = {}
+finished_frames = set()
+
+### TODO: Define a group number to vehicles in group map
+
+def find_vehicle_location_in_group(group_id):
+    """Given a group id, return a map consisting of vehicles' location in the group
+    """
+    pass
+
+
+def find_vehicle_route_in_group(group_id):
+    """Given a group id, return a map consisting of vehicles' routing paths in the group
+    """
+    pass
+
+
+def devide_vehicle_to_groups():
+    """Devide vehicle into different groups based on their location, return a dictionary with group id as key
+    and vehicle ids as value
+    """
+    pass
+
 
 def get_bws():
     curr_time = time.time()
@@ -405,18 +429,21 @@ def server_recv_data(client_socket, client_addr):
                 oxts[v_id][frame_id%MAX_FRAMES] = np.frombuffer(msg).reshape(4,4)
         
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
-            data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
-
             # check if ready to merge and send back results
-            if np.sum(data_ready_matrix[:, frame_id%MAX_FRAMES]) == num_vehicles:
+            conn_lock.acquire()
+            data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
+            if np.sum(data_ready_matrix[:, frame_id%MAX_FRAMES]) == num_vehicles and frame_id not in finished_frames:
                 # ready to merge
-                conn_lock.acquire()
                 if frame_id not in first_frame_arrival_ts:
                     conn_lock.release()
                     continue
+                finished_frames.add(frame_id)
                 first_frame_arrival_ts.pop(frame_id)
-                data_ready_matrix[:, frame_id%MAX_FRAMES] = 0 
+                # data_ready_matrix[:, frame_id%MAX_FRAMES] = 0 
+                print('[All frame in schedule, Send rst back to node]', 
+                    num_vehicles, frame_id)
                 for idx in range(data_ready_matrix.shape[0]):
+                    data_ready_matrix[idx][frame_id%MAX_FRAMES] = 0
                     pcds[idx][frame_id%MAX_FRAMES] = []
                     oxts[idx][frame_id%MAX_FRAMES] = []
                 # clear ready bits for the merged frames
@@ -430,13 +457,12 @@ def server_recv_data(client_socket, client_addr):
                 header = network.message.construct_reply_msg_header(encoded_payload, 
                     network.message.TYPE_SERVER_REPLY_MSG, frame_id)
                 # send back results to all clients
-                print('[All frame in schedule, Send rst back to node]', frame_id)
                 for n, soc in client_data_sockets.items():
                     try:
                         network.message.send_msg(soc, header, encoded_payload)
                     except Exception as e:
                         print("exception in sending rst to node %d, skip"%n, e)
-                conn_lock.release()
+            conn_lock.release()
 
 
 def save_ptcl(v_id, frame_id, data, num_chunks, chunk_sizes):
@@ -461,15 +487,18 @@ def send_rst_on_deadline():
     global curr_processed_frame
     while True:
         # print("arrived frames ", first_frame_arrival_ts)
-        if curr_processed_frame in first_frame_arrival_ts:
+        conn_lock.acquire()
+        if curr_processed_frame in first_frame_arrival_ts and curr_processed_frame not in finished_frames:
             if time.time() - first_frame_arrival_ts[curr_processed_frame] >= DEADLINE:
                 # deadline to send
-                conn_lock.acquire()
+                
                 print('[Deadline passed, Send rst back to node]', data_ready_matrix[:, curr_processed_frame%MAX_FRAMES],
                 curr_processed_frame)
-
-                data_ready_matrix[:, curr_processed_frame%MAX_FRAMES] = 0 
+                finished_frames.add(curr_processed_frame)
+                # data_ready_matrix[:, curr_processed_frame%MAX_FRAMES] = 0
+                 
                 for idx in range(data_ready_matrix.shape[0]):
+                    data_ready_matrix[idx][curr_processed_frame%MAX_FRAMES] = 0
                     pcds[idx][curr_processed_frame%MAX_FRAMES] = []
                     oxts[idx][curr_processed_frame%MAX_FRAMES] = []
                 result = None
@@ -484,9 +513,11 @@ def send_rst_on_deadline():
                     except Exception as e:
                         print("exception in sending rst to node %d, skip"%n, e)
                 curr_processed_frame += 1
-                conn_lock.release()
-        elif len(first_frame_arrival_ts.keys()) > 0 and curr_processed_frame < max(first_frame_arrival_ts.keys()):
+        # elif len(first_frame_arrival_ts.keys()) > 0 and curr_processed_frame < max(first_frame_arrival_ts.keys()):
+        #     curr_processed_frame += 1
+        elif curr_processed_frame in finished_frames:
             curr_processed_frame += 1
+        conn_lock.release()
         time.sleep(0.01)
 
 
@@ -561,8 +592,8 @@ def main():
     data_channel_thread = DataConnectionThread()
     data_channel_thread.daemon = True
     data_channel_thread.start()
-    deadline_send_thread = threading.Thread(target=send_rst_on_deadline)
-    deadline_send_thread.start()
+    # deadline_send_thread = threading.Thread(target=send_rst_on_deadline)
+    # deadline_send_thread.start()
     # data_process_thread = threading.Thread(target=merge_data_when_ready)
     # data_process_thread.deamon = True
     # data_process_thread.start()

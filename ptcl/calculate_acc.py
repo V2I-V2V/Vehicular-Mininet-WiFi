@@ -35,3 +35,31 @@ print(calculate_precision(grid_pred, grid_truth))
 #             rect = patches.Rectangle((i * 1 - 50, j * 1 - 50), 1, 1, edgecolor='maroon',
 #                                      facecolor='r')
 #             ax[1].add_patch(rect)
+
+merged_rst = np.load('sample/00_merged.npy')
+merged_rst = calculate_grid_label_before(1, merged_rst)
+updated_grid = combine_merged_results(grid_pred, merged_rst)
+print(calculate_precision(updated_grid, grid_truth))
+print(calculate_precision(merged_rst, grid_truth))
+draw_grids(grid_pred, save_path='./single_vehicle.png')
+draw_grids(updated_grid, save_path='./combine_result.png')
+draw_grids(merged_rst, save_path='./merged_rst.png')
+draw_grids(grid_truth, save_path='./grid_truth.png')
+
+
+# find grids that local detections are correct but merged results are wrong
+known_indices_truth = grid_truth != 0
+local_correct_indices = grid_pred == grid_truth
+merge_incorrect_indices = merged_rst != grid_truth
+desired = np.logical_and(local_correct_indices, merge_incorrect_indices)
+desired = np.logical_and(known_indices_truth, desired)
+np.savetxt('desired.txt', desired, fmt='%s')
+print(len(grid_truth[desired]))
+
+local_incorrect_indices = grid_truth != grid_pred
+merge_correct_indices = merged_rst == grid_truth
+undesired = np.logical_and(local_incorrect_indices, merge_correct_indices)
+undesired = np.logical_and(known_indices_truth, undesired)
+np.savetxt('undesired.txt', undesired, fmt='%s')
+print(len(grid_truth[undesired]))
+

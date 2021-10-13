@@ -9,7 +9,7 @@ from analysis.disconnection import get_connection_status
 font = {'family' : 'DejaVu Sans',
         'size'   : 18}
 matplotlib.rc('font', **font)
-colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
+colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey', 'cyan', 'brown', 'coral', 'lightgreen', 'orchid', 'navy', 'forestgreen']
 # if len(sys.argv) < 3:
 #     print("Usage: python3 analysis-scripts/plot_v2i_thrpt.py <thrpt_trace> <time_to_take>")
 
@@ -20,8 +20,9 @@ def get_nodes_v2i_bw(bw_file, time, num_nodes, helpee_conf):
         used_thrpts = np.vstack((used_thrpts, np.tile(used_thrpts[-1], time-used_thrpts.shape[0]).reshape(-1, num_nodes)))
     conn_status = get_connection_status(helpee_conf, time, num_nodes)
     for i in range(num_nodes):
-        if i in conn_status.keys():
-            used_thrpts[:time,i] *= conn_status[i]
+        if conn_status is not None:
+            if i in conn_status.keys():
+                used_thrpts[:time,i] *= conn_status[i]
     return used_thrpts
 
 def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):

@@ -69,7 +69,7 @@ def create_nodes(net, num_nodes, locations):
     stations = []
     for node_num in range(num_nodes):
         sta = net.addStation('sta%d'%node_num, mac='00:00:00:00:00:%02x'%(node_num+2),\
-                            ip6='fe80::%x'%(node_num+1), position=locations[node_num])
+                            ip6='fe80::%x'%(node_num+1), position=locations[node_num%len(locations)])
         stations.append(sta)
     return server, stations
 
@@ -133,6 +133,8 @@ def config_mobility(net, stations, loc_file, plot=False):
 def setup_ip(node, ip, ifname):
     node.setIP(ip, intf=ifname)
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
+    node.cmd('echo 1 > /proc/sys/net/ipv4/tcp_frto')
+    # node.cmd('echo 1 > /proc/sys/net/ipv4/tcp_low_latency')
 
 
 def configure_priority(node, ifname):
@@ -165,7 +167,7 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     vehicle_app_commands = []
     for node_num in range(len(stations)):
         vehicle_app_cmd = 'sleep 4 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d'\
-            % (CODE_DIR, node_num, vehicle_data_dir[node_num], loc_file, helpee_conf, fps, no_control, adaptive_encode)
+            % (CODE_DIR, node_num, vehicle_data_dir[node_num%len(vehicle_data_dir)], loc_file, helpee_conf, fps, no_control, adaptive_encode)
         if adaptive_frame_skip:
             vehicle_app_cmd += ' --adapt_skip_frames '
         if add_noise_to_loc:
@@ -237,7 +239,7 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### Trace replaying ###
     replaying_threads = []
     for i in range(num_nodes):
-        replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i])
+        replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i%len(v2i_bw_traces.keys())])
         replaying_threads.append(replaying_thread)
 
 
@@ -246,8 +248,9 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
         run_custom_routing(stations)
 
     # ### Prioritize Traffic ### 
-    # for sta_idx in range(num_nodes):
-    #     configure_priority(stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+    for sta_idx in range(num_nodes):
+        configure_priority(stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+        # stations[sta_idx].cmd('iwconfig sta%d-wlan0 retry limit 15'%sta_idx)
 
     ### Run application ###
     if run_app is True:
@@ -291,7 +294,7 @@ if __name__ == '__main__':
     # take argument number of nodes:
     if '-n' in sys.argv:
         num_nodes = int(sys.argv[sys.argv.index('-n')+1])
-        if num_nodes > 6 and '--run_app' in sys.argv:
+        if num_nodes > 100 and '--run_app' in sys.argv:
             print("Not supported node num to run application, plz use 6 nodes for now!")
             sys.exit()
 

@@ -2,6 +2,7 @@ import numpy as np
 import open3d as o3d
 import sys
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import time
 
 def read_ptcl_data(ptcl_fname):
@@ -70,6 +71,54 @@ def draw_2d(data, show=True, save=False, save_path=None):
 		plt.show()
 	if save:
 		plt.savefig(save_path)
+
+
+def draw_grids(grid, grid_size=1, make_undefined_occupied=False, save_path='detection_grid.png'):
+	fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+
+	minor_ticks = np.arange(-50, 55, 1)
+	# ax[1].set_xticks(ticks)
+	ax.set_xlim(-55, 55)
+	ax.set_ylim(-55, 55)
+
+	ax.set_ylabel('Original Point Cloud')
+	ax.set_xticks(minor_ticks, minor=True)
+	ax.set_yticks(minor_ticks, minor=True)
+	cnt = 0
+	for i in range(grid.shape[0]):
+		for j in range(grid.shape[1]):
+			if grid[i][j] > 0:
+				rect = patches.Rectangle((i * grid_size - 50, j * grid_size - 50), grid_size, grid_size,
+								edgecolor='darkblue', facecolor='b')
+				ax.add_patch(rect)
+				cnt += 1
+			elif grid[i][j] < 0:
+				rect = patches.Rectangle((i * grid_size - 50, j * grid_size - 50), grid_size, grid_size,
+								edgecolor='maroon', facecolor='r')
+				ax.add_patch(rect)
+				cnt += 1
+			elif make_undefined_occupied:
+				rect = patches.Rectangle((i * grid_size - 50, j * grid_size - 50), grid_size, grid_size,
+								edgecolor='maroon', facecolor='r')
+				ax.add_patch(rect)
+				cnt += 1
+
+	rect = patches.Rectangle((-100, -100), grid_size, grid_size, edgecolor='maroon',
+		facecolor='r', label='Undrivable')
+	ax.add_patch(rect)
+	rect = patches.Rectangle((-100, -100), grid_size, grid_size, edgecolor='darkblue',
+		facecolor='b', label='Drivable')
+	ax.add_patch(rect)
+	if not make_undefined_occupied:
+		rect = patches.Rectangle((100, 100), grid_size, grid_size, edgecolor='grey',
+			facecolor='white', label='Undefined')
+	ax.add_patch(rect)
+	ax.legend(fontsize=12, loc='lower left')
+	ax.set_ylabel('Drivable Space Map')
+	ax.grid(linestyle='-', which='minor', alpha=0.4)
+	ax.grid(linestyle='-', which='major', alpha=0.4)
+	plt.tight_layout()
+	plt.savefig(save_path)
 
 
 def get_number_of_points_in_region(ptcl, x_center, y_center, x_width, y_width):
@@ -184,5 +233,22 @@ def calculate_precision(grid_pred, grid_truth):
     # precision = len(rst[rst == True])/grid_truth.size
 
     return precision
+
+
+def combine_merged_results(grid_single, grid_merged):
+	"""combine merged results to single-vehicle detection
+
+	Args:
+		grid_single ([numpy.array]): grid label of single vehicle detection
+		grid_merged ([numpy.array]): grid label of multi vehicle merged detection
+
+	Returns:
+		[numpy.array]: updated detection results
+	"""
+	grid_updated = np.copy(grid_single)
+	# find the grid label that is unknown
+	unknown_indices = grid_single == 0
+	grid_updated[unknown_indices] = grid_merged[unknown_indices]
+	return grid_updated
 
 ## TODO: Transform the ptcl to a global reference?

@@ -311,7 +311,7 @@ def plot_full_frame(partial_results, name, idx):
     for label in labels:
         ticks.append(label[idx])
     ax = fig.add_subplot(111)
-    selected_threshold = [0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 1.5, 2.0]
+    selected_threshold = [0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 1.0, 1.5, 2.0]
     setting_to_diff_latency_frames, setting_to_diff_latency_frames_std = {}, {}
     setting_to_detection_rst, setting_to_detection_rst_std, setting_to_good_detection_frames \
         = {}, {}, {}
@@ -330,7 +330,7 @@ def plot_full_frame(partial_results, name, idx):
             one_setting_mean_detect_area = []
             for one_run in partial_results[label]:
                 one_setting_num_full_frames.append(
-                    get_percentage_frames_within_threshold(one_run, t, key='max_full_frames', num_nodes=num_nodes)
+                    get_percentage_frames_within_threshold(one_run, t, key='e2e-latency', num_nodes=num_nodes)
                 )
                 # setting_to_detection_rst[label].extend(one_run['detected_areas'])
                 # one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))
@@ -375,9 +375,11 @@ def plot_full_frame(partial_results, name, idx):
         ax.errorbar(setting_to_diff_latency_frames[label][3], np.mean(setting_to_detection_rst[label]), \
             xerr=setting_to_diff_latency_frames_std[label][3], yerr=setting_to_detection_rst_std[label], capsize=2,
             color=sched_to_color[label[idx]])
+        
 
-    plt.xlabel("% of frame within 0.2s")
+    plt.xlabel("% of frame within 0.1s")
     plt.ylabel("Detected space ($m^2$)")
+    plt.ylim([4000, 5200])
     plt.legend()
     plt.tight_layout()
     plt.savefig('analysis-results/%s-two-dim.png'%name)
@@ -692,7 +694,7 @@ def plot_bars_compare_schedules(schedules):
             if schedule in k:
                 for t in selected_thresholds:
                     sched_to_different_latency_cnts[schedule][t].append(
-                        get_percentage_frames_within_threshold(v, t, SSIM_THRESHOLD, key='max_full_frames')
+                        get_percentage_frames_within_threshold(v, t, key='e2e-latency', num_nodes=num_nodes)
                     )
     sched_to_different_latency_mean = {}
     sched_to_different_latency_std = {}
@@ -721,21 +723,56 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
 
     for schedule in schedule_data.keys():
-        ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]),
+        ax.scatter(sched_to_different_latency_mean[schedule][0], np.mean(schedule_to_detected_spaces[schedule]),
         label='pure-V2I' if schedule == 'emp' else schedule,
         color=sched_to_color[schedule])
-        ax.errorbar(sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]), \
-            xerr=sched_to_different_latency_std[schedule][1], yerr=np.std(schedule_to_detected_spaces[schedule]), capsize=2,
+        ax.errorbar(sched_to_different_latency_mean[schedule][0], np.mean(schedule_to_detected_spaces[schedule]), \
+            xerr=sched_to_different_latency_std[schedule][0], yerr=np.std(schedule_to_detected_spaces[schedule]), capsize=2,
             color=sched_to_color[schedule])
-        print(schedule, sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]))
-        print(schedule, sched_to_different_latency_std[schedule][1], np.std(schedule_to_detected_spaces[schedule]))
+        print(schedule, sched_to_different_latency_mean[schedule][0], np.mean(schedule_to_detected_spaces[schedule]))
+        print(schedule, sched_to_different_latency_std[schedule][0], np.std(schedule_to_detected_spaces[schedule]))
 
     plt.ylim([4000, 5200])
-    plt.xlabel("% of frame within 0.2s")
+    plt.xlabel("% of frame within 0.1s")
     plt.ylabel("Detected space ($m^2$)")
     plt.legend()
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim.png')
+
+    sched_to_different_metric_cnts = {}
+    latency_thresholds = [0.1, 0.2, 0.3]
+    space_thresholds = [4000, 4500, 5000]
+    for schedule in schedules:
+        sched_to_different_metric_cnts[schedule] = {}
+        for t in latency_thresholds:
+            for s in space_thresholds:
+                sched_to_different_latency_cnts[schedule][(t,s)] = []
+        for k, v in result_each_run.items():
+            if schedule in k:
+                for t in latency_thresholds:
+                    for s in space_thresholds:
+                        sched_to_different_latency_cnts[schedule][(t,s)].append(
+                            get_num_frames_within_latency_above_detected_space(v, t, s)
+                        )
+    fig = plt.figure(figsize=(10,5))
+    ax = fig.add_subplot(111)
+    cnt = 0
+    xticks = []
+    selected_metric = (0.1, 5000)
+    for schedule in sched_to_different_latency_cnts:
+        xticks.append('pure-V2I' if schedule == 'emp' else schedule)
+        ax.bar(cnt, np.mean(sched_to_different_latency_cnts[schedule][selected_metric]),
+            align='center', label='pure-V2I' if schedule == 'emp' else schedule, color=sched_to_color[schedule],
+            alpha=0.5)
+        ax.errorbar(cnt, np.mean(sched_to_different_latency_cnts[schedule][selected_metric]),
+            yerr=np.std(sched_to_different_latency_cnts[schedule][selected_metric]), capsize=3,
+            color=sched_to_color[schedule])
+        cnt += 1
+    plt.xticks(np.arange(len(sched_to_different_latency_cnts.keys())), xticks)
+    plt.ylabel("# of frames with\n(%0.2f s latency, %d $m^2$ detected space)" % selected_metric)
+    plt.tight_layout()
+    plt.savefig('analysis-results/frames-%0.2flatency-%dspace.png'%selected_metric)
+
 
     
     fig = plt.figure()
@@ -955,7 +992,7 @@ def main():
     #     print("deleting %s"%folder)
     #     os.system("rm -rf %s"%folder)
     
-    compare_sched_in_one_plot = False
+    compare_sched_in_one_plot, compare_deadline = False, False
     parse_exp_stats = True 
     msg_overhead_analyze = False
     if len(args.task)>0:
@@ -971,12 +1008,21 @@ def main():
             parse_exp_stats = False
         elif args.task[0] == 'analyze_msg_overhead':
             msg_overhead_analyze = True
+        elif args.task[0] == 'compare_deadline':
+            compare_deadline = True
+            sched1_folder, sched2_folder = args.task[1], args.task[2]
+        
 
     
     os.system('mkdir %s/analysis-results/'%data_dir)
 
     # # read all exp data, need a return value 
     get_all_runs_results(data_dir, key, with_ssim=with_ssim, parse_exp_stats=parse_exp_stats)
+
+    if compare_deadline:
+        pass
+        return
+
     if not parse_exp_stats:
         get_summary_of_settings(config_set)
         return
