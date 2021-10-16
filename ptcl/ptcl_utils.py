@@ -166,12 +166,13 @@ def calculate_grid_label(grid_size, points):
     grid = np.zeros((x_size, y_size), dtype=int)
     for point in points:
         x_idx, y_idx = int((point[0] + 50) / grid_size), int((point[1] + 50) / grid_size)
-        if point[3] == 0:
-            # obj
-            grid[x_idx][y_idx] -= 1
-        elif point[3] == 1:
-            # ground
-            grid[x_idx][y_idx] += 1
+        if x_idx < 100 and y_idx < 100:
+            if point[3] == 0:
+                # obj
+                grid[x_idx][y_idx] -= 1
+            elif point[3] == 1:
+                # ground
+                grid[x_idx][y_idx] += 1
 
     grid[grid > 0] = 1  # drivable
     grid[grid < 0] = -1  # object
