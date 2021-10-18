@@ -9,6 +9,7 @@ import bisect
 import socket
 import threading
 import time
+import pickle
 import config
 import network.message
 import numpy as np
@@ -83,6 +84,7 @@ self_loc_trace = vehicle_locs[vehicle_id]
 if len(self_loc_trace) > 5:
     self_loc_trace = self_loc_trace[5:] # manually sync location update with vechiular_perception.py
 self_loc = self_loc_trace[0]
+self_group = (0, 0)
 pcd_data_buffer = []
 oxts_data_buffer = []
 e2e_frame_latency = {}
@@ -420,19 +422,31 @@ class ServerControlThread(threading.Thread):
             # always receive assignment information from server
             # Note: sending location information is done in VehicleConnThread.run()
             # triggered by receiving location info from helpees
-            global current_helpee_id
-            helpee_id = wwan.recv_assignment(v2i_control_socket)
-            if is_helper_recv():
-                if if_recv_nothing_from_server(helpee_id):
+            global current_helpee_id, self_group
+            data, msg_type = wwan.recv_control_msg(v2i_control_socket)
+            
+            if is_helper_recv() and msg_type == network.message.TYPE_ASSIGNMENT:
+                if if_recv_nothing_from_server(data):
                     print("Recv nothing from server " + str(time.time()))
-                elif if_not_assigned_as_helper(helpee_id):
+                elif if_not_assigned_as_helper(data):
                     print("Not assigned as helper.. " + str(time.time()))
                 else:
                     print("[Helper get assignment from server] helpee_id: " +\
-                                str(helpee_id) + ' ' + str(time.time()))
+                                str(data) + ' ' + str(time.time()))
                     # print(self_loc)
-                    current_helpee_id = helpee_id
-                    notify_helpee_node(helpee_id)
+                    current_helpee_id = data
+                    notify_helpee_node(current_helpee_id)
+            elif msg_type == network.message.TYPE_GROUP:
+                self_group = data
+                if is_helper_recv() and current_helpee_id != 65535:
+                    print("notify helpee node about group change", data)
+                    send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+                    payload = pickle.dumps(data)
+                    header = network.message.construct_control_msg_header(payload, network.message.TYPE_GROUP)
+                    helpee_addr = "10.0.0." + str(current_helpee_id+2)
+                    network.message.send_msg(send_note_sock, header, payload, is_udp=True,\
+                        remote_addr=(helpee_addr, helper_control_recv_port))
+
             time.sleep(0.2)
 
 
@@ -453,7 +467,7 @@ class VehicleControlThread(threading.Thread):
         
 
     def run(self):
-        global current_helper_id, control_seq_num
+        global current_helper_id, control_seq_num, self_group
         while True:
             data, addr = network.message.recv_msg(v2v_control_socket, network.message.TYPE_CONTROL_MSG,\
                                             is_udp=True)
@@ -462,7 +476,9 @@ class VehicleControlThread(threading.Thread):
                 # This vehicle is a helper now
                 if msg_type == network.message.TYPE_LOCATION:
                     print("[helper recv location broadcast] " + str(time.time()))
-                    helpee_id, helpee_loc, seq_num = network.message.vehicle_parse_location_packet_data(data[-msg_size:])
+                    helpee_id, helpee_loc, seq_num, group_id = network.message.vehicle_parse_location_packet_data(data[-msg_size:])
+                    if group_id != self_group: # skip if not in the same group
+                        continue
                     # send helpee location
                     print((helpee_id, helpee_loc))
                     if helpee_id not in vehicle_seq_dict.keys() \
@@ -475,7 +491,9 @@ class VehicleControlThread(threading.Thread):
                         v2i_control_socket_lock.release()
                 elif msg_type == network.message.TYPE_ROUTE:
                     print("[helper recv route broadcast] " + str(time.time()))
-                    helpee_id, route_bytes, seq_num = network.message.vehicle_parse_route_packet_data(data[-msg_size:])
+                    helpee_id, route_bytes, seq_num, group_id = network.message.vehicle_parse_route_packet_data(data[-msg_size:])
+                    if group_id != self_group: # skip if not in the same group
+                        continue
                     # forward helpee route
                     if helpee_id not in vehicle_seq_dict.keys() \
                         or seq_num > vehicle_seq_dict[helpee_id]:
@@ -489,7 +507,9 @@ class VehicleControlThread(threading.Thread):
                 elif msg_type == network.message.TYPE_SOS and self_ip != addr[0]:
                     # helpee run in distributed way, send back help msg
                     print("[helper recv sos broadcast] " + str(addr) + str(time.time()))
-                    wlan.echo_sos_msg(v2v_control_socket, vehicle_id, addr)                
+                    wlan.echo_sos_msg(v2v_control_socket, vehicle_id, addr) 
+                elif msg_type == network.message.TYPE_GROUP:
+                    pass               
             elif connection_state == "Disconnected":
                 # This vehicle is a helpee now
                 if msg_type == network.message.TYPE_ASSIGNMENT:
@@ -505,7 +525,9 @@ class VehicleControlThread(threading.Thread):
                             helper_data_send_thread[-1].stop()
                         helper_data_send_thread.append(new_send_thread)
                 elif msg_type == network.message.TYPE_LOCATION and self_ip != addr[0]:
-                    helpee_id, helpee_loc, seq_num = network.message.vehicle_parse_location_packet_data(data[-msg_size:])
+                    helpee_id, helpee_loc, seq_num, group_id = network.message.vehicle_parse_location_packet_data(data[-msg_size:])
+                    if group_id != self_group: # skip if not in the same group
+                        continue          
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
                             seq_num > vehicle_seq_dict[helpee_id]):
                         # helpee only rebroadcast loc not equal to themselves and with larger seq
@@ -514,7 +536,9 @@ class VehicleControlThread(threading.Thread):
                                         data[network.message.CONTROL_MSG_HEADER_LEN:], is_udp=True, \
                                         remote_addr=("10.255.255.255", helper_control_recv_port))
                 elif msg_type == network.message.TYPE_ROUTE and self_ip != addr[0]:
-                    helpee_id, route_bytes, seq_num = network.message.vehicle_parse_route_packet_data(data[-msg_size:])
+                    helpee_id, route_bytes, seq_num, group_id = network.message.vehicle_parse_route_packet_data(data[-msg_size:])
+                    if group_id != self_group: # skip if not in the same group
+                        continue
                     if helpee_id != vehicle_id and (helpee_id not in vehicle_seq_dict.keys() or \
                             seq_num > vehicle_seq_dict[helpee_id]):
                         # helpee only rebroadcast route not equal to themselves and with larger seq
@@ -534,6 +558,11 @@ class VehicleControlThread(threading.Thread):
                         new_send_thread.start()
                         print("[Helpee decide to use helper assignment] helper_id: "\
                             + str(helper_id) + ' ' + str(time.time()), flush=True)
+                elif msg_type == network.message.TYPE_GROUP:
+                    group_id = pickle.loads(data)
+                    self_group = group_id
+                    print('[helpee update group id]', group_id)
+
             else:
                 print("Exception: no such connection state")
 
@@ -631,8 +660,8 @@ class VehicleDataRecvThread(threading.Thread):
                 header, payload = network.message.recv_msg(self.helper_relay_server_sock, 
                                 network.message.TYPE_SERVER_REPLY_MSG)
                 # tcp type relay
-                for i in range(3):
-                    network.message.send_msg(self.client_ack_socket, header, payload)
+                # for i in range(3):
+                network.message.send_msg(self.client_ack_socket, header, payload)
                     # time.sleep(0.01)
                 # udp type relay
                 # send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -826,7 +855,8 @@ def send_control_msgs(node_type):
         if node_type == HELPER:
             wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, control_seq_num, add_noise=add_noise_to_loc)
         else:
-            mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num, add_noise=add_noise_to_loc)
+            mobility.broadcast_location(vehicle_id, self_loc, v2v_control_socket, control_seq_num, self_group,
+                                        add_noise=add_noise_to_loc)
         control_seq_num += 1
     if scheduler_mode == 'combined' or scheduler_mode == 'routeAware':
         # send routing info
@@ -834,8 +864,8 @@ def send_control_msgs(node_type):
             wwan.send_route(HELPER, vehicle_id, route.table_to_bytes(route.get_routes(vehicle_id)), 
                             v2i_control_socket, control_seq_num)
         else:
-            route.broadcast_route(vehicle_id, route.get_routes(vehicle_id), v2v_control_socket,\
-                                control_seq_num)
+            route.broadcast_route(vehicle_id, route.get_routes(vehicle_id), v2v_control_socket, control_seq_num,
+                                 self_group)
         control_seq_num += 1
     v2i_control_socket_lock.release()   
     

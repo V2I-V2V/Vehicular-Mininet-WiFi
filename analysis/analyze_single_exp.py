@@ -182,9 +182,11 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     # plot adaptive encode
     if len(sender_adaptive_choice[0]) != 0:
         bw = np.loadtxt(bw_file)
-        fig = plt.figure(figsize=(9, 18))
+        # fig = plt.figure(figsize=(9, 18))
+        fig, axes = plt.subplots(num_nodes, 1, sharex=True, figsize=(9, 18))
         for i in range(num_nodes):
-            ax = fig.add_subplot(num_nodes, 1, i+1)
+            # ax = fig.add_subplot(num_nodes, 1, i+1)
+            ax = axes[i]
             ax2 = ax.twinx()
             ts, delay = construct_ts_latency_array(delay_dict_ts[i])
             ax.plot(ts, delay, '--', label='node%d-latency'%i)

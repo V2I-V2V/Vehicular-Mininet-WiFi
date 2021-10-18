@@ -8,6 +8,7 @@ import fcntl, os
 import network.message
 import config
 import mobility_noise
+import pickle
 
 
 def setup_p2p_links(vehicle_id, ip, port, recv_sched_scheme=False):
@@ -53,11 +54,17 @@ def send_route(vehicle_type, vehicle_id, route_bytes, client_socket, seq_num):
     network.message.send_msg(client_socket, header, msg)
 
 
-def recv_assignment(client_socket):
+def recv_control_msg(client_socket):
     try:
-        msg = client_socket.recv(2)
-        helpee_id = int.from_bytes(msg, "big")
-        return helpee_id
+        header, payload = network.message.recv_msg(client_socket, network.message.TYPE_CONTROL_MSG)
+        _, msg_type = network.message.parse_control_msg_header(header)
+        if msg_type == network.message.TYPE_ASSIGNMENT:
+            # msg = client_socket.recv(2)
+            helpee_id = int.from_bytes(payload, "big")
+            return helpee_id, msg_type
+        elif msg_type == network.message.TYPE_GROUP:
+            group_id = pickle.loads(payload)
+            return group_id, msg_type
     except socket.timeout:
         # print("got error during recv")
         return 65534

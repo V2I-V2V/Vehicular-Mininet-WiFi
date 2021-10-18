@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 # Vehicular perception server
 import sys, os
+
+from numpy.lib.type_check import real
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.stderr = sys.stdout
 import scheduling
@@ -14,6 +16,7 @@ import ptcl.pointcloud
 import network.message
 import config
 import pickle
+import group
 
 MAX_VEHICLES = 100
 MAX_FRAMES = 80
@@ -21,7 +24,7 @@ TYPE_PCD = 0
 TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
-NODE_LEFT_TIMEOUT = 0.5
+NODE_LEFT_TIMEOUT = 0.8
 SCHED_PERIOD = 0.2
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEADLINE = 0.05
@@ -31,7 +34,9 @@ sys.stderr = sys.stdout
 
 curr_connected_vehicles = 0
 conn_lock = threading.Lock()
+control_sock_lock = threading.Lock()
 data_save_lock = threading.Lock()
+node_last_rx_time_lock = threading.Lock()
 data_save_cv = threading.Condition()
 init_time = 0
 bws = {0: 50, 1:50, 2:50, 3:50, 4:50, 5:50}
@@ -54,6 +59,7 @@ parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
 parser.add_argument('--combine_method', default="op_sum", choices=["op_sum", "op_min"])
 parser.add_argument('--score_method', default="harmonic", choices=["harmonic", "min"])
 parser.add_argument('--deadline_enable', default=1, type=int, help='enable-deadline')
+parser.add_argument('--enable_grouping', default=1, type=int, help='enable-deadline')
 
 args = parser.parse_args()
 trace_filename = args.trace_filename
@@ -77,6 +83,7 @@ else:
 all_bandwidth = np.loadtxt(trace_filename)
 location_map = {}
 route_map = {} # map v_id to the vechile's routing table
+group_map = {}
 node_seq_nums = {}
 node_last_recv_timestamp = {}
 client_sockets = {}
@@ -92,26 +99,6 @@ data_ready_matrix = np.zeros((MAX_VEHICLES, MAX_FRAMES), dtype=int)
 current_assignment = {}
 first_frame_arrival_ts = {}
 finished_frames = set()
-
-### TODO: Define a group number to vehicles in group map
-
-def find_vehicle_location_in_group(group_id):
-    """Given a group id, return a map consisting of vehicles' location in the group
-    """
-    pass
-
-
-def find_vehicle_route_in_group(group_id):
-    """Given a group id, return a map consisting of vehicles' routing paths in the group
-    """
-    pass
-
-
-def devide_vehicle_to_groups():
-    """Devide vehicle into different groups based on their location, return a dictionary with group id as key
-    and vehicle ids as value
-    """
-    pass
 
 
 def get_bws():
@@ -142,14 +129,13 @@ class SchedThread(threading.Thread):
         self.last_assignment_score = 0 # used for combined sched
         self.last_assignment = None
         self.assignment_change_threshold = 0.8
-
+        self.last_assignment_scores = {}
 
     def check_if_loc_map_complete(self, vids):
         return set(vids).issubset(set(location_map.keys()))
     
     def check_if_route_map_conplete(self, vids):
         return set(vids).issubset(set(route_map.keys()))
-
 
     def ready_to_schedule(self, scheduler_mode):
         global current_connected_vids
@@ -177,7 +163,6 @@ class SchedThread(threading.Thread):
         else:
             return False
 
-
     def run(self):
         global current_assignment
         while True:
@@ -191,103 +176,108 @@ class SchedThread(threading.Thread):
                     real_helpee, real_helper = cnt, node
                     current_assignment[real_helpee] = real_helper
                     print("send %d to node %d" % (real_helpee, real_helper))
+                    # control_sock_lock.acquire()
                     msg = int(real_helpee).to_bytes(2, 'big')
                     if real_helper in client_sockets.keys():
                         client_sockets[real_helper].send(msg)
+                    # control_sock_lock.release()         
             elif self.ready_to_schedule(scheduler_mode):
-                positions = []
-                routing_tables = {}
-                helper_list = []
-                helpee_count, helper_count = 0, 0
-                for i in current_connected_vids:
-                    if vehicle_types[i] == HELPEE:
-                        helpee_count += 1
-                        helper_list.append(HELPEE)
-                    else:
-                        helper_count += 1
-                        helper_list.append(HELPER)
-                if helpee_count == 0: # skip scheduling if no helpee
-                    print("Assignment: " + str(()) + ' ' + str([]) +  ' ' + str(time.time()))
-                    time.sleep(SCHED_PERIOD)
-                    continue
-                helper_list = np.array(helper_list)
-                mapped_nodes = np.array(current_connected_vids)[np.argsort(helper_list)]
-                print("mapped nodes " + str(mapped_nodes))
-                original_to_new = {}
-                for cnt, mapped_node_id in enumerate(mapped_nodes):
-                    original_to_new[mapped_node_id] = cnt
-                    if scheduler_mode == 'combined' or scheduler_mode == 'minDist' or \
-                        scheduler_mode == 'bwAware':
-                        positions.append(location_map[mapped_node_id])
-                if scheduler_mode == 'combined' or scheduler_mode == 'routeAware':
-                    # print("[mapping routing tables]")
+                for group_id, v_ids in group_map.items():
+                    group_loc_map = group.find_vehicle_location_in_group(group_id, group_map, location_map)
+                    group_route_map = group.find_vehicle_route_in_group(group_id, group_map, route_map)                    
+                    positions = []
+                    routing_tables = {}
+                    helper_list = []
+                    helpee_count, helper_count = 0, 0
+                    for i in v_ids:
+                        if vehicle_types[i] == HELPEE:
+                            helpee_count += 1
+                            helper_list.append(HELPEE)
+                        else:
+                            helper_count += 1
+                            helper_list.append(HELPER)
+                    if helpee_count == 0: # skip scheduling if no helpee
+                        print("Assignment: " + str(()) + ' ' + str([]) +  ' ' + str(time.time()))
+                        # time.sleep(SCHED_PERIOD)
+                        continue
+                    helper_list = np.array(helper_list)
+                    mapped_nodes = np.array(v_ids)[np.argsort(helper_list)]
+                    print("mapped nodes " + ' [' + ' '.join(mapped_nodes.astype(str).tolist()) +  '] ')
+                    original_to_new = {}
                     for cnt, mapped_node_id in enumerate(mapped_nodes):
-                        routing_table = {}
-                        if mapped_node_id in route_map.keys():
-                            for k, v in route_map[mapped_node_id].items():
-                                if v in original_to_new.keys() and k in original_to_new.keys(): # helpee/helper num may change
-                                    routing_table[original_to_new[k]] = original_to_new[v]
-                                    # print("update routing table", original_to_new[k], original_to_new[v])
-                        # routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
-                        routing_tables[cnt] = routing_table
-                sched_start = time.time()
-                if scheduler_mode == 'combined':
-                    # get_bws() # need to map here
-                    bws = get_mapped_bw(mapped_nodes)
-                    assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, 
-                                                                          is_one_to_one, combine_method, score_method)
-                    if self.last_assignment is not None:
-                        last_assignment_id = scheduling.get_id_from_assignment(self.last_assignment)
-                    else:
-                        last_assignment_id = ()
-                    last_score = scores[last_assignment_id] if last_assignment_id in scores.keys() else 0
-                    print("best score: ", score, last_score, self.last_assignment_score)
-                    if score < last_score + self.assignment_change_threshold \
-                        and self.last_assignment is not None and len(current_assignment) == len(self.last_assignment):
-                        print("Skip assignment ", score, self.last_assignment_score, current_assignment)
-                        skip_sending_assignment = True
-                    else:
-                        self.last_assignment_score = score
-                elif scheduler_mode == 'minDist':
-                    assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions, is_one_to_one)
-                elif scheduler_mode == 'bwAware':
-                    # get_bws()
-                    bws = get_mapped_bw(mapped_nodes)
-                    assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
-                elif scheduler_mode == 'routeAware':
-                    # print("unmapped:", route_map)
-                    # print("routing tables", routing_tables)
-                    assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
-                elif scheduler_mode == 'random':
-                    random_seed = (time.time() - init_time) // 5
-                    assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
-                elif scheduler_mode == 'switch':
-                    if self.flip_cnt % 2 == 0:
-                        assignment = (1,)
-                    else:
-                        assignment = (2,)
-                    self.flip_cnt += 1
+                        original_to_new[mapped_node_id] = cnt
+                        if scheduler_mode == 'combined' or scheduler_mode == 'minDist' or \
+                            scheduler_mode == 'bwAware':
+                            positions.append(location_map[mapped_node_id])
+                    if scheduler_mode == 'combined' or scheduler_mode == 'routeAware':
+                        # print("[mapping routing tables]")
+                        for cnt, mapped_node_id in enumerate(mapped_nodes):
+                            routing_table = {}
+                            if mapped_node_id in route_map.keys():
+                                for k, v in route_map[mapped_node_id].items():
+                                    if v in original_to_new.keys() and k in original_to_new.keys(): # helpee/helper num may change
+                                        routing_table[original_to_new[k]] = original_to_new[v]
+                                        # print("update routing table", original_to_new[k], original_to_new[v])
+                            # routing_tables[original_to_new[k]] = routing_table[original_to_new[k]]
+                            routing_tables[cnt] = routing_table
+                    sched_start = time.time()
+                    if scheduler_mode == 'combined':
+                        # get_bws() # need to map here
+                        bws = get_mapped_bw(mapped_nodes)
+                        assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, 
+                                                                            is_one_to_one, combine_method, score_method)
+                        if self.last_assignment is not None:
+                            last_assignment_id = scheduling.get_id_from_assignment(self.last_assignment)
+                        else:
+                            last_assignment_id = ()
+                        last_score = scores[last_assignment_id] if last_assignment_id in scores.keys() else 0
+                        print("best score: ", score, last_score, self.last_assignment_score)
+                        if score < last_score + self.assignment_change_threshold \
+                            and self.last_assignment is not None and len(current_assignment) == len(self.last_assignment):
+                            print("Skip assignment ", score, self.last_assignment_score, current_assignment)
+                            # skip_sending_assignment = True
+                        else:
+                            self.last_assignment_score = score
+                    elif scheduler_mode == 'minDist':
+                        assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions, is_one_to_one)
+                    elif scheduler_mode == 'bwAware':
+                        # get_bws()
+                        bws = get_mapped_bw(mapped_nodes)
+                        assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
+                    elif scheduler_mode == 'routeAware':
+                        # print("unmapped:", route_map)
+                        # print("routing tables", routing_tables)
+                        assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
+                    elif scheduler_mode == 'random':
+                        random_seed = (time.time() - init_time) // 5
+                        assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
+                    elif scheduler_mode == 'switch':
+                        if self.flip_cnt % 2 == 0:
+                            assignment = (1,)
+                        else:
+                            assignment = (2,)
+                        self.flip_cnt += 1
                 
-                sched_end = time.time()
-                print("Sched takes " + str(sched_end-sched_start))
-                if skip_sending_assignment and self.last_assignment is not None:
-                    print("Assignment: " + str(self.last_assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
-                if not skip_sending_assignment:
-                    print("Assignment: " + str(assignment) + ' ' + str(mapped_nodes) +  ' ' + str(time.time()))
-                    self.last_assignment = assignment
-                    real_helpers = []
-                    for cnt, node in enumerate(assignment):
-                        real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
-                        current_assignment[real_helpee] = real_helper
-                        print("send %d to node %d" % (real_helpee, real_helper))
-                        msg = int(real_helpee).to_bytes(2, 'big')
-                        client_sockets[real_helper].send(msg)
-                        real_helpers.append(real_helper)
-                    # for node_id, is_helper in enumerate(helper_list):
-                    #     if is_helper == 1 and node_id not in real_helpers:
-                            
-                    #         msg = int(65535).to_bytes(2, 'big')
-                    #         client_sockets[node_id].send(msg)
+                    sched_end = time.time()
+                    print("Sched takes " + str(sched_end-sched_start))
+                    if skip_sending_assignment and self.last_assignment is not None:
+                        print("Assignment: " + str(self.last_assignment) + ' [' + ' '.join(mapped_nodes.astype(str).tolist()) +  '] ' + str(time.time()))
+                    if not skip_sending_assignment:
+                        print("Assignment: " + str(assignment) + ' [' + ' '.join(mapped_nodes.astype(str).tolist()) +  '] ' + str(time.time()))
+                        # print("Mapped Nodes", mapped_nodes)
+                        self.last_assignment = assignment
+                        real_helpers = []
+                        # control_sock_lock.acquire()
+                        for cnt, node in enumerate(assignment):
+                            real_helpee, real_helper = mapped_nodes[cnt], mapped_nodes[node]
+                            current_assignment[real_helpee] = real_helper
+                            print("send %d to node %d" % (real_helpee, real_helper))
+                            assignment_payload = int(real_helpee).to_bytes(2, 'big')
+                            header = network.message.construct_control_msg_header(assignment_payload, network.message.TYPE_ASSIGNMENT)
+                            network.message.send_msg(client_sockets[real_helper], header, assignment_payload)
+                            # client_sockets[real_helper].send(msg)
+                            real_helpers.append(real_helper)
+                        # control_sock_lock.release()
             sched_elapsed_t = time.time() - sched_start_t
             print("One round sched takes", sched_elapsed_t)
             print("[T3] Sched finished at ", time.time())
@@ -302,7 +292,6 @@ class ControlConnectionThread(threading.Thread):
         self.client_address = client_address
         print("New control channel added: ", client_address)
 
-
     def run(self):
         # print("Connection from : ", self.client_address)
         data = self.client_socket.recv(2)
@@ -311,7 +300,6 @@ class ControlConnectionThread(threading.Thread):
         encoded_sched_scheme = config.map_scheduler_to_int_encoding[scheduler_mode].to_bytes(2, 'big')
         self.client_socket.send(encoded_sched_scheme)
         vehicle_types[vehicle_id] = HELPER
-        # node_last_recv_timestamp[vehicle_id] = time.time()
         client_sockets[vehicle_id] = self.client_socket
         header, payload = network.message.recv_msg(self.client_socket,\
                                         network.message.TYPE_CONTROL_MSG)
@@ -334,18 +322,39 @@ class ControlConnectionThread(threading.Thread):
                 print(route_map)
                 vehicle_types[v_id] = v_type
                 node_seq_nums[v_id] = seq_num
+            node_last_rx_time_lock.acquire()
             node_last_recv_timestamp[v_id] = time.time()
+            node_last_rx_time_lock.release()
             header, payload = network.message.recv_msg(self.client_socket, network.message.TYPE_CONTROL_MSG)
         self.client_socket.close()
 
 
 def check_current_connected_vehicles():
+    global group_map, client_sockets
     curr_connected_vehicles = []
+    node_last_rx_time_lock.acquire()
     for v_id, last_ts in sorted(node_last_recv_timestamp.items()):
         curr_ts = time.time()
         if curr_ts - last_ts < NODE_LEFT_TIMEOUT: 
             # node are still reachable from the server, either helpee or helper
             curr_connected_vehicles.append(v_id)
+    node_last_rx_time_lock.release()
+    if len(curr_connected_vehicles) > DIVIDE_THRESHOLD and args.enable_grouping:
+        new_group_map = group.devide_vehicle_to_groups(location_map)
+        if new_group_map != group_map:
+            group_map = new_group_map
+            control_sock_lock.acquire()
+            group.notify_group_change(client_sockets, group_map)
+            control_sock_lock.release()
+    else:
+        new_group_map = {(0, 0): curr_connected_vehicles}
+        group_map = new_group_map
+        if len(group_map) > 0 and new_group_map.keys() != group_map.keys():
+            control_sock_lock.acquire()
+            group.notify_group_change(client_sockets, group_map)
+            control_sock_lock.release()     
+    
+
     return curr_connected_vehicles
 
 
@@ -386,19 +395,18 @@ def server_recv_data(client_socket, client_addr):
             return
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
         msg_size, frame_id, v_id, data_type, ts, num_chunks, chunk_sizes = network.message.parse_data_msg_header(header)
-        if client_vid_determined is False:
+        if client_vid_determined is False: #or client_socket != client_data_sockets[v_id]
             # need a map from v_id to data sockets to broadcast inference results
             client_data_sockets[v_id] = client_socket
             client_vid_determined = True
         # received_bytes[vehicle_id] += msg_size
         # print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
         #         (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
-        # assert len(msg) == msg_size
         latency = time.time() - ts
         print("[receive header] node %d latency %f" % (v_id, latency))
-        # node_last_recv_timestamp[v_id] = time.time()
-        # if frame_id >= MAX_FRAMES:
-        #     continue
+        node_last_rx_time_lock.acquire()
+        node_last_recv_timestamp[v_id] = time.time()
+        node_last_rx_time_lock.release()
         if data_type == TYPE_PCD:
             if frame_id not in first_frame_arrival_ts:
                 first_frame_arrival_ts[frame_id] = ts
@@ -460,6 +468,7 @@ def server_recv_data(client_socket, client_addr):
                 for n, soc in client_data_sockets.items():
                     try:
                         network.message.send_msg(soc, header, encoded_payload)
+                        print('send result to ', n)
                     except Exception as e:
                         print("exception in sending rst to node %d, skip"%n, e)
             conn_lock.release()

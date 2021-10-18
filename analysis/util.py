@@ -468,7 +468,7 @@ def construct_ts_latency_array(delay_dict_ts, expected_frames=550):
         delay.append(delay_dict_ts[send_ts][0])
     
 
-    print("skipped frmaes", skipped_frames)
+    print("skipped frames", skipped_frames)
 
                        
     ts = np.array(ts) - np.min(ts)

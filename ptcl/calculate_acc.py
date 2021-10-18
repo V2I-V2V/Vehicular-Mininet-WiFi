@@ -36,7 +36,7 @@ print(calculate_precision(grid_pred, grid_truth))
 #                                      facecolor='r')
 #             ax[1].add_patch(rect)
 
-merged_rst = np.load('sample/00_merged.npy')
+merged_rst = np.load('sample/86_130_mergedpred.npy')
 merged_rst = calculate_grid_label_before(1, merged_rst)
 updated_grid = combine_merged_results(grid_pred, merged_rst)
 print(calculate_precision(updated_grid, grid_truth))
