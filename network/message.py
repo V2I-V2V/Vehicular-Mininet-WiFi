@@ -1,10 +1,13 @@
 import time
 import struct
+import pickle
+from tokenize import group
 
 TYPE_CONTROL_MSG = 0
 TYPE_DATA_MSG = 1
 TYPE_SERVER_REPLY_MSG = 2
 TYPE_SEVER_ACK_MSG = 3
+TYPE_GROUP = 4
 TYPE_LOCATION = 0
 TYPE_ASSIGNMENT = 1
 TYPE_ROUTE = 2
@@ -177,6 +180,7 @@ def recv_msg(socket, type, is_udp=False):
             else:
                 return b'', b''
 
+
 def parse_server_reply_msg_header(data):
     payload_size = int.from_bytes(data[0:4], 'big')
     frame_id = int.from_bytes(data[4:6], "big")
@@ -220,7 +224,8 @@ def vehicle_parse_location_packet_data(data):
     x = int.from_bytes(data[2:4], "big")
     y = int.from_bytes(data[4:6], "big")
     seq_num = int.from_bytes(data[6:10], "big")
-    return helpee_id, [x, y], seq_num
+    group_id = pickle.loads(data[12:])
+    return helpee_id, [x, y], seq_num, group_id
 
 
 def vehicle_parse_route_packet_data(data):
@@ -237,8 +242,9 @@ def vehicle_parse_route_packet_data(data):
     l = len(data)
     helpee_id = int.from_bytes(data[0:2], "big")
     route_bytes = data[2:-4]
-    seq_num = int.from_bytes(data[-4:], "big")
-    return helpee_id, route_bytes, seq_num
+    seq_num = int.from_bytes(data[-12:-8], "big")
+    group_id = (int.from_bytes(data[-8:-4], "big"), int.from_bytes(data[-4:], "big"))
+    return helpee_id, route_bytes, seq_num, group_id
 
 
 def vehicle_parse_sos_packet_data(data):

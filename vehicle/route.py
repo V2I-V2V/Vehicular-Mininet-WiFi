@@ -1,9 +1,11 @@
 import os, sys
+from tokenize import group
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import network.message
 import pyroute2
 import socket
 import time
+import pickle
 
 def get_routes(vehicle_id):
     routing_table = {}
@@ -45,8 +47,9 @@ def table_to_bytes(routing_table):
     return route_bytes
 
 
-def broadcast_route(vehicle_id, routing_table, source_socket, seq_num):
-    msg = vehicle_id.to_bytes(2, 'big') + table_to_bytes(routing_table) + seq_num.to_bytes(4, 'big')
+def broadcast_route(vehicle_id, routing_table, source_socket, seq_num, group_id):
+    msg = vehicle_id.to_bytes(2, 'big') + table_to_bytes(routing_table) + seq_num.to_bytes(4, 'big') + \
+            group_id[0].to_bytes(2, 'big') + group_id[1].to_bytes(2, 'big')
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_ROUTE)
     print("[route msg] ", len(msg)+len(header), time.time())
     network.message.send_msg(source_socket, header, msg, is_udp=True,\
