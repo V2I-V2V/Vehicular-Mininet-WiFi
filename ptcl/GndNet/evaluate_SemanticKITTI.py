@@ -237,7 +237,7 @@ def evaluate_SemanticKITTI(data_dir):
         pred_gnd = pred_gnd.cpu().numpy()
         # TODO: Remove the points which are very below the ground
         pred_GndSeg = segment_cloud(points.copy(),np.asarray(cfg.grid_range), cfg.voxel_size[0], elevation_map = pred_gnd.T, threshold = 0.2)
-        GndSeg = get_GndSeg(sem_label, GndClasses = [40, 44, 48, 49,60,72]) # only include ground here , 44, 48, 49,60,72
+        GndSeg = get_GndSeg(sem_label, GndClasses = [40, 44, 48, 49, 60, 72]) # only include ground here , 44, 48, 49,60,72
         # points[:, 3] = pred_GndSeg
         # np.save('pred_6v.npy', points)
         # if args.visualize:
