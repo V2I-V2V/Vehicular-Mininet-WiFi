@@ -44,7 +44,7 @@ def draw_open3d(pointclouds, labels, show=True, save=""):
     # pointcloud_all.points = o3d.utility.Vector3dVector(np.vstack(pointclouds)[:,:3])
     # pointcloud_all.paint_uniform_color([0, 0, 1])
     merged = np.vstack(pointclouds)
-    with open('86_130_merged_10_8.bin', 'w') as f:
+    with open('86_174_merged_10_8.bin', 'w') as f:
         merged = merged.astype(np.float32)
         merged.tofile(f)
 
@@ -98,7 +98,7 @@ def main(args):
                 pcd = None
 
             if pcd is not None:
-                encoded, _ = dracoEncode(pcd, 10, 8)
+                encoded, _ = dracoEncode(pcd, 10, 12)
                 decoded = dracoDecode(encoded)
                 pcd = np.concatenate([decoded, np.ones((decoded.shape[0], 1))], axis=1)
                 if os.path.isfile(pcd_file + ".trans.npy"):

@@ -186,19 +186,25 @@ def calculate_grid_label(grid_size, points):
 def calculate_grid_label_ransac(grid_size, points, space_width=100, center=(0, 0)):
     x_size, y_size = int(space_width / grid_size), int(space_width / grid_size)
     grid = np.zeros((x_size, y_size), dtype=int)
+    density = np.zeros((x_size, y_size), dtype=int)
     for point in points:
         x_idx, y_idx = int((point[0] - center[0] + space_width / 2) / grid_size), \
                        int((point[1] - center[1] + space_width / 2) / grid_size)
-        if space_width > x_idx >= 0 and space_width > y_idx >= 0:
+        if grid_in_range(x_idx, y_idx, space_width):
             if point[3] != 1:
                 # obj
                 grid[x_idx][y_idx] -= 1
             elif point[3] == 1:
                 # ground
                 grid[x_idx][y_idx] += 1
+            density[x_idx][y_idx] += 1
     grid[grid > 0] = 1  # drivable
     grid[grid < 0] = -1  # object
-    return grid
+    return grid, density
+
+
+def grid_in_range(x_idx, y_idx, space_range=100):
+    return np.sqrt(x_idx * x_idx + y_idx * y_idx) < space_range
 
 
 def calculate_grid_label_before(grid_size, points):
@@ -308,16 +314,18 @@ def concat_labels(sem_labels):
 
 def plot_grid(grid, grid_size):
     fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-    ax.set_xlim(-int(grid.shape[0]/grid_size/2)-5, int(grid.shape[0]/grid_size/2)+5)
-    ax.set_ylim(-int(grid.shape[1]/grid_size/2)-5, int(grid.shape[1]/grid_size/2)+5)
+    ax.set_xlim(-int(grid.shape[0] / grid_size / 2) - 5, int(grid.shape[0] / grid_size / 2) + 5)
+    ax.set_ylim(-int(grid.shape[1] / grid_size / 2) - 5, int(grid.shape[1] / grid_size / 2) + 5)
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
             if grid[i][j] > 0:
-                rect = patches.Rectangle(((i-grid.shape[0]/2) * grid_size, (j-grid.shape[1]/2) * grid_size), grid_size, grid_size,
+                rect = patches.Rectangle(((i - grid.shape[0] / 2) * grid_size, (j - grid.shape[1] / 2) * grid_size),
+                                         grid_size, grid_size,
                                          edgecolor='darkblue', facecolor='b')
                 ax.add_patch(rect)
             elif grid[i][j] < 0:
-                rect = patches.Rectangle(((i-grid.shape[0]/2) * grid_size, (j-grid.shape[1]/2) * grid_size), grid_size, grid_size,
+                rect = patches.Rectangle(((i - grid.shape[0] / 2) * grid_size, (j - grid.shape[1] / 2) * grid_size),
+                                         grid_size, grid_size,
                                          edgecolor='maroon', facecolor='r')
                 ax.add_patch(rect)
 
@@ -331,5 +339,37 @@ def plot_grid(grid, grid_size):
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+
+def get_points_within_center(ptcl, space_range=100, center=(0, 0)):
+    new_points = np.copy(ptcl)
+    new_points[:, 0] -= center[0]
+    new_points[:, 1] -= center[1]
+    xy_square = np.square(new_points[:, :2])
+    dist_to_center = np.sum(xy_square, axis=1)
+    mask = dist_to_center < space_range * space_range
+    return new_points[mask]
+
+
+def avg_point_density_in_range(ptcl, ranges, space_range=100):
+    xy_square = np.square(ptcl[:, :2])
+    dist_to_center = np.sum(xy_square, axis=1)
+    # dist_to_center = dist_to_center[dist_to_center < space_range * space_range]
+    mask1 = dist_to_center <= (ranges[0] * ranges[0])
+    mask2 = (ranges[-1] * ranges[-1]) < dist_to_center
+    if len(ranges) == 1:
+        return [ptcl[mask1].shape[0] / calculate_space_area_between(0, ranges[0]),
+                ptcl[mask2].shape[0] / calculate_space_area_between(ranges[0], space_range)]
+    density = [ptcl[mask1].shape[0] / calculate_space_area_between(0, ranges[0])]
+    for cnt, range in enumerate(ranges[1:]):
+        # print(cnt, range)
+        mask = ((ranges[cnt] * ranges[cnt]) < dist_to_center) * (dist_to_center <= (ranges[cnt + 1] * ranges[cnt + 1]))
+        density.append(ptcl[mask].shape[0] / calculate_space_area_between(ranges[cnt], ranges[cnt + 1]))
+    density.append(ptcl[mask2].shape[0] / calculate_space_area_between(ranges[0], space_range))
+    return density
+
+
+def calculate_space_area_between(start_range, end_range):
+    return np.pi * (end_range * end_range - start_range * start_range)
 
 ## TODO: Transform the ptcl to a global reference?

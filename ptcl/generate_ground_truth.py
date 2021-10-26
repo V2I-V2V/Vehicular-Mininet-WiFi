@@ -36,11 +36,11 @@ gt_ptcl = ptcl_utils.read_ptcl_data('86_130_gt.npy')
 pred1 = ptcl_utils.read_ptcl_data('1000_86_pred.npy')
 pred2 = ptcl_utils.read_ptcl_data('1000_130_pred.npy')
 locs = [(-21.642448, 193.882751), (-9.493179, 114.654312)]
-grid_pred_single = [ptcl_utils.calculate_grid_label_ransac(1, pred1, 100, locs[0]),
-                    ptcl_utils.calculate_grid_label_ransac(1, pred2, 100, locs[1])]
+grid_pred_single = [ptcl_utils.calculate_grid_label_ransac(1, pred1, 100, locs[0])[0],
+                    ptcl_utils.calculate_grid_label_ransac(1, pred2, 100, locs[1])[0]]
 truth_grids = []
 for i in range(len(locs)):
-    grid = ptcl_utils.calculate_grid_label_ransac(1, gt_ptcl, 100, locs[i])
+    grid = ptcl_utils.calculate_grid_label_ransac(1, gt_ptcl, 100, locs[i])[0]
     truth_grids.append(grid)
     precision, rst_grid = ptcl_utils.calculate_precision(grid_pred_single[i], grid)
     print('precision ', precision)
@@ -54,7 +54,7 @@ merged_pred[p2, 3] = 1  # ground
 np.save('86_130_comb_pred.npy', merged_pred)
 merged_detect_grid = []
 for i in range(len(locs)):
-    grid = ptcl_utils.calculate_grid_label_ransac(1, merged_pred, 100, locs[i])
+    grid = ptcl_utils.calculate_grid_label_ransac(1, merged_pred, 100, locs[i])[0]
     merged_detect_grid.append(grid)
     precision, rst_grid = ptcl_utils.calculate_precision(grid, truth_grids[i])
     ptcl_utils.plot_grid(grid, 1)
