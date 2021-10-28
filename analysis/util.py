@@ -129,7 +129,9 @@ def get_computation_overhead(filename):
             parse = line.split() 
             if line.startswith('[start timestamp]'):
                 t1 = float(parse[-1])
-            elif line.startswith('[Loc msg size]') or line.startswith('[Loc msg size]'):
+            # elif line.startswith('[Loc msg size]') or line.startswith('[Loc msg size]'):
+            #     t1 = float(parse[-1])
+            elif line.startswith('disconnect to server'):
                 t1 = float(parse[-1])
             elif line.startswith('[Helpee get helper assignment]'):
                 t5 = float(parse[-1])
@@ -172,6 +174,8 @@ def get_sender_ts(filename):
                 frame = int(parse[-5][:-1])
                 if frame not in summary_dict['frames-with-result']:
                     e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
+                    if e2e_latency < 0:
+                        print('E2E latency < 0!!!!', frame)
                     # if frame in sender_ts:
                     #     e2e_latency = timestamp - sender_ts[frame]
                     # if len(summary_dict['frames-with-result']) > 0 \
@@ -252,7 +256,8 @@ def calculate_detected_areas(frame_id_to_senders):
     detected_spaces = []
     for frame_id, v_num in frame_id_to_senders.items():
         if len(v_num) > 4:
-            return 10 # return a dummy variable for now
+            detected_spaces.append(2500) # return a dummy variable for now
+            continue
         if frame_id < 550:
             wrapped_frame_id = frame_id % 80
             # print(v_num)
@@ -346,10 +351,13 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     # node_id_to_latencies, node_id 
     overhead, dl_latencies, e2e_latencies,frames_with_rst, e2e_latency_each_node = [], {}, [], {}, {}
     sent_frames = 0
+    ctrl_msg_size = []
     for i in range(num_nodes):
         sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = get_sender_ts(dir + '/logs/node%d.log'%i)
         # sent_frames += int((last_t-min(sender_ts_dict[i].values()))*10)
         computational_overhead = get_computation_overhead(dir + '/logs/node%d.log'%i)
+        control_msg_size = get_control_msg_size(dir + '/logs/node%d.log'%i)
+        ctrl_msg_size.append(control_msg_size)
         # dl_latencies.extend(summary_dict['dl-latency'])
         dl_latencies[i] = summary_dict['dl-latency']
         e2e_latencies += summary_dict['e2e-latency']
@@ -415,6 +423,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     latency_dict['sched_latency'] = np.array(sched_latencies)
     latency_dict['detected_areas'] = detected_areas
     latency_dict['dl-latency'] = dl_latencies   
+    latency_dict['ctrl-msg-size'] = np.array(ctrl_msg_size)
     return latency_dict, node_to_encode_choices
 
 
@@ -552,4 +561,14 @@ def get_control_msg_data_overhead_per_node(filename):
                 data_msg_sizes.append(int(parse[-2]))
     return np.sum(control_msg_sizes)/np.sum(data_msg_sizes) * 100.0                
 
-        
+
+def get_control_msg_size(filename):
+    control_msg_sizes = []
+
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            parse = line.split()
+            if line.startswith('[route msg]') or line.startswith('[Loc msg'):
+                control_msg_sizes.append(int(parse[-2]))
+    return np.sum(control_msg_sizes)

@@ -59,7 +59,7 @@ parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
 parser.add_argument('--combine_method', default="op_sum", choices=["op_sum", "op_min"])
 parser.add_argument('--score_method', default="harmonic", choices=["harmonic", "min"])
 parser.add_argument('--deadline_enable', default=1, type=int, help='enable-deadline')
-parser.add_argument('--enable_grouping', default=1, type=int, help='enable-deadline')
+parser.add_argument('--enable_grouping', default=0, type=int, help='enable-grouping')
 
 args = parser.parse_args()
 trace_filename = args.trace_filename
@@ -340,6 +340,7 @@ def check_current_connected_vehicles():
             curr_connected_vehicles.append(v_id)
     node_last_rx_time_lock.release()
     if len(curr_connected_vehicles) > DIVIDE_THRESHOLD and args.enable_grouping:
+        print('enable grouping')
         new_group_map = group.devide_vehicle_to_groups(location_map)
         if new_group_map != group_map:
             group_map = new_group_map
@@ -440,20 +441,22 @@ def server_recv_data(client_socket, client_addr):
             # check if ready to merge and send back results
             conn_lock.acquire()
             data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
-            if np.sum(data_ready_matrix[:, frame_id%MAX_FRAMES]) == num_vehicles and frame_id not in finished_frames:
+            data_ready, v_ids = group.group_data_ready(data_ready_matrix, group_map, v_id, frame_id%MAX_FRAMES)
+            # if data_ready:
+            if data_ready and frame_id not in finished_frames:
                 # ready to merge
                 if frame_id not in first_frame_arrival_ts:
                     conn_lock.release()
                     continue
-                finished_frames.add(frame_id)
-                first_frame_arrival_ts.pop(frame_id)
+                # finished_frames.add(frame_id)
+                # first_frame_arrival_ts.pop(frame_id)
                 # data_ready_matrix[:, frame_id%MAX_FRAMES] = 0 
                 print('[All frame in schedule, Send rst back to node]', 
                     num_vehicles, frame_id)
-                for idx in range(data_ready_matrix.shape[0]):
-                    data_ready_matrix[idx][frame_id%MAX_FRAMES] = 0
-                    pcds[idx][frame_id%MAX_FRAMES] = []
-                    oxts[idx][frame_id%MAX_FRAMES] = []
+                for vehicle_id in v_ids:
+                    data_ready_matrix[vehicle_id][frame_id%MAX_FRAMES] = 0
+                    pcds[vehicle_id][frame_id%MAX_FRAMES] = []
+                    oxts[vehicle_id][frame_id%MAX_FRAMES] = []
                 # clear ready bits for the merged frames
                 
                 # send back detection results
@@ -465,12 +468,12 @@ def server_recv_data(client_socket, client_addr):
                 header = network.message.construct_reply_msg_header(encoded_payload, 
                     network.message.TYPE_SERVER_REPLY_MSG, frame_id)
                 # send back results to all clients
-                for n, soc in client_data_sockets.items():
+                for vehicle_id in v_ids:
                     try:
-                        network.message.send_msg(soc, header, encoded_payload)
-                        print('send result to ', n)
+                        network.message.send_msg(client_data_sockets[vehicle_id], header, encoded_payload)
+                        print('send result to ', vehicle_id)
                     except Exception as e:
-                        print("exception in sending rst to node %d, skip"%n, e)
+                        print("exception in sending rst to node %d, skip"%vehicle_id, e)
             conn_lock.release()
 
 

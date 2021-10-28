@@ -20,6 +20,7 @@ import mobility
 import route
 import wlan
 import wwan
+import statistics as stats
 
 # Define some constants
 HELPEE = 0
@@ -28,7 +29,7 @@ TYPE_PCD = 0
 TYPE_OXTS = 1
 FRAMERATE = 5
 PCD_ENCODE_LEVEL = 10 # point cloud encode level
-PCD_QB = 12 # point cloud quantization bits
+PCD_QB = 11 # point cloud quantization bits
 NO_ADAPTIVE_ENCODE = 0
 ADAPTIVE_ENCODE = 1
 ADAPTIVE_ENCODE_FULL_CHUNK = 2
@@ -87,6 +88,7 @@ self_loc = self_loc_trace[0]
 self_group = (0, 0)
 pcd_data_buffer = []
 oxts_data_buffer = []
+encoding_sizes = []
 e2e_frame_latency = {}
 e2e_frame_latency_lock = threading.Lock()
 frame_sent_time = {}
@@ -158,17 +160,17 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
 
         if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
-            partitioned = ptcl.partition.simple_partition(pcd_np, 20)
+            # partitioned = ptcl.partition.simple_partition(pcd_np, 20)
             partitioned = pcd_np
             pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
             pcd_data_buffer.append(pcd)
         else:            
-            partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
-            encodeds = []
-            for partition in partitions:
-                encoded, ratio = ptcl.pointcloud.dracoEncode(partition, PCD_ENCODE_LEVEL, PCD_QB)
-                encodeds.append(encoded)
-            pcd_data_buffer.append(encodeds)
+            # partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
+            # encodeds = []
+            # for partition in partitions:
+            #     encoded, ratio = ptcl.pointcloud.dracoEncode(partition, PCD_ENCODE_LEVEL, PCD_QB)
+            #     encodeds.append(encoded)
+            pcd_data_buffer.append(pcd_np)
         # if pcd_data_type == "GTA":
         #     oxts_f_name = oxts_data_path + "%06d.txt"%i
         #     oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
@@ -195,19 +197,25 @@ def get_encoded_frame(frame_id, metric):
     if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
         cnt = 1
         encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
+        print("frame id: " + str(frame_id) + " qb: " + str(PCD_QB))
         print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(1))
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE:
-        encoded_frame = pcd_data_buffer[frame_id % config.MAX_FRAMES][0]
+        # TODO: change different # of chunks to different encoding levels
+        frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
         cnt = 1
-        if metric < 0.3:
-            encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
-            cnt += 1
-        if metric < 0.2:
-            encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
-            cnt += 1
-        if metric < 0.1:
-            encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
-            cnt += 1
+        qb = get_encoding_qb(e2e_frame_latency, encoding_sizes)
+        encoded_frame, _ = ptcl.pointcloud.dracoEncode(frame, PCD_ENCODE_LEVEL, qb)
+
+        # if metric < 0.3:
+        #     encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
+        #     cnt += 1
+        # if metric < 0.2:
+        #     encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
+        #     cnt += 1
+        # if metric < 0.1:
+        #     encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
+        #     cnt += 1
+        print("frame id: " + str(frame_id) + " qb: " + str(qb))
         print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(cnt))
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE_FULL_CHUNK:
         cnt = 4
@@ -237,6 +245,37 @@ def get_latency(e2e_frame_latency):
     return recent_latency
 
 
+def get_encoding_qb(e2e_frame_latency, encoding_sizes):
+    if len(encoding_sizes) == 0:
+        return PCD_QB
+    e2e_frame_latency_lock.acquire()
+    recent_latencies = sorted(e2e_frame_latency.items(), key=lambda item: -item[0])
+    e2e_frame_latency_lock.release()
+    cnt = 1
+    thrpts = []
+    for id, latency in recent_latencies:
+        if cnt <= len(encoding_sizes):
+            thrpt = encoding_sizes[-cnt] / latency
+            thrpts.append(thrpt)
+    avg_thrpt = stats.harmonic_mean(thrpts)/1000000.
+    return map_thrpt_to_encoding_level(avg_thrpt)
+
+
+def map_thrpt_to_encoding_level(thrpt):
+    if thrpt >= 9.6:
+        return PCD_QB
+    elif thrpt >= 6.24:
+        return 11
+    elif thrpt >= 3.2:
+        return 10
+    elif thrpt >= 1.2:
+        return 9
+    elif thrpt >= 0.64:
+        return 8
+    else:
+        return 7
+
+
 def send(socket, data, id, type, num_chunks=1, chunks=None):
     msg_len = len(data)
     frame_ready_timestamp = start_timestamp + id * 1.0 / FRAMERATE
@@ -263,14 +302,18 @@ def send(socket, data, id, type, num_chunks=1, chunks=None):
             return False
     return True
 
+
 def get_frame_ready_timestamp(frame_id, fps):
     return start_timestamp + frame_id * (1/fps)
+
 
 def get_curr_tranmist_frame_id():
     return int((time.time() - start_timestamp)*FRAMERATE)
 
+
 def get_time_to_next_ready_frame():
     offset = time.time() - start_timestamp
+
 
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
@@ -300,7 +343,6 @@ def v2i_data_send_thread():
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
             frame_sent_time[curr_f_id] = time.time()
             # pcd = pcd_data_buffer[data_f_id][:num_chunks]
-            # pcd = int.to_bytes(10, 2, 'big')
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd)
             oxts = oxts_data_buffer[data_f_id]
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
@@ -447,7 +489,6 @@ class ServerControlThread(threading.Thread):
                     network.message.send_msg(send_note_sock, header, payload, is_udp=True,\
                         remote_addr=(helpee_addr, helper_control_recv_port))
 
-            time.sleep(0.2)
 
 
 class VehicleControlThread(threading.Thread):
@@ -509,7 +550,7 @@ class VehicleControlThread(threading.Thread):
                     print("[helper recv sos broadcast] " + str(addr) + str(time.time()))
                     wlan.echo_sos_msg(v2v_control_socket, vehicle_id, addr) 
                 elif msg_type == network.message.TYPE_GROUP:
-                    pass               
+                    pass      
             elif connection_state == "Disconnected":
                 # This vehicle is a helpee now
                 if msg_type == network.message.TYPE_ASSIGNMENT:
@@ -663,7 +704,7 @@ class VehicleDataRecvThread(threading.Thread):
                 # for i in range(3):
                 network.message.send_msg(self.client_ack_socket, header, payload)
                     # time.sleep(0.01)
-                # udp type relay
+                # udp type reply
                 # send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
                 # network.message.send_msg(send_note_sock, header, payload, is_udp=True,\
                 #                     remote_addr=(self.client_address[0], 8000))
@@ -768,7 +809,6 @@ class VehicleDataSendThread(threading.Thread):
             print("[V2V send pcd frame] Start sending frame " + str(curr_f_id) + " to helper " \
                     + str(current_helper_id) + ' ' + str(time.time()), flush=True)
             frame_sent_time[curr_f_id] = time.time()
-            # pcd = int.to_bytes(10, 2, 'big')
             if_send_success = send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD, num_chunks,\
                 pcd_data_buffer[curr_f_id%config.MAX_FRAMES][:num_chunks])
             if not if_send_success:
