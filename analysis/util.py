@@ -9,6 +9,7 @@ from analysis.trajectory import get_node_dists
 import matplotlib.pyplot as plt
 from collections import OrderedDict, defaultdict
 import os
+import ptcl_calc
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
@@ -142,7 +143,8 @@ def get_computation_overhead(filename):
 def get_sender_ts(filename):
     sender_ts = {}
     encode_choice = {}
-    summary_dict = {'dl-latency': [], 'e2e-latency': [], 'frames-with-result': []} # sumamry of related metrics
+    summary_dict = {'dl-latency': [], 'e2e-latency': [], 'frames-with-result': [],
+                     'qb': {}} # sumamry of related metrics
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -159,6 +161,9 @@ def get_sender_ts(filename):
                 frame = int(parse[-5])
                 sender_ts[frame] = frame * 1.0/fps + start_ts
                 last_t = float(parse[-1])
+            elif line.startswith('frame id:') and 'qb:' in line:
+                frame_id, qb = int(parse[2]), int(parse[-1])
+                summary_dict['qb'][frame_id] = qb
             elif line.startswith("frame id:"):
                 num_chunks = int(parse[-1])
                 frame = int(parse[2])
@@ -184,6 +189,7 @@ def get_sender_ts(filename):
                     summary_dict['e2e-latency'].append(e2e_latency)
                     summary_dict['frames-with-result'].append(frame)
                     summary_dict['dl-latency'].append(float(parse[-2]))
+
 
                 
     return sender_ts, encode_choice, encode_t, last_t, summary_dict
@@ -227,20 +233,24 @@ def get_receiver_ts(filename):
                 # get node id
                 parse = line.split()
                 node_num = int(parse[-2])
-                senders = ""
+                # senders = ""
+                node_ids = []
                 for i in range(node_num):
-                    senders += str(i)
+                    node_ids.append(str(i))
+                senders = '-'.join(node_ids)
+                # print(node_ids)
+                # print('senders', senders)
                 frame_id_to_senders[frame] = senders
             elif line.startswith("[Deadline passed, Send rst back to node]"):
                 # get node id
                 recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
                 recved_node_arr = eval(recved_node_str)
-                node_ids = [idx for idx, ele in enumerate(recved_node_arr) if ele == 1]
-                senders = ""
-                for i in node_ids:
-                    senders += str(i)
+                node_ids = [str(idx) for idx, ele in enumerate(recved_node_arr) if ele == 1]
+                # senders = ""
+                # for i in node_ids:
+                #     senders += str(i)
+                senders = '-'.join(node_ids)
                 frame_id_to_senders[frame] = senders
-                
         f.close()
     return receiver_ts_dict, receiver_throughput, server_node_dict, sched_latencies, frame_id_to_senders
 
@@ -271,6 +281,21 @@ def calculate_detected_areas(frame_id_to_senders):
                 detected_spaces.append(detected_space_label[key][wrapped_frame_id])
             else:
                 detected_spaces.append(0)
+    return detected_spaces
+
+
+def calculate_are_carla(frame_id_to_senders, node_id_to_encode):
+    detected_spaces = []
+    for frame_id, v_num in frame_id_to_senders.items():
+        v_ids = v_num.split('-')
+        wrapped_frame_id = frame_id % 80
+        qb_dict = {}
+        for v_id in v_ids:
+            print(v_id)
+            print(node_id_to_encode)
+            qb_dict[v_id] = node_id_to_encode[int(v_id)][frame_id]
+        
+        detected_spaces += ptcl_calc.calculate_merged_detection_spaces(v_ids, wrapped_frame_id, qb_dict)
     return detected_spaces
 
 
@@ -350,6 +375,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
     # node_id_to_latencies, node_id 
     overhead, dl_latencies, e2e_latencies,frames_with_rst, e2e_latency_each_node = [], {}, [], {}, {}
+    node_to_encode_qb = {}
     sent_frames = 0
     ctrl_msg_size = []
     for i in range(num_nodes):
@@ -361,6 +387,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
         # dl_latencies.extend(summary_dict['dl-latency'])
         dl_latencies[i] = summary_dict['dl-latency']
         e2e_latencies += summary_dict['e2e-latency']
+        node_to_encode_qb[i] = summary_dict['qb']
         e2e_latency_each_node[i] = summary_dict['e2e-latency']
         frames_with_rst[i] = summary_dict['frames-with-result']
         if len(computational_overhead) > 0:
@@ -373,7 +400,8 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
             ssims = get_ssims(dir+'/node%d_ssim.log'%i)
             node_to_ssims[i] = ssims
     receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies, frame_id_to_senders = get_receiver_ts(dir + '/logs/server.log')
-    detected_areas = calculate_detected_areas(frame_id_to_senders)
+    
+    detected_areas = calculate_are_carla(frame_id_to_senders, node_to_encode_qb)
     # detected_areas = None
     print("Total frames sent in exp", sent_frames)
     # calculate delay

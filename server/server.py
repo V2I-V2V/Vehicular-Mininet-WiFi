@@ -183,8 +183,8 @@ class SchedThread(threading.Thread):
                     # control_sock_lock.release()         
             elif self.ready_to_schedule(scheduler_mode):
                 for group_id, v_ids in group_map.items():
-                    group_loc_map = group.find_vehicle_location_in_group(group_id, group_map, location_map)
-                    group_route_map = group.find_vehicle_route_in_group(group_id, group_map, route_map)                    
+                    # group_loc_map = group.find_vehicle_location_in_group(group_id, group_map, location_map)
+                    # group_route_map = group.find_vehicle_route_in_group(group_id, group_map, route_map)                    
                     positions = []
                     routing_tables = {}
                     helper_list = []
@@ -440,9 +440,11 @@ def server_recv_data(client_socket, client_addr):
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
             # check if ready to merge and send back results
             conn_lock.acquire()
+            print("[mark data ready]", v_id, frame_id%MAX_FRAMES)
             data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
             data_ready, v_ids = group.group_data_ready(data_ready_matrix, group_map, v_id, frame_id%MAX_FRAMES)
             # if data_ready:
+            data_ready = data_ready or np.sum(data_ready_matrix[:, frame_id%MAX_FRAMES]) == num_vehicles
             if data_ready and frame_id not in finished_frames:
                 # ready to merge
                 if frame_id not in first_frame_arrival_ts:

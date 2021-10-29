@@ -20,6 +20,7 @@ import mobility
 import route
 import wlan
 import wwan
+import collections
 import statistics as stats
 
 # Define some constants
@@ -88,7 +89,8 @@ self_loc = self_loc_trace[0]
 self_group = (0, 0)
 pcd_data_buffer = []
 oxts_data_buffer = []
-encoding_sizes = []
+pcd_data_buffer_adaptive = collections.defaultdict(list)
+encoding_sizes = {}
 e2e_frame_latency = {}
 e2e_frame_latency_lock = threading.Lock()
 frame_sent_time = {}
@@ -170,7 +172,10 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
             # for partition in partitions:
             #     encoded, ratio = ptcl.pointcloud.dracoEncode(partition, PCD_ENCODE_LEVEL, PCD_QB)
             #     encodeds.append(encoded)
-            pcd_data_buffer.append(pcd_np)
+            for qb in range(7, PCD_QB+1):
+                encoded, ratio = ptcl.pointcloud.dracoEncode(pcd_np, PCD_ENCODE_LEVEL, qb)
+                pcd_data_buffer_adaptive[qb].append(encoded)
+            # pcd_data_buffer.append(pcd_np)
         # if pcd_data_type == "GTA":
         #     oxts_f_name = oxts_data_path + "%06d.txt"%i
         #     oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
@@ -201,11 +206,14 @@ def get_encoded_frame(frame_id, metric):
         print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(1))
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE:
         # TODO: change different # of chunks to different encoding levels
-        frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
+        # frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
         cnt = 1
-        qb = get_encoding_qb(e2e_frame_latency, encoding_sizes)
-        encoded_frame, _ = ptcl.pointcloud.dracoEncode(frame, PCD_ENCODE_LEVEL, qb)
-
+        qb = get_encoding_qb(e2e_frame_latency)
+        # start = time.time()
+        # encoded_frame, _ = ptcl.pointcloud.dracoEncode(frame, PCD_ENCODE_LEVEL, qb)
+        # print('runtime encode takes', time.time() - start)
+        encoded_frame = pcd_data_buffer_adaptive[qb][frame_id % config.MAX_FRAMES]
+        encoding_sizes[frame_id] = len(encoded_frame)
         # if metric < 0.3:
         #     encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
         #     cnt += 1
@@ -245,26 +253,35 @@ def get_latency(e2e_frame_latency):
     return recent_latency
 
 
-def get_encoding_qb(e2e_frame_latency, encoding_sizes):
-    if len(encoding_sizes) == 0:
+def get_encoding_qb(e2e_frame_latency):
+    if len(encoding_sizes) == 0 or len(e2e_frame_latency) == 0:
         return PCD_QB
     e2e_frame_latency_lock.acquire()
     recent_latencies = sorted(e2e_frame_latency.items(), key=lambda item: -item[0])
     e2e_frame_latency_lock.release()
-    cnt = 1
+    cnt = 0
     thrpts = []
     for id, latency in recent_latencies:
-        if cnt <= len(encoding_sizes):
-            thrpt = encoding_sizes[-cnt] / latency
+        if id in encoding_sizes:
+            thrpt = encoding_sizes[id] / latency
+            print('thrpt:', thrpt)
             thrpts.append(thrpt)
-    avg_thrpt = stats.harmonic_mean(thrpts)/1000000.
+            cnt += 1
+            if cnt == 5:
+                break
+        # if cnt <= len(encoding_sizes):
+        #     thrpt = encoding_sizes[-cnt] / latency
+        #     thrpts.append(thrpt)
+    avg_thrpt = stats.harmonic_mean(thrpts)*8/1000000.
+    print('Avg thrpt for past 5 chunks:', avg_thrpt)
     return map_thrpt_to_encoding_level(avg_thrpt)
 
 
 def map_thrpt_to_encoding_level(thrpt):
-    if thrpt >= 9.6:
-        return PCD_QB
-    elif thrpt >= 6.24:
+    # if thrpt >= 9.6:
+    #     return 12
+    # el
+    if thrpt >= 6.24:
         return 11
     elif thrpt >= 3.2:
         return 10
@@ -801,6 +818,7 @@ class VehicleDataSendThread(threading.Thread):
                 frame_lock.release()
                 next_ready_frame_time = (time.time() - start_timestamp) % (1.0/curr_frame_rate)
                 time.sleep(1.0/curr_frame_rate - next_ready_frame_time)
+                # time.sleep(0.01)
                 continue
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
@@ -810,7 +828,7 @@ class VehicleDataSendThread(threading.Thread):
                     + str(current_helper_id) + ' ' + str(time.time()), flush=True)
             frame_sent_time[curr_f_id] = time.time()
             if_send_success = send(self.v2v_data_send_sock, pcd, curr_f_id, TYPE_PCD, num_chunks,\
-                pcd_data_buffer[curr_f_id%config.MAX_FRAMES][:num_chunks])
+                pcd)
             if not if_send_success:
                 print("send not in time!!")
                 self.stop()
@@ -954,8 +972,8 @@ def main():
     t_elapsed = time.time() - t_start
     print("read and encode takes %f" % t_elapsed)
     # explicitly sync on encoding
-    if t_elapsed < 10:
-        time.sleep(10-t_elapsed)
+    if t_elapsed < 55:
+        time.sleep(55-t_elapsed)
     start_timestamp = time.time()
     print("[start timestamp] ", start_timestamp)
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
