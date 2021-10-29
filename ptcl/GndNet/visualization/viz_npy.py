@@ -4,12 +4,11 @@ __author__ = 'Ruiyang Zhu'
 
 import matplotlib
 import numpy as np
-# import open3d as o3d
+import open3d as o3d
 import sys
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import argparse
-import pcl
 
 matplotlib.rc('font', **{'size': 18})
 
@@ -21,38 +20,34 @@ args = parser.parse_args()
 data_file = args.data
 make_undefined_occupied = args.make_undefined_undrivable
 
-if '.pcd' in data_file:
-    pcl = pcl.load(data_file)
-    pcl = pcl.asarray(p)
-else:
-    pcl = np.load(data_file)
+pcl = np.load(data_file)
 
 print(pcl.shape[0])
 
-pcl_ground = pcl[pcl[:, 3] == 0]
-pcl_object = pcl[pcl[:, 3] == 1]
-print(pcl_ground[:, 0].min())
-print(pcl_ground[:, 0].max())
-print(pcl_ground[:, 1].min())
-print(pcl_ground[:, 1].max())
+pcl_ground = pcl[pcl[:, 3] == 1]
+pcl_object = pcl[pcl[:, 3] == 0]
+# print(pcl_ground[:, 0].min())
+# print(pcl_ground[:, 0].max())
+# print(pcl_ground[:, 1].min())
+# print(pcl_ground[:, 1].max())
 
-# pcd = o3d.geometry.PointCloud()
-# pcd.points = o3d.utility.Vector3dVector(pcl[:, :3])
-# pcd.paint_uniform_color([0, 0, 1])
-# # np_colors = np.copy(pcl[:, :3])
-# pcd_gnd = o3d.geometry.PointCloud()
-# pcd_gnd.points = o3d.utility.Vector3dVector(pcl_ground[:, :3])
-# pcd_gnd.paint_uniform_color([1, 0, 1])
+pcd = o3d.geometry.PointCloud()
+pcd.points = o3d.utility.Vector3dVector(pcl[:, :3])
+pcd.paint_uniform_color([1, 0, 0])
+# np_colors = np.copy(pcl[:, :3])
+pcd_gnd = o3d.geometry.PointCloud()
+pcd_gnd.points = o3d.utility.Vector3dVector(pcl_ground[:, :3])
+pcd_gnd.paint_uniform_color([0, 0, 1])
 
 
 # pcd.colors = o3d.utility.Vector3dVector(np_colors)
-# o3d.visualization.draw_geometries([pcd, pcd_gnd])
+o3d.visualization.draw_geometries([pcd, pcd_gnd])
 
 
 def draw_grids(points):
     fig, ax = plt.subplots(1, 1)
     ax.scatter(points[:, 0], points[:, 1], s=0.1, c="blue")
-    ticks = np.arange(-50, 50, 5)
+    ticks = np.arange(-100, 100, 5)
     ax.set_xticks(ticks)
     ax.set_yticks(ticks)
     ax.grid(color='r', linestyle='--')
@@ -68,13 +63,14 @@ def process_grid(grid_size, points):
 
     for point in points:
         x_idx, y_idx = int((point[0] + 50) / grid_size), int((point[1] + 50) / grid_size)
-        if point[3] == 1:
-            # obj
-            grid[x_idx][y_idx] -= 1
-            existence[x_idx][y_idx] = 1
-        elif point[3] == 0:
-            grid[x_idx][y_idx] += 1
-            existence[x_idx][y_idx] = 1
+        if 100 > x_idx >= 0 and 100 > y_idx >= 0:
+            if point[3] != 1:
+                # obj
+                grid[x_idx][y_idx] -= 1
+                existence[x_idx][y_idx] = 1
+            elif point[3] == 1:
+                grid[x_idx][y_idx] += 1
+                existence[x_idx][y_idx] = 1
 
     fig, ax = plt.subplots(3, 1, figsize=(6, 10), sharex=True, sharey=True)
     ax[0].scatter(points[:, 0], points[:, 1], s=0.1)
@@ -119,14 +115,14 @@ def process_grid(grid_size, points):
 
     print(cnt)
 
-    rect = patches.Rectangle((-100, -100), grid_size, grid_size, edgecolor='maroon',
+    rect = patches.Rectangle((-200, -200), grid_size, grid_size, edgecolor='maroon',
                              facecolor='r', label='Undrivable')
     ax[2].add_patch(rect)
-    rect = patches.Rectangle((-100, -100), grid_size, grid_size, edgecolor='darkblue',
+    rect = patches.Rectangle((-200, -200), grid_size, grid_size, edgecolor='darkblue',
                              facecolor='b', label='Drivable')
     ax[2].add_patch(rect)
     if not make_undefined_occupied:
-        rect = patches.Rectangle((100, 100), grid_size, grid_size, edgecolor='grey',
+        rect = patches.Rectangle((200, 200), grid_size, grid_size, edgecolor='grey',
                                  facecolor='white', label='Undefined')
         ax[2].add_patch(rect)
     ax[2].legend(fontsize=12, loc='lower left')
