@@ -4,6 +4,7 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import time
+from ground import my_ransac_v5
 
 
 def read_ptcl_data(ptcl_fname):
@@ -42,9 +43,14 @@ def draw_3d(pointcloud, show=True, save=False, save_path=None):
     # point clouds from all vehicles
     pointcloud_all = o3d.geometry.PointCloud()
     pointcloud_all.points = o3d.utility.Vector3dVector(pointcloud[:, :3])
-    pointcloud_all.paint_uniform_color([0, 0, 1])
+    pcl_ground = pointcloud[pointcloud[:, 3] == 1]
+    pcd_gnd = o3d.geometry.PointCloud()
+    pcd_gnd.points = o3d.utility.Vector3dVector(pcl_ground[:, :3])
+    pointcloud_all.paint_uniform_color([1, 0, 0])
+    pcd_gnd.paint_uniform_color([0, 0, 1])
+    
     if show:
-        o3d.visualization.draw_geometries([pointcloud_all])
+        o3d.visualization.draw_geometries([pointcloud_all, pcd_gnd])
     if save:
         vis = o3d.visualization.Visualizer()
         vis.create_window()
@@ -256,8 +262,8 @@ def calculate_precision(grid_pred, grid_truth):
     pre = TP / (TP + FP)
     recall = TP / (TP + FN)
 
-    print(pre, recall)
-    print(TP, FP, FN, TN, TP + FP + FN + TN, (TP + TN) / (TP + FP + FN + TN))
+    # print(pre, recall)
+    # print(TP, FP, FN, TN, TP + FP + FN + TN, (TP + TN) / (TP + FP + FN + TN))
 
     # rst = grid_pred == grid_truth
     # # precision
@@ -283,6 +289,18 @@ def combine_merged_results(grid_single, grid_merged):
     return grid_updated
 
 
+def combine_merged_results_on_remote(grid_single, grid_merged, threshold=50):
+    final_grid = np.copy(grid_single)
+    unknown_indices = grid_single == 0
+    final_grid[unknown_indices] = grid_merged[unknown_indices]
+    for x_idx in range(grid_merged.shape[0]):
+        for y_idx in range(grid_merged.shape[1]):
+            if (x_idx * x_idx + y_idx * y_idx) > threshold * threshold:
+                final_grid[x_idx][y_idx] = grid_merged[x_idx][y_idx]
+                # if grid_single[x_idx][y_idx] != 0:
+                #     final_grid[x_idx][y_idx] = grid_single[x_idx][y_idx]
+    return final_grid
+
 def get_fp_fn_within_range(result_grid, filter_range):
     filtered = result_grid[int(result_grid.shape[0] / 2 - filter_range):int(result_grid.shape[0] / 2 + filter_range)] \
         [int(result_grid.shape[1] / 2 - filter_range):int(result_grid.shape[1] / 2 + filter_range)]
@@ -300,6 +318,7 @@ def plot_vehicle_location(vehicle_locs, vehicle_ids):
 
 def get_GndSeg(sem_label, GndClasses):
     index = np.isin(sem_label, GndClasses)
+    # index = (sem_label == GndClasses[0])
     GndSeg = np.ones(sem_label.shape)
     GndSeg[index] = 1
     index = np.isin(sem_label, [0, 1])
@@ -365,11 +384,33 @@ def avg_point_density_in_range(ptcl, ranges, space_range=100):
         # print(cnt, range)
         mask = ((ranges[cnt] * ranges[cnt]) < dist_to_center) * (dist_to_center <= (ranges[cnt + 1] * ranges[cnt + 1]))
         density.append(ptcl[mask].shape[0] / calculate_space_area_between(ranges[cnt], ranges[cnt + 1]))
-    density.append(ptcl[mask2].shape[0] / calculate_space_area_between(ranges[0], space_range))
+    # density.append(ptcl[mask2].shape[0] / calculate_space_area_between(ranges[0], space_range))
     return density
 
 
 def calculate_space_area_between(start_range, end_range):
     return np.pi * (end_range * end_range - start_range * start_range)
+
+
+def ransac_predict(points, threshold=0.1):
+    points_copy = np.copy(points)
+    p2, p1, best_model, _ = my_ransac_v5(points_copy, 10000, P=0.8, distance_threshold=threshold,
+                                     lidar_height=-2.03727 + 0.1, lidar_height_down=-2.03727 - 0.1,
+                                     use_all_sample=True)
+    points_copy[:, 3] = 0  # object
+    points_copy[p2, 3] = 1  # ground
+    return points_copy
+
+
+def calculate_oracle_accuracy(single_grid, merged_grid, grid_truth):
+    correct, total = 0, 0
+    for x_idx in range(grid_truth.shape[0]):
+        for y_idx in range(grid_truth.shape[1]):
+            if grid_truth[x_idx][y_idx] != 0:
+                if single_grid[x_idx][y_idx] == grid_truth[x_idx][y_idx] or \
+                   merged_grid[x_idx][y_idx] == grid_truth[x_idx][y_idx]:
+                    correct += 1
+                total += 1
+    return correct/total
 
 ## TODO: Transform the ptcl to a global reference?
