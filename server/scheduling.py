@@ -385,7 +385,8 @@ def get_combined_scores(distance_scores, bw_scores, interference_scores, combine
 
 
 def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_tables, is_one_to_one=False, combine_method="op_sum", score_method="harmonic"):
-    print("Using the combined sched", num_of_helpees, num_of_helpers, positions, bws, routing_tables)
+    # print("Using the combined sched", num_of_helpees, num_of_helpers, positions, bws, routing_tables)
+    print("Assignment dist_score bw_score intf_score")
     scores, scores_dist, scores_bw, scores_intf, assignment_reachable_cnt  = {}, {}, {}, {}, {}
     scores_combined_base, scores_dist_min, scores_bw_min, scores_intf_min = {}, {}, {}, {}
     assignments = find_all_one_to_one(num_of_helpees, num_of_helpers) if is_one_to_one else find_all(num_of_helpees, num_of_helpers)
@@ -398,8 +399,8 @@ def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_table
         distance_scores = get_distance_scores(assignment, positions)
         bw_scores = get_bw_scores(assignment, v2i_bws)
         interference_scores, not_reachable_cnt = get_interference_scores(assignment, interference_counts, routing_tables, positions)
-        print(distance_scores, bw_scores, interference_scores)
-        print(assignment, statistics.harmonic_mean(distance_scores), statistics.harmonic_mean(bw_scores), statistics.harmonic_mean(interference_scores), not_reachable_cnt)
+        # print(distance_scores, bw_scores, interference_scores)
+        print(assignment, "%.3f"%statistics.harmonic_mean(distance_scores), "%.3f"%statistics.harmonic_mean(bw_scores), "%.3f"%statistics.harmonic_mean(interference_scores))
         assignment_id = get_id_from_assignment(assignment)
         scores_dist[assignment_id] = get_score(distance_scores, score_method)
         scores_bw[assignment_id] = get_score(bw_scores, score_method)
