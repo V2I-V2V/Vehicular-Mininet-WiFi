@@ -48,8 +48,8 @@ def test_combined_specific():
                       7: {0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 6}}
     bws = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0] 
     assignment = server.scheduling.combined_sched(3, 5, positions, bws, routing_tables)[0]
-    print(assignment)
-    assert assignment == (4,4,7), "Wrong assignment for combined"
+    print("Choose assignment:", assignment)
+    assert assignment == (5,3,7), "Wrong assignment for combined"
 
 
 def test_random():
@@ -71,11 +71,11 @@ def test_intf_cnt():
     pass
 
 if __name__ == "__main__":
-    test_minDist()
-    test_bwAware()
-    test_routeAware()
-    test_combined()
-    test_random()
-    test_coverage_aware()
-    test_find_assignments()
+    # test_minDist()
+    # test_bwAware()
+    # test_routeAware()
+    # test_combined()
+    # test_random()
+    # test_coverage_aware()
+    # test_find_assignments()
     test_combined_specific()
