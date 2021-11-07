@@ -25,3 +25,6 @@ analysis/cal_avg_thrpt.py
 data*
 ptcl/get_poses.py
 run_experiment_single.py
+*.pdf
+*.npy
+.idea/

@@ -149,8 +149,8 @@ def get_pointclouds(args):
             ret = ax.errorbar(np.arange(len(single_mean)), single_mean, yerr=single_var, capsize=4, label='raw', ls='--')
             ax.errorbar(np.arange(len(merged_mean)), merged_mean, yerr=merged_var, capsize=4, label='compression-high', ls='-.')
             print(merged_mean, merged_var)
-            data = [173.69533869, 220.37654453, 46.34846591, 9.59362418, 3.48429959, 3.33150766, 6.52065987]
-            ax.errorbar(np.arange(len(merged_mean)), data, yerr=merged_var, capsize=4, label='compression-low', alpha=0.5)
+            # data = [173.69533869, 220.37654453, 46.34846591, 9.59362418, 3.48429959, 3.33150766, 6.52065987]
+            # ax.errorbar(np.arange(len(merged_mean)), data, yerr=merged_var, capsize=4, label='compression-low', alpha=0.5)
             ax.set_xticks(np.arange(len(single_mean)))
             ax.set_xticklabels(['<5', '5-10', '10-15', '15-30', '30-50', '50-75', '75-100'])
             plt.legend()
