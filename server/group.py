@@ -54,6 +54,7 @@ def notify_group_change(client_sockets, group_map):
 
 
 def group_data_ready(data_ready_matrix, group_map, v_id, frame_id):
+    v_ids = []
     for g_id, v_ids in group_map.items():
         if v_id in v_ids:
             for id in v_ids:

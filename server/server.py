@@ -60,6 +60,7 @@ parser.add_argument('--combine_method', default="op_sum", choices=["op_sum", "op
 parser.add_argument('--score_method', default="harmonic", choices=["harmonic", "min"])
 parser.add_argument('--deadline_enable', default=1, type=int, help='enable-deadline')
 parser.add_argument('--enable_grouping', default=0, type=int, help='enable-grouping')
+parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1])
 
 args = parser.parse_args()
 trace_filename = args.trace_filename
@@ -71,6 +72,7 @@ num_vehicles = args.num_vehicles
 is_one_to_one = 1 - args.multi
 combine_method = args.combine_method
 score_method = args.score_method
+V2V_enabled = args.v2v_mode
 print("score method", score_method)
 if args.fixed_assignment is not None:
     scheduler_mode = "fixed"
@@ -166,6 +168,7 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
+            # check_current_connected_vehicles()
             sched_start_t = time.time()
             skip_sending_assignment = False
             print("loc:" + str(location_map), flush=True)
@@ -600,9 +603,10 @@ def main():
     server.bind((HOST, PORT))
     print("Vehicular perception server started ", time.time(), flush=True)
     print("Waiting for client request..", flush=True)
-    sched_thread = SchedThread()
-    sched_thread.daemon = True
-    sched_thread.start()
+    if args.v2v_mode == 0:
+        sched_thread = SchedThread()
+        sched_thread.daemon = True
+        sched_thread.start()
     data_channel_thread = DataConnectionThread()
     data_channel_thread.daemon = True
     data_channel_thread.start()
@@ -620,6 +624,8 @@ def main():
         newthread = ControlConnectionThread(client_address, client_socket)
         newthread.daemon = True
         newthread.start()
+
+
 
 
 if __name__ == "__main__":

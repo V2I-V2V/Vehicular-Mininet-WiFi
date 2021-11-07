@@ -34,7 +34,8 @@ def init_config():
                      "routing": "custom", "frames": "300", "one_to_many": '1', "adaptive_encode": "0",
                      "adapt_frame_skipping": "0",
                      "add_loc_noise": "0",
-                     "adapt_frame_skipping": "0", "combine_method": "op_sum", "score_method": "harmonic"}
+                     "adapt_frame_skipping": "0", "combine_method": "op_sum", "score_method": "harmonic",
+                     "v2v_mode": "0"}
     return config_params
 
 
@@ -89,12 +90,15 @@ def run_experiment(config_params, is_save_data=False, is_run_app=True, is_tcpdum
         cmd += " --adapt_frame_skipping"
     if config_params["add_loc_noise"] == "1":
         cmd += " --add_noise_to_loc"
+    if config_params["v2v_mode"] == "1":
+        cmd += " --v2v_mode"
     if is_save_data:
         cmd += " --save_data 1"
     if is_tcpdump_enabled:
         cmd += " --collect-traffic"
     if is_run_app:
         cmd += " --run_app"
+
     os.system(cmd)
     print("+" + cmd)
 

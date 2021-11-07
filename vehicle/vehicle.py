@@ -54,6 +54,7 @@ parser.add_argument('--adapt_skip_frames', default=False, action="store_true", \
     help="enable adaptive frame skipping when sending takes too long")
 parser.add_argument('--add_loc_noise', default=False, action='store_true', \
     help="enable noise to location")
+parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1])
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
@@ -74,6 +75,9 @@ LOCATION_FILE = args.location_file
 HELPEE_CONF = args.helpee_conf
 FRAMERATE = args.fps
 ADAPTIVE_ENCODE_TYPE = args.adaptive
+SERVER_IP = config.server_ip
+if args.v2v_mode == 1:
+    SERVER_IP = "10.0.0.2"
 print('fps ' + str(FRAMERATE))
 curr_frame_rate = FRAMERATE
 connection_state = "Connected"
@@ -115,10 +119,10 @@ control_seq_num = 0 # self seq number
 
 frame_lock = threading.Lock()
 v2i_control_socket_lock = threading.Lock()
-v2i_control_socket, scheduler_mode = wwan.setup_p2p_links(vehicle_id, config.server_ip, \
+v2i_control_socket, scheduler_mode = wwan.setup_p2p_links(vehicle_id, SERVER_IP, \
                                         config.server_ctrl_port, recv_sched_scheme=True)
 print("server sched mode", scheduler_mode)
-v2i_data_socket = wwan.setup_p2p_links(vehicle_id, config.server_ip, config.server_data_port)
+v2i_data_socket = wwan.setup_p2p_links(vehicle_id, SERVER_IP, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 v2v_data_control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 curr_frame_id = 0
@@ -176,9 +180,6 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
                 encoded, ratio = ptcl.pointcloud.dracoEncode(pcd_np, PCD_ENCODE_LEVEL, qb)
                 pcd_data_buffer_adaptive[qb].append(encoded)
             # pcd_data_buffer.append(pcd_np)
-        # if pcd_data_type == "GTA":
-        #     oxts_f_name = oxts_data_path + "%06d.txt"%i
-        #     oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name))
         # t_elapsed = time.time() - t_s
         # print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
         # if (1.0/fps-t_elapsed) > 0:
@@ -209,20 +210,8 @@ def get_encoded_frame(frame_id, metric):
         # frame = pcd_data_buffer[frame_id % config.MAX_FRAMES]
         cnt = 1
         qb = get_encoding_qb(e2e_frame_latency)
-        # start = time.time()
-        # encoded_frame, _ = ptcl.pointcloud.dracoEncode(frame, PCD_ENCODE_LEVEL, qb)
-        # print('runtime encode takes', time.time() - start)
         encoded_frame = pcd_data_buffer_adaptive[qb][frame_id % config.MAX_FRAMES]
         encoding_sizes[frame_id] = len(encoded_frame)
-        # if metric < 0.3:
-        #     encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][1]
-        #     cnt += 1
-        # if metric < 0.2:
-        #     encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][2]
-        #     cnt += 1
-        # if metric < 0.1:
-        #     encoded_frame += pcd_data_buffer[frame_id % config.MAX_FRAMES][3]
-        #     cnt += 1
         print("frame id: " + str(frame_id) + " qb: " + str(qb))
         print("frame id: " + str(frame_id) + " latency: " + str(metric) + " number of chunks: " + str(cnt))
     elif ADAPTIVE_ENCODE_TYPE == ADAPTIVE_ENCODE_FULL_CHUNK:
@@ -312,8 +301,6 @@ def send(socket, data, id, type, num_chunks=1, chunks=None):
             bytes_sent = socket.send(data[total_sent:])
             print("[Sedning Data] Sent %d bytes" % bytes_sent)
             total_sent += bytes_sent
-            # if bytes_sent == 0:
-            #     raise RuntimeError("socket connection broken")
         except:
             print('[Send error]')
             return False
@@ -359,16 +346,14 @@ def v2i_data_send_thread():
             last_frame_sent_ts = get_frame_ready_timestamp(curr_f_id, FRAMERATE)
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
             frame_sent_time[curr_f_id] = time.time()
-            # pcd = pcd_data_buffer[data_f_id][:num_chunks]
             send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd)
             oxts = oxts_data_buffer[data_f_id]
             send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
-            # print("[Frame sent finished] " + str(curr_f_id) + ' ' + str(time.time()-last_frame_sent_ts))
             t_elapsed = time.time() - t_start
             if capture_finished and is_adaptive_frame_skipped:
                 curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
                 print("Update framerate: ", curr_frame_rate, time.time())
-            if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0\
+            if capture_finished and (1.0/curr_frame_rate-t_elapsed) > 0 \
                 and expected_trasmit_frame == curr_f_id: 
                 # only sleep and wait if current sending frame is matched to the newest ready frame
                 print("capture finished, sleep %f" % (1.0/curr_frame_rate-t_elapsed))
@@ -706,7 +691,7 @@ class VehicleDataRecvThread(threading.Thread):
         self.client_socket = helpee_socket
         self.client_address = helpee_addr
         self._is_closed = False
-        self.helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, config.server_ip, 
+        self.helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, SERVER_IP, 
                                                             config.server_data_port)
         self.client_ack_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_ack_socket.connect((helpee_addr[0], 8000))
@@ -718,9 +703,7 @@ class VehicleDataRecvThread(threading.Thread):
                 header, payload = network.message.recv_msg(self.helper_relay_server_sock, 
                                 network.message.TYPE_SERVER_REPLY_MSG)
                 # tcp type relay
-                # for i in range(3):
                 network.message.send_msg(self.client_ack_socket, header, payload)
-                    # time.sleep(0.01)
                 # udp type reply
                 # send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
                 # network.message.send_msg(send_note_sock, header, payload, is_udp=True,\
@@ -901,7 +884,7 @@ def check_if_disconnected(disconnect_timestamps):
 
 def send_control_msgs(node_type):
     global control_seq_num
-    if scheduler_mode == 'emp':
+    if scheduler_mode == 'emp' or scheduler_mode == 'v2v':
         return
     v2i_control_socket_lock.acquire()
     if scheduler_mode == 'distributed':
@@ -962,11 +945,16 @@ def main():
     # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
     #          args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
     # senser_data_capture_thread.start()
-    trace_files = 'trace.txt'
-    lte_traces = utils.read_traces(trace_files)
-    disconnect_timestamps = utils.process_traces(lte_traces, HELPEE_CONF)
-    print("disconnect timestamp")
-    print(disconnect_timestamps)
+    # trace_files = 'trace.txt'
+    # lte_traces = utils.read_traces(trace_files)
+    disconnect_timestamps = utils.process_traces(HELPEE_CONF)
+    
+    if args.v2v_mode == 1:
+        print("V2V enabled")
+        disconnect_timestamps = {}
+    else:
+        print("disconnect timestamp")
+        print(disconnect_timestamps)
     t_start = time.time()
     sensor_data_capture(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE)
     t_elapsed = time.time() - t_start

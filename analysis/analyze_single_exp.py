@@ -198,7 +198,11 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
             ax.plot(ts, encode_levels[:len(ts)], label='encode level')
             while bw.shape[0] < int(ts[-1]-ts[0]):
                 bw = np.vstack((bw, bw[-1]))
-            ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
+            
+            # ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
+            numbers = int(len(ts)/10)
+
+            ax2.plot(np.arange(bw[44:44+numbers, i].shape[0]), bw[44:44+numbers, i], label='node%i-bandwidth'%i)
             ax.set_xlabel('Time (s)')
             ax.set_ylabel('Latency (s)')
             ax2.set_ylabel('Bandwidth (Mbps)')

@@ -44,7 +44,12 @@ def get_key_from_config(config, dir=''):
         adapt_frame_skipping = int(config["adapt_frame_skipping"])
     else:
         adapt_frame_skipping = 0
-    if adapt_frame_skipping == 1:
+
+    if "adaptive_encode" in config.keys():
+        adapt_encoding = int(config["adaptive_encode"])
+    else:
+        adapt_encoding = 0
+    if adapt_frame_skipping == 1 or adapt_encoding == 1:
         scheduler += '-adapt'
     # if 'combine_method' in config.keys() and scheduler == 'combined':
     #     scheduler += ('-' + config['combine_method'])
@@ -406,7 +411,7 @@ def plot_based_on_setting(num_nodes):
     result = construct_result_based_on_keys(all_keys)
     result_full_frame = construct_full_frame_result_based_on_keys(all_keys)
     result_all_frame = construct_frame_result_based_on_keys(all_keys)
-    print(result)
+    # print(result)
     combined_latency_improvement = {}
     for loc in LOC:
         for bw in BW:
@@ -540,7 +545,7 @@ def get_all_runs_results(data_dir, key, with_ssim=False, parse_exp_stats=True):
             if parse_exp_stats:
                 result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes,\
                     config["helpee_conf"], with_ssim=with_ssim)[0]
-                print(conf_key, result_each_run[conf_key]['sent_frames'])
+                # print(conf_key, result_each_run[conf_key]['sent_frames'])
             setting_to_folder[str(conf_key)] = dir
     with open('analysis-results/setting_to_folder.json', 'w') as f:
         json.dump(setting_to_folder, f)
@@ -732,7 +737,7 @@ def plot_bars_compare_schedules(schedules):
         print(schedule, sched_to_different_latency_mean[schedule][0], np.mean(schedule_to_detected_spaces[schedule]))
         print(schedule, sched_to_different_latency_std[schedule][0], np.std(schedule_to_detected_spaces[schedule]))
 
-    plt.ylim([4000, 5200])
+    plt.ylim([3000, 5200])
     plt.xlabel("% of frame within 0.1s")
     plt.ylabel("Detected space ($m^2$)")
     plt.legend()
@@ -758,7 +763,7 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
     cnt = 0
     xticks = []
-    selected_metric = (0.1, 5000)
+    selected_metric = (0.2, 4000)
     for schedule in sched_to_different_latency_cnts:
         xticks.append('pure-V2I' if schedule == 'emp' else schedule)
         ax.bar(cnt, np.mean(sched_to_different_latency_cnts[schedule][selected_metric]),

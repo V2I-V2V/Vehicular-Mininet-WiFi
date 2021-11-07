@@ -9,7 +9,9 @@ from analysis.trajectory import get_node_dists
 import matplotlib.pyplot as plt
 from collections import OrderedDict, defaultdict
 import os
-import ptcl_calc
+from .ptcl_calc import calculate_merged_detection_spaces
+import multiprocessing
+from multiprocessing import Process
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
@@ -164,11 +166,13 @@ def get_sender_ts(filename):
             elif line.startswith('frame id:') and 'qb:' in line:
                 frame_id, qb = int(parse[2]), int(parse[-1])
                 summary_dict['qb'][frame_id] = qb
+                encode_choice[frame_id] = qb
             elif line.startswith("frame id:"):
                 num_chunks = int(parse[-1])
                 frame = int(parse[2])
-                encode_choice[frame] = num_chunks
+                # encode_choice[frame] = num_chunks
                 last_t = float(parse[-1])
+            # elif line.startswith
             elif line.startswith("read and encode takes"):
                 encode_t = math.ceil(float(parse[-1]))
             elif line.startswith("[relay throughput]"):
@@ -286,16 +290,23 @@ def calculate_detected_areas(frame_id_to_senders):
 
 def calculate_are_carla(frame_id_to_senders, node_id_to_encode):
     detected_spaces = []
+    manager = multiprocessing.Manager()
+    detected_spaces = manager.list()
+    processes = []
     for frame_id, v_num in frame_id_to_senders.items():
         v_ids = v_num.split('-')
         wrapped_frame_id = frame_id % 80
         qb_dict = {}
         for v_id in v_ids:
-            print(v_id)
-            print(node_id_to_encode)
             qb_dict[v_id] = node_id_to_encode[int(v_id)][frame_id]
-        
-        detected_spaces += ptcl_calc.calculate_merged_detection_spaces(v_ids, wrapped_frame_id, qb_dict)
+        p = Process(target=calculate_merged_detection_spaces, args=(v_ids, wrapped_frame_id, 
+                    qb_dict, detected_spaces))
+        processes.append(p)
+        p.start()
+        # detected_spaces += calculate_merged_detection_spaces(v_ids, wrapped_frame_id, qb_dict)
+        # print(detected_spaces)
+    for p in processes:
+        p.join()
     return detected_spaces
 
 
@@ -380,7 +391,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
     ctrl_msg_size = []
     for i in range(num_nodes):
         sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = get_sender_ts(dir + '/logs/node%d.log'%i)
-        # sent_frames += int((last_t-min(sender_ts_dict[i].values()))*10)
+        sent_frames += int((last_t-min(sender_ts_dict[i].values()))*10)
         computational_overhead = get_computation_overhead(dir + '/logs/node%d.log'%i)
         control_msg_size = get_control_msg_size(dir + '/logs/node%d.log'%i)
         ctrl_msg_size.append(control_msg_size)
@@ -394,7 +405,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
             print("overhead", np.mean(computational_overhead))
             overhead.extend(computational_overhead)
 
-        sent_frames += 556
+        # sent_frames += 556
         latency_dict[i] = {}
         if with_ssim:
             ssims = get_ssims(dir+'/node%d_ssim.log'%i)

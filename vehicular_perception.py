@@ -37,6 +37,7 @@ no_control = 0
 adaptive_encode = 0
 adaptive_frame_skip = False
 add_noise_to_loc = False
+v2v_mode = False
 combine_method = "op_sum"
 score_method = "harmonic"
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -152,22 +153,26 @@ def kill_application():
 
 
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
-                    save=0, is_one_to_many=1):
+                    save=0, is_one_to_many=1, is_v2v_mode=False):
     num_nodes = len(stations)
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
-        server_cmd = "python3 -u %s/server/server.py -f %s -n %d -t %s -d %d -m %d --data_type %s > %s/logs/server.log 2>&1 &"\
-             % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, CODE_DIR)
+        server_cmd = "python3 -u %s/server/server.py -f %s -n %d -t %s -d %d -m %d --data_type %s --v2v_mode %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, int(is_v2v_mode), CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s --combine_method %s --score_method %s > %s/logs/server.log 2>&1 &"\
-             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, CODE_DIR)
+        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s --combine_method %s --score_method %s --v2v_mode %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, int(is_v2v_mode), CODE_DIR)
         print(server_cmd)
-    server.cmd(server_cmd)
+    if is_v2v_mode:
+        stations[0].cmd(server_cmd)
+    else:
+        server.cmd(server_cmd)
+
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 4 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d'\
-            % (CODE_DIR, node_num, vehicle_data_dir[node_num%len(vehicle_data_dir)], loc_file, helpee_conf, fps, no_control, adaptive_encode)
+        vehicle_app_cmd = 'sleep 4 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d --v2v_mode %d'\
+            % (CODE_DIR, node_num, vehicle_data_dir[node_num%len(vehicle_data_dir)], loc_file, helpee_conf, fps, no_control, adaptive_encode, int(is_v2v_mode))
         if adaptive_frame_skip:
             vehicle_app_cmd += ' --adapt_skip_frames '
         if add_noise_to_loc:
@@ -178,6 +183,8 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
 
     # execute application commands
     for node_num in range(len(stations)):
+        if is_v2v_mode and node_num == 0:
+            continue
         stations[node_num].cmd(vehicle_app_commands[node_num])
 
 
@@ -238,9 +245,10 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
 
     ### Trace replaying ###
     replaying_threads = []
-    for i in range(num_nodes):
-        replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i%len(v2i_bw_traces.keys())])
-        replaying_threads.append(replaying_thread)
+    if not v2v_mode:
+        for i in range(num_nodes):
+            replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i%len(v2i_bw_traces.keys())])
+            replaying_threads.append(replaying_thread)
 
 
     ### Configure routing if custom
@@ -254,8 +262,8 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
 
     ### Run application ###
     if run_app is True:
-        info("\n*** Running vehicuar server\n")
-        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save, is_one_to_many)
+        info("\n*** Running vehicular server\n")
+        run_application(server, stations, scheduler, assignment_str, helpee_conf, fps, save, is_one_to_many, v2v_mode)
     
     ### Collect tcpdump trace ###
     if enable_tcpdump is True:
@@ -334,7 +342,7 @@ if __name__ == '__main__':
 
     if '-l' in sys.argv:
         loc_filename = sys.argv[sys.argv.index('-l')+1]
-        loc_file=loc_filename
+        loc_file = loc_filename
         locs = np.loadtxt(loc_filename)
         if locs.ndim > 1:
             locs = locs[0]
@@ -395,6 +403,9 @@ if __name__ == '__main__':
         
     if '--score_method' in sys.argv:
         score_method = sys.argv[sys.argv.index('--score_method') + 1]
+    
+    if '--v2v_mode' in sys.argv:
+        v2v_mode = True
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\
