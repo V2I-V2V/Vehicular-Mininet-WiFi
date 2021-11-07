@@ -104,6 +104,8 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
 
         
     latency_dict, node_to_encode_choices = util.get_stats_on_one_run(dir, num_nodes, helpee_conf)
+    np.savetxt(dir+'computation_overhead.txt', latency_dict['sched_latency'])
+    np.savetxt(dir+'control_msg.txt', latency_dict['ctrl-msg-size'])
 
     sender_ts_dict = {}
     sender_adaptive_choice = {}

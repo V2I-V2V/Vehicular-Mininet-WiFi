@@ -28,6 +28,7 @@ def read_pointcloud(pointcloud_filename, data_type="GTA"):
         pcd_data = np.frombuffer(raw_pcd_data, dtype=np.float32).reshape([-1,4])
     elif data_type == "Carla":
         pcd_data = np.load(pointcloud_filename)
+        pcd_data = pcd_data.astype(np.float32)
         tranformation_matrix_prefix, file_extension = os.path.splitext(pointcloud_filename)
         # trans = np.load(tranformation_matrix_prefix + ".trans.npy")
         # pcd_data[:,3] = 1

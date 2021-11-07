@@ -39,7 +39,7 @@ def devide_vehicle_to_groups(location_map):
 
 # recursively partition the group in smaller sizes (containing less vehicles) if # of vehicles 
 # is more than a threshold x
-def get_group_id_based_on_location(location, grid_size=100):
+def get_group_id_based_on_location(location, grid_size=80):
     x_id, y_id = int(location[0]/grid_size), int(location[1]/grid_size)
     return (x_id, y_id)
 
@@ -53,3 +53,11 @@ def notify_group_change(client_sockets, group_map):
             message.send_msg(client_sockets[v_id], header, payload)
 
 
+def group_data_ready(data_ready_matrix, group_map, v_id, frame_id):
+    for g_id, v_ids in group_map.items():
+        if v_id in v_ids:
+            for id in v_ids:
+                if data_ready_matrix[id][frame_id] != 1:
+                    return False, v_ids
+            return True, v_ids
+    return False, v_ids

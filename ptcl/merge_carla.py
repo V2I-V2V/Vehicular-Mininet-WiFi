@@ -1,5 +1,7 @@
 import numpy as np
-import os
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pointcloud
 
 from numpy.lib.npyio import save
 import pcd_merge
@@ -19,12 +21,15 @@ for i in range(start_frame_idx, start_frame_idx + total_frames):
         data_path = os.path.join(carla_dataset_dir, id, '%d.npy'%i)
         oxts_path = os.path.join(carla_dataset_dir, id, '%d.trans.npy'%i)
         pcd = np.load(data_path)
-        to_save_dir = os.path.join(save_dir, id, '%d.bin'%i)
-        ptcl_utils.save_ptcl(pcd, to_save_dir)
-        # oxts = np.load(oxts_path)
-        # pcds.append(pcd)
-        # oxtses.append(oxts)
-    # merged_pcd = pcd_merge.merge_carla(pcds, oxtses)
+        encoded, ratio = pointcloud.dracoEncode(pcd, 10, 12)
+        decoded = pointcloud.dracoDecode(encoded)
+        # to_save_dir = os.path.join(save_dir, id, '%d.bin'%i)
+        # ptcl_utils.save_ptcl(pcd, to_save_dir)
+        oxts = np.load(oxts_path)
+        pcds.append(decoded)
+        oxtses.append(oxts)
+    merged_pcd = pcd_merge.merge_carla(pcds, oxtses)
+    
     # print(merged_pcd.dtype)
     # merged_pcd = merged_pcd.astype(np.float32)
     # print(merged_pcd.dtype)
