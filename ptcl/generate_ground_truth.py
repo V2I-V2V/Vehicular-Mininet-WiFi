@@ -21,8 +21,8 @@ ptcl2 = ptcl_utils.read_ptcl_data('/home/ryanzhu/V2I+V2V/Carla/lidar/130/1000.np
 ptcl2[:, 3] = 1
 trans2 = np.load('/home/ryanzhu/V2I+V2V/Carla/lidar/130/1000.trans.npy')
 ptcl2 = np.dot(trans2, ptcl2[:, :4].T).T
-GndSeg = ptcl_utils.get_GndSeg(merged_label, GndClasses=[40, 44, 48, 49, 60, 72])
-GndSeg2 = ptcl_utils.get_GndSeg(label2, GndClasses=[40, 44, 48, 49, 60, 72])
+GndSeg = ptcl_utils.get_GndSeg(merged_label, GndClasses=[40])
+GndSeg2 = ptcl_utils.get_GndSeg(label2, GndClasses=[40])
 ptcl2[:, 3] = GndSeg2
 print(GndSeg.shape)
 points_truth_labeled = np.copy(ptcl)

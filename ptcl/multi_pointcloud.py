@@ -43,10 +43,10 @@ def draw_open3d(pointclouds, labels, show=True, save=""):
     # pointcloud_all = o3d.geometry.PointCloud()
     # pointcloud_all.points = o3d.utility.Vector3dVector(np.vstack(pointclouds)[:,:3])
     # pointcloud_all.paint_uniform_color([0, 0, 1])
-    merged = np.vstack(pointclouds)
-    with open('86_174_merged_10_8.bin', 'w') as f:
-        merged = merged.astype(np.float32)
-        merged.tofile(f)
+    # merged = np.vstack(pointclouds)
+    # with open('86_174_merged_10_8.bin', 'w') as f:
+    #     merged = merged.astype(np.float32)
+    #     merged.tofile(f)
 
     pcds = []
     colors = [[0, 0.4, 1], [0, 1, 0.3], [0.0, 0.4, 0.5], [0.1, 0.7, 0.4], [0, 0.8, 0.5],
