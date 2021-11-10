@@ -15,7 +15,7 @@ matplotlib.rc('font', **{'size': 18})
 
 if __name__ == '__main__':
     qb_range = np.arange(7, 13)
-    cl_range = np.arange(1, 10)
+    cl_range = np.arange(1, 11)
     usrname = getpass.getuser()
     datadir = '/home/' + usrname + '/V2I+V2V/carla-bin/lidar/'
     vehicle_dir = os.listdir(datadir)
@@ -69,17 +69,17 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     cnt = 0
-    ax.boxplot(qb_to_size_dict['raw'], positions=np.array([cnt]), whis=(5, 95), autorange=True, showfliers=False)
-    cnt += 1
+    # ax.boxplot(qb_to_size_dict['raw'], positions=np.array([cnt]), whis=(5, 95), autorange=True, showfliers=False)
+    # cnt += 1
     for qb, sizes in qb_to_size_dict.items():
         if qb != 'raw':
             ax.boxplot(sizes, positions=np.array([cnt]), whis=(5, 95), autorange=True, showfliers=False)
             cnt += 1
 
-    tick_labels = ['raw']
-    for qb in qb_range:
+    tick_labels = []
+    for qb in cl_range:
         tick_labels.append(str(qb))
-    ax.set_xticks(np.arange(len(qb_to_size_dict.keys())))
+    ax.set_xticks(np.arange(len(qb_to_size_dict.keys())-1))
     ax.set_xticklabels(tick_labels)
     ax.set_ylabel('Data Size (KB)')
     ax.set_xlabel('Compression Level (qb)')
@@ -122,13 +122,3 @@ if __name__ == '__main__':
     # plt.savefig('space_vs_compression.pdf')
 
 
-    # ptcl = ptcl_utils.read_ptcl_data('/home/' + usrname + '/V2I+V2V/carla-bin/lidar/86/velodyne/1000.bin')
-    # # ptcl = ptcl_utils.read_ptcl_data('000001.bin')
-    # cl, qb = 10, 7
-    # encoded, ratio = pointcloud.dracoEncode(ptcl, cl, qb)
-    # decoded = pointcloud.dracoDecode(encoded)
-    # print(1 - ratio)
-    # # print(2*ratio)
-    # print(ptcl.shape[0], decoded.shape[0])
-    # ptcl_utils.draw_3d(decoded)
-    # ptcl_utils.save_ptcl(decoded, './1000-%d-%d.bin' % (cl, qb))

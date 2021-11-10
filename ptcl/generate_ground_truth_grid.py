@@ -3,6 +3,7 @@ import sys
 import argparse
 import numpy as np
 import open3d as o3d
+import ptcl_utils
 
 
 def rotation_matrix(pitch, yaw, roll):
@@ -59,66 +60,57 @@ def get_number_of_points_in_region(ptcl, x_center, y_center, x_width, y_width):
 
 
 def main(args):
-    pointclouds = []
-    vehicle_ids = []
     region_points = {}
     label_data = None
 
     # provided dataset directory and frame id
     if args.datadir != "" and args.frame >= 0:
-        # load pointclouds
-        lidar_dir = os.path.join(args.datadir, "lidar")
-        for vehicle_id in os.listdir(lidar_dir):
-            pcd_file = os.path.join(lidar_dir, vehicle_id, str(args.frame))
-            if os.path.isfile(pcd_file + ".npy"):
-                pcd = np.load(pcd_file + ".npy")
-            elif os.path.isfile(pcd_file + ".bin"):
-                pcd = np.fromfile(pcd_file + ".bin", dtype=np.float32, count=-1).reshape(-1, 4)
-            else:
-                pcd = None
 
-            if pcd is not None:
-                pcd[:, 3] = 1
-                if os.path.isfile(pcd_file + ".trans.npy"):
-                    trans = np.load(pcd_file + ".trans.npy")
+        # load pointclouds
+        lidar_dir = args.datadir
+        label_dir = '/home/ryanzhu/Downloads/Carla-Labels/'
+        for f_id in range(1000, 1080):
+            vehicle_ids = []
+            pointclouds = []
+            vehicle_positions = {}
+            for vehicle_id in ['86', '97', '108', '119', '163']:
+                pcd_file = os.path.join(lidar_dir, vehicle_id, str(f_id))
+                if os.path.isfile(pcd_file + ".npy"):
+                    pcd = np.load(pcd_file + ".npy")
+                elif os.path.isfile(pcd_file + ".bin"):
+                    pcd = np.fromfile(pcd_file + ".bin", dtype=np.float32, count=-1).reshape(-1, 4)
+                else:
+                    pcd = None
+
+                if pcd is not None:
                     pcd[:, 3] = 1
-                    pcd = np.dot(trans, pcd[:, :4].T).T
-                    dummy = np.zeros((4, 1))
-                    dummy[3] = 1
-                    new_pos = np.dot(trans, dummy).T
-                    print(new_pos)
-                    np.savetxt(pcd_file + '.txt', new_pos, fmt='%f')
-                pointclouds.append(pcd)
-                vehicle_ids.append(vehicle_id)
-                # count the points in region centered at 25, -8, width 1, 1
-                # region_points[vehicle_id] = get_number_of_points_in_region(pcd, 25, -8, 1, 1)
+                    if os.path.isfile(pcd_file + ".trans.npy"):
+                        trans = np.load(pcd_file + ".trans.npy")
+                        pcd[:, 3] = 1
+                        pcd = np.dot(trans, pcd[:, :4].T).T
+                        dummy = np.zeros((4, 1))
+                        dummy[3] = 1
+                        new_pos = np.dot(trans, dummy).T
+                        print(new_pos)
+                        np.savetxt(pcd_file + '.txt', new_pos, fmt='%f')
+                        vehicle_positions[vehicle_id] = (new_pos[0, 0], new_pos[0, 1])
+                    # load labels
+                    label_f = os.path.join(label_dir, vehicle_id, 'labels', str(f_id) + '.label')
+                    label_index = np.fromfile(label_f, dtype=np.uint32)
+                    gnd = ptcl_utils.get_GndSeg(label_index, GndClasses=[40])
+                    pcd[:, 3] = gnd
+                    pointclouds.append(pcd)
+                    vehicle_ids.append(vehicle_id)
+                    pred = ptcl_utils.ransac_predict(pcd, threshold=0.08)
+                    pred_grid, _ = ptcl_utils.calculate_grid_label_ransac(1, pred, center=vehicle_positions[vehicle_id])
+                    np.savetxt('local-prediction/%s-%d.txt' % (vehicle_id, f_id), pred_grid)
 
-        # load label
-        label_file = os.path.join(args.datadir, "label", "{}.csv".format(args.frame))
-        label_data = np.genfromtxt(label_file, delimiter=',')
-
-    # provided filenames directly
-    else:
-        # load pointclouds
-        for pcd_file in args.pcd:
-            _, file_extension = os.path.splitext(pcd_file)
-            if file_extension == ".npy":
-                pointclouds.append(np.load(pcd_file))
-            elif file_extension == ".bin":
-                pointclouds.append(np.fromfile(pcd_file).reshape(-1, 4))
-
-        # load label
-        if args.label != "":
-            label_data = np.genfromtxt(args.label, delimiter=',')
-
-    if len(pointclouds) <= 0:
-        raise Exception("No valid pointcloud input")
-
-    print("Got {} point clouds: vehicle ids {}".format(len(pointclouds), vehicle_ids))
-    print("Got {} label data".format(int(label_data is not None)))
-    print(region_points)
-
-    draw_open3d(pointclouds, label_data, show=args.show, save=args.save)
+            # merged = np.vstack(pointclouds)
+            # print(merged.shape)
+            # # get ground truth grid for each vehicle
+            # for v_id, pos in vehicle_positions.items():
+            #     gt_grid, _ = ptcl_utils.calculate_grid_label_ransac(1, merged, center=pos)
+            #     np.savetxt('ground-truth-grid/%s-%d.txt'%(v_id, f_id), gt_grid)
 
 
 if __name__ == "__main__":
