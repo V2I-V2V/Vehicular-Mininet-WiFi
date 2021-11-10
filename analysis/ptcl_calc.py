@@ -1,4 +1,5 @@
-import sys, os
+import os
+import sys
 # import ptcl.ground
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ptcl.pointcloud import dracoEncode, dracoDecode
@@ -8,7 +9,7 @@ import numpy as np
 import multiprocessing
 import time
 
-DATASET_DIR = '/home/'+getpass.getuser()+'/Carla/lidar/'
+DATASET_DIR = '/home/' + getpass.getuser() + '/Carla/lidar/'
 
 vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
 vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 163, 185, 97]
@@ -50,7 +51,8 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         dummy = np.zeros((4, 1))
         dummy[3] = 1
         new_pos = np.dot(trans, dummy).T
-        vehicle_pos[int(v_id)]= (new_pos[0,0], new_pos[0,1])
+        vehicle_pos[int(v_id)] = (new_pos[0, 0], new_pos[0, 1])
+    t_s = time.time()
     merged = np.vstack(ptcls)
     merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.08)
     manager = multiprocessing.Manager()
@@ -68,10 +70,11 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
     for p in processes:
         p.join()
     # print('space detection takes:', time.time() - start)
-        # merged_pred_grid = \
-        #     ptcl.ptcl_utils.calculate_grid_label_ransac_new(1, merged_pred, center=vehicle_pos[int(v_id)])
-        # detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
+    # merged_pred_grid = \
+    #     ptcl.ptcl_utils.calculate_grid_label_ransac_new(1, merged_pred, center=vehicle_pos[int(v_id)])
+    # detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
     # print(detected_spaces)
+    # print('elapsed: ', time.time() - t_s)
     detected_spaces_list += detected_spaces
     acc_list += detection_accuracy
     return detected_spaces, detection_accuracy
@@ -80,8 +83,9 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
 if __name__ == '__main__':
     v_ids = [0, 1, 2, 3, 4, 5]
     frame_id = 0
-    qb_dict = {0: 11, 1:11, 2:11, 3:11, 4:11, 5:11}
+    qb_dict = {0: 11, 1: 11, 2: 11, 3: 11, 4: 11, 5: 11}
     detected_space_list = []
     time_start = time.time()
+    # for frame_id in range(0, 10):
     calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_space_list)
     print('Passed:', time.time() - time_start)

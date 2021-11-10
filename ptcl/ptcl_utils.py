@@ -4,7 +4,9 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import time
-from .ground import my_ransac_v5
+from ground import my_ransac_v5
+
+
 
 def read_ptcl_data(ptcl_fname):
     """ Read point cloud data (.bin/.pcd/.npy) to numpy array
@@ -42,9 +44,14 @@ def draw_3d(pointcloud, show=True, save=False, save_path=None):
     # point clouds from all vehicles
     pointcloud_all = o3d.geometry.PointCloud()
     pointcloud_all.points = o3d.utility.Vector3dVector(pointcloud[:, :3])
-    pointcloud_all.paint_uniform_color([0, 0, 1])
+    pcl_ground = pointcloud[pointcloud[:, 3] == 1]
+    pcd_gnd = o3d.geometry.PointCloud()
+    pcd_gnd.points = o3d.utility.Vector3dVector(pcl_ground[:, :3])
+    pointcloud_all.paint_uniform_color([1, 0, 0])
+    pcd_gnd.paint_uniform_color([0, 0, 1])
+    
     if show:
-        o3d.visualization.draw_geometries([pointcloud_all])
+        o3d.visualization.draw_geometries([pointcloud_all, pcd_gnd])
     if save:
         vis = o3d.visualization.Visualizer()
         vis.create_window()
@@ -203,54 +210,73 @@ def calculate_grid_label_ransac(grid_size, points, space_width=100, center=(0, 0
     return grid, density
 
 
+# def calculate_grid_label_ransac_new(grid_size, points, space_width=100, center=(0, 0)):
+#     x_size, y_size = int(space_width / grid_size), int(space_width / grid_size)
+#     shifted_points = np.copy(points)
+#     shifted_points[:, 0] -= center[0]
+#     shifted_points[:, 1] -= center[1]
+#     filtered = get_points_within_center(shifted_points, space_range=space_width/2)
+#     grid = np.zeros((x_size, y_size), dtype=int)
+#     # filtered = filtered.astype(np.int)
+#     # print(filtered.shape)
+#     for point in filtered:
+#         x_idx, y_idx = int((point[0] + space_width / 2) / grid_size), int((point[1] + space_width / 2) / grid_size)
+#         # if x_idx < 100 and y_idx < 100:
+#         if point[3] == 1:
+#             # ground
+#             grid[x_idx][y_idx] += 1
+#         else:
+#             grid[x_idx][y_idx] -= 1
+#
+#     grid[grid > 0] = 1  # drivable
+#     grid[grid < 0] = -1  # object
+#     return grid
+
 def calculate_grid_label_ransac_new(grid_size, points, space_width=100, center=(0, 0)):
-	x_size, y_size = int(space_width / grid_size), int(space_width / grid_size)
-	shifted_points = np.copy(points)
-	shifted_points[:, 0] -= center[0]
-	shifted_points[:, 1] -= center[1]
-	filtered = get_points_within_center(shifted_points, space_range=space_width)
-	grid = np.zeros((x_size, y_size), dtype=int)
-	# filtered = filtered.astype(np.int)
-	# print(filtered.shape)
-	for point in filtered:
-		x_idx, y_idx = int((point[0] + space_width/2) / grid_size), int((point[1] + space_width/2) / grid_size)
-		if x_idx < 100 and y_idx < 100:
-			# if point[3] == 0:
-			# 	# obj
-			# 	grid[x_idx][y_idx] -= 1
-			# el
-			if point[3] == 1:
-				# ground
-				grid[x_idx][y_idx] += 1
-			else:
-				grid[x_idx][y_idx] -= 1
+    x_size, y_size = int(space_width), int(space_width)
+    shifted_points = np.copy(points)
+    shifted_points[:, 0] -= center[0]
+    shifted_points[:, 1] -= center[1]
+    filtered = get_points_within_center(shifted_points, space_range=space_width/2)
+    grid = np.zeros((x_size, y_size), dtype=int)
+    # filtered = filtered.astype(np.int)
+    # print(filtered.shape)
+    for point in filtered:
+        x_idx, y_idx = int((point[0] + 50)), int((point[1] + 50))
+        if x_idx < 100 and y_idx < 100:
+            if point[3] == 1:
+                # ground
+                grid[x_idx][y_idx] += 1
+            else:
+                grid[x_idx][y_idx] -= 1
 
-	grid[grid > 0] = 1  # drivable
-	grid[grid < 0] = -1  # object
-	return grid
+    grid[grid > 0] = 1  # drivable
+    grid[grid < 0] = -1  # object
+    return grid
 
 
-def calculate_grid_shapely(grid_size, pointcloud, space_width=100, center=(0, 0)):
-	import geopandas as gpd
-	from shapely.geometry import Point, MultiLineString
-	shifted_points = np.copy(pointcloud)
-	shifted_points[:, 0] -= center[0]
-	shifted_points[:, 1] -= center[1]
-	filtered = get_points_within_center(shifted_points, space_range=space_width)
-	points = gpd.GeoDataFrame({"x":filtered[:, 0],"y":filtered[:, 1]})
-	points['geometry'] = points.apply(lambda p: Point(p.x, p.y), axis=1)
-	print(points.head(2))
-	from shapely.ops import polygonize
-	gridy, gridx = np.arange(-space_width/2, space_width/2+1), np.arange(-space_width/2, space_width/2+1)
-	hlines = [((x1, yi), (x2, yi)) for x1, x2 in list(zip(gridx[:-1], gridx[1:])) for yi in gridy]
-	vlines = [((xi, y1), (xi, y2)) for y1, y2 in zip(gridy[:-1], gridy[1:]) for xi in gridx]
-	polys = list(polygonize(MultiLineString(hlines + vlines)))
-	id = [i for i in range(10000)]
-	grid = gpd.GeoDataFrame({"id":id,"geometry":polys})
-	print(grid.head(2))
-	from geopandas.tools import sjoin
-	pointInPolys = sjoin(points, grid, how='left')
-	print(pointInPolys.groupby(['id']).size().reset_index(name='count'))
+
+# def calculate_grid_shapely(grid_size, pointcloud, space_width=100, center=(0, 0)):
+#     import geopandas as gpd
+#     from shapely.geometry import Point, MultiLineString
+#     shifted_points = np.copy(pointcloud)
+#     shifted_points[:, 0] -= center[0]
+#     shifted_points[:, 1] -= center[1]
+#     filtered = get_points_within_center(shifted_points, space_range=space_width)
+#     points = gpd.GeoDataFrame({"x": filtered[:, 0], "y": filtered[:, 1]})
+#     points['geometry'] = points.apply(lambda p: Point(p.x, p.y), axis=1)
+#     print(points.head(2))
+#     from shapely.ops import polygonize
+#     gridy, gridx = np.arange(-space_width / 2, space_width / 2 + 1), np.arange(-space_width / 2, space_width / 2 + 1)
+#     hlines = [((x1, yi), (x2, yi)) for x1, x2 in list(zip(gridx[:-1], gridx[1:])) for yi in gridy]
+#     vlines = [((xi, y1), (xi, y2)) for y1, y2 in zip(gridy[:-1], gridy[1:]) for xi in gridx]
+#     polys = list(polygonize(MultiLineString(hlines + vlines)))
+#     id = [i for i in range(10000)]
+#     grid = gpd.GeoDataFrame({"id": id, "geometry": polys})
+#     print(grid.head(2))
+#     from geopandas.tools import sjoin
+#     pointInPolys = sjoin(points, grid, how='left')
+#     print(pointInPolys.groupby(['id']).size().reset_index(name='count'))
 
 
 def grid_in_range(x_idx, y_idx, space_range=100):
@@ -306,8 +332,8 @@ def calculate_precision(grid_pred, grid_truth):
     pre = TP / (TP + FP)
     recall = TP / (TP + FN)
 
-    print(pre, recall)
-    print(TP, FP, FN, TN, TP + FP + FN + TN, (TP + TN) / (TP + FP + FN + TN))
+    # print(pre, recall)
+    # print(TP, FP, FN, TN, TP + FP + FN + TN, (TP + TN) / (TP + FP + FN + TN))
 
     # rst = grid_pred == grid_truth
     # # precision
@@ -333,6 +359,18 @@ def combine_merged_results(grid_single, grid_merged):
     return grid_updated
 
 
+def combine_merged_results_on_remote(grid_single, grid_merged, threshold=50):
+    final_grid = np.copy(grid_single)
+    unknown_indices = grid_single == 0
+    final_grid[unknown_indices] = grid_merged[unknown_indices]
+    for x_idx in range(grid_merged.shape[0]):
+        for y_idx in range(grid_merged.shape[1]):
+            if (x_idx * x_idx + y_idx * y_idx) > threshold * threshold:
+                final_grid[x_idx][y_idx] = grid_merged[x_idx][y_idx]
+                # if grid_single[x_idx][y_idx] != 0:
+                #     final_grid[x_idx][y_idx] = grid_single[x_idx][y_idx]
+    return final_grid
+
 def get_fp_fn_within_range(result_grid, filter_range):
     filtered = result_grid[int(result_grid.shape[0] / 2 - filter_range):int(result_grid.shape[0] / 2 + filter_range)] \
         [int(result_grid.shape[1] / 2 - filter_range):int(result_grid.shape[1] / 2 + filter_range)]
@@ -350,6 +388,7 @@ def plot_vehicle_location(vehicle_locs, vehicle_ids):
 
 def get_GndSeg(sem_label, GndClasses):
     index = np.isin(sem_label, GndClasses)
+    # index = (sem_label == GndClasses[0])
     GndSeg = np.ones(sem_label.shape)
     GndSeg[index] = 1
     index = np.isin(sem_label, [0, 1])
@@ -415,7 +454,7 @@ def avg_point_density_in_range(ptcl, ranges, space_range=100):
         # print(cnt, range)
         mask = ((ranges[cnt] * ranges[cnt]) < dist_to_center) * (dist_to_center <= (ranges[cnt + 1] * ranges[cnt + 1]))
         density.append(ptcl[mask].shape[0] / calculate_space_area_between(ranges[cnt], ranges[cnt + 1]))
-    density.append(ptcl[mask2].shape[0] / calculate_space_area_between(ranges[0], space_range))
+    # density.append(ptcl[mask2].shape[0] / calculate_space_area_between(ranges[0], space_range))
     return density
 
 
@@ -425,12 +464,24 @@ def calculate_space_area_between(start_range, end_range):
 
 def ransac_predict(points, threshold=0.1):
     points_copy = np.copy(points)
-    p2, p1, best_model, _ = my_ransac_v5(points_copy, 10000, P=0.8, distance_threshold=threshold,
-                                     lidar_height=-2.03727 + 0.1, lidar_height_down=-2.03727 - 0.1,
-                                     use_all_sample=True)
+    p2, p1, best_model, _ = my_ransac_v5(points_copy, 100, P=0.8, distance_threshold=threshold,
+                                         lidar_height=-1.6727 + 0.1, lidar_height_down=-1.6727 - 0.1,
+                                         use_all_sample=True)
     points_copy[:, 3] = 0  # object
     points_copy[p2, 3] = 1  # ground
     return points_copy
+
+
+def calculate_oracle_accuracy(single_grid, merged_grid, grid_truth):
+    correct, total = 0, 0
+    for x_idx in range(grid_truth.shape[0]):
+        for y_idx in range(grid_truth.shape[1]):
+            if grid_truth[x_idx][y_idx] != 0:
+                if single_grid[x_idx][y_idx] == grid_truth[x_idx][y_idx] or \
+                   merged_grid[x_idx][y_idx] == grid_truth[x_idx][y_idx]:
+                    correct += 1
+                total += 1
+    return correct/total
 
 
 ## TODO: Transform the ptcl to a global reference?
