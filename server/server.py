@@ -19,7 +19,7 @@ import pickle
 import group
 
 MAX_VEHICLES = 100
-MAX_FRAMES = 80
+MAX_FRAMES = 160
 TYPE_PCD = 0
 TYPE_OXTS = 1
 HELPEE = 0
@@ -49,7 +49,7 @@ parser.add_argument('-f', '--fixed_assignment', nargs='+', type=int,
                         help='use fixed assignment instead of dynamic shceduling, provide \
                         assignment with spaces (e.g. -f 3 2)')
 parser.add_argument('-s', '--scheduler', default='minDist', type=str, 
-                    help='scheduler to use: minDist|random|bwAware|emp')
+                    help='scheduler to use: minDist|random|bwAware|v2i|v2v')
 parser.add_argument('-t', '--trace_filename', default='', type=str, help='trace file to use')
 parser.add_argument('-d', '--data_save', default=0, type=int, 
                     help='whether to save undecoded pcds')
@@ -69,6 +69,8 @@ pcd_data_type = args.data_type
 fixed_assignment = ()
 save = args.data_save
 num_vehicles = args.num_vehicles
+# if args.v2v_mode == 1:
+#     num_vehicles -= 1
 is_one_to_one = 1 - args.multi
 combine_method = args.combine_method
 score_method = args.score_method
@@ -334,15 +336,15 @@ class ControlConnectionThread(threading.Thread):
 
 def check_current_connected_vehicles():
     global group_map, client_sockets
-    curr_connected_vehicles = []
+    current_connected_vehicles = []
     node_last_rx_time_lock.acquire()
     for v_id, last_ts in sorted(node_last_recv_timestamp.items()):
         curr_ts = time.time()
         if curr_ts - last_ts < NODE_LEFT_TIMEOUT: 
             # node are still reachable from the server, either helpee or helper
-            curr_connected_vehicles.append(v_id)
+            current_connected_vehicles.append(v_id)
     node_last_rx_time_lock.release()
-    if len(curr_connected_vehicles) > DIVIDE_THRESHOLD and args.enable_grouping:
+    if len(current_connected_vehicles) > DIVIDE_THRESHOLD and args.enable_grouping:
         print('enable grouping')
         new_group_map = group.devide_vehicle_to_groups(location_map)
         if new_group_map != group_map:
@@ -351,7 +353,7 @@ def check_current_connected_vehicles():
             group.notify_group_change(client_sockets, group_map)
             control_sock_lock.release()
     else:
-        new_group_map = {(0, 0): curr_connected_vehicles}
+        new_group_map = {(0, 0): current_connected_vehicles}
         group_map = new_group_map
         if len(group_map) > 0 and new_group_map.keys() != group_map.keys():
             control_sock_lock.acquire()
@@ -359,7 +361,7 @@ def check_current_connected_vehicles():
             control_sock_lock.release()     
     
 
-    return curr_connected_vehicles
+    return current_connected_vehicles
 
 
 def throughput_calc():
@@ -443,11 +445,13 @@ def server_recv_data(client_socket, client_addr):
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
             # check if ready to merge and send back results
             conn_lock.acquire()
-            print("[mark data ready]", v_id, frame_id%MAX_FRAMES)
+            print("[mark data ready]", v_id, frame_id%MAX_FRAMES, group_map)
             data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
             data_ready, v_ids = group.group_data_ready(data_ready_matrix, group_map, v_id, frame_id%MAX_FRAMES)
             # if data_ready:
             data_ready = data_ready or np.sum(data_ready_matrix[:, frame_id%MAX_FRAMES]) == num_vehicles
+            if args.v2v_mode == 1:
+                v_ids = [i for i in range(num_vehicles)]
             if data_ready and frame_id not in finished_frames:
                 # ready to merge
                 if frame_id not in first_frame_arrival_ts:
@@ -455,9 +459,9 @@ def server_recv_data(client_socket, client_addr):
                     continue
                 # finished_frames.add(frame_id)
                 # first_frame_arrival_ts.pop(frame_id)
-                # data_ready_matrix[:, frame_id%MAX_FRAMES] = 0 
-                print('[All frame in schedule, Send rst back to node]', 
-                    num_vehicles, frame_id)
+                if frame_id <= 5:
+                    data_ready_matrix[:, 0] = 0 
+                print('[All frame in schedule, Send rst back to node]', num_vehicles, frame_id)
                 for vehicle_id in v_ids:
                     data_ready_matrix[vehicle_id][frame_id%MAX_FRAMES] = 0
                     pcds[vehicle_id][frame_id%MAX_FRAMES] = []

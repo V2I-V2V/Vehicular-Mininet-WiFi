@@ -14,6 +14,7 @@ import time
 import math
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils
+import random
 
 # global default values
 pcd_data_type = 'GTA'
@@ -165,6 +166,7 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
              % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, int(is_v2v_mode), CODE_DIR)
         print(server_cmd)
     if is_v2v_mode:
+        # rand_vehicle_server = random.randint(0, len(stations)-1)
         stations[0].cmd(server_cmd)
     else:
         server.cmd(server_cmd)
@@ -183,8 +185,8 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
 
     # execute application commands
     for node_num in range(len(stations)):
-        if is_v2v_mode and node_num == 0:
-            continue
+        # if is_v2v_mode and node_num == 0:
+        #     continue
         stations[node_num].cmd(vehicle_app_commands[node_num])
 
 

@@ -884,7 +884,7 @@ def check_if_disconnected(disconnect_timestamps):
 
 def send_control_msgs(node_type):
     global control_seq_num
-    if scheduler_mode == 'emp' or scheduler_mode == 'v2v':
+    if scheduler_mode == 'v2i' or scheduler_mode == 'v2v':
         return
     v2i_control_socket_lock.acquire()
     if scheduler_mode == 'distributed':
@@ -970,14 +970,15 @@ def main():
     v2i_control_thread = ServerControlThread()
     v2i_control_thread.daemon = True
     v2i_control_thread.start()
-    v2v_control_thread = VehicleControlThread()
-    v2v_control_thread.daemon = True
-    v2v_control_thread.start()
-    v2v_data_control_thread = VehicleDataControlRecvThread()
-    v2v_data_control_thread.start()
-    v2v_data_thread = threading.Thread(target=v2v_data_recv_thread, args=())
-    v2v_data_thread.daemon = True
-    v2v_data_thread.start()
+    if args.v2v_mode == 0:
+        v2v_control_thread = VehicleControlThread()
+        v2v_control_thread.daemon = True
+        v2v_control_thread.start()
+        v2v_data_control_thread = VehicleDataControlRecvThread()
+        v2v_data_control_thread.start()
+        v2v_data_thread = threading.Thread(target=v2v_data_recv_thread, args=())
+        v2v_data_thread.daemon = True
+        v2v_data_thread.start()
     v2i_data_thread = threading.Thread(target=v2i_data_send_thread, args=())
     v2i_data_thread.daemon = True
     v2i_data_thread.start()

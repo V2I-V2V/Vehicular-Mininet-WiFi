@@ -9,16 +9,21 @@ from analysis.trajectory import get_node_dists
 import matplotlib.pyplot as plt
 from collections import OrderedDict, defaultdict
 import os
-from .ptcl_calc import calculate_merged_detection_spaces
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from analysis.ptcl_calc import calculate_merged_detection_spaces
 import multiprocessing
+import pickle
 from multiprocessing import Process
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
 sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
-    'combined-adapt': 'grey', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
+    'combined-adapt': 'midnightblue', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
     'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
-    'combined-op_sum-harmonic': 'cyan', 'emp': 'orange', 'combined-deadline': 'olive'}
+    'combined-op_sum-harmonic': 'cyan', 'v2i': 'orange', 'combined-deadline': 'olive',
+    'v2v' : 'crimson', 'v2i-adapt': 'forestgreen', 'v2v-adapt': 'darkviolet'}
+sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 'v2i-adapt': '+', 'v2v-adapt': 'x', 'v2i': 'o'}
 sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed': '--', 'combined': ':',\
     'combined-adapt': '-'}
 
@@ -31,11 +36,13 @@ linestyles = OrderedDict(
      ('combined-op_sum-min',      (0, (5, 10))),
      ('dashed',              (0, (5, 5))),
      ('random',      (0, (5, 1))),
-     ('emp',      (0, (5, 1))),
+     ('v2i',      (0, (5, 1))),
+     ('v2i-adapt',      (0, (5, 1))),
 
      ('combined-deadline',  (0, (3, 10, 1, 10))),
      ('distributed',          (0, (3, 5, 1, 5))),
-     ('densely dashdotted',  (0, (3, 1, 1, 1))),
+     ('v2v',  (0, (3, 1, 1, 1))),
+     ('v2v-adapt',  (0, (3, 1, 1, 1))),
 
      ('combined-op_sum-harmonic', (0, (3, 10, 1, 10, 1, 10))),
      ('combined-loc',         (0, (3, 5, 1, 5, 1, 5))),
@@ -153,6 +160,7 @@ def get_sender_ts(filename):
             parse = line.split()
             if line.startswith('[start timestamp]'):
                 start_ts = float(parse[-1])
+                summary_dict['start-ts'] = start_ts
             elif line.startswith('fps '):
                 fps = int(parse[-1])
             elif line.startswith("[V2I"):
@@ -237,7 +245,7 @@ def get_receiver_ts(filename):
                 # get node id
                 parse = line.split()
                 node_num = int(parse[-2])
-                # senders = ""
+                frame = int(parse[-1])
                 node_ids = []
                 for i in range(node_num):
                     node_ids.append(str(i))
@@ -247,12 +255,10 @@ def get_receiver_ts(filename):
                 frame_id_to_senders[frame] = senders
             elif line.startswith("[Deadline passed, Send rst back to node]"):
                 # get node id
+                frame = int(parse[-1])
                 recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
                 recved_node_arr = eval(recved_node_str)
                 node_ids = [str(idx) for idx, ele in enumerate(recved_node_arr) if ele == 1]
-                # senders = ""
-                # for i in node_ids:
-                #     senders += str(i)
                 senders = '-'.join(node_ids)
                 frame_id_to_senders[frame] = senders
         f.close()
@@ -292,22 +298,36 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode):
     detected_spaces = []
     manager = multiprocessing.Manager()
     detected_spaces = manager.list()
+    detection_acc = manager.list()
     processes = []
     for frame_id, v_num in frame_id_to_senders.items():
         v_ids = v_num.split('-')
+        # print(frame_id,v_ids)
+
         wrapped_frame_id = frame_id % 80
         qb_dict = {}
+        need_break = False
+        real_vids = []
         for v_id in v_ids:
-            qb_dict[v_id] = node_id_to_encode[int(v_id)][frame_id]
-        p = Process(target=calculate_merged_detection_spaces, args=(v_ids, wrapped_frame_id, 
-                    qb_dict, detected_spaces))
+            if frame_id not in node_id_to_encode[int(v_id)].keys():
+                continue
+            else:
+                qb_dict[v_id] = node_id_to_encode[int(v_id)][frame_id]
+                real_vids.append(v_id)
+        # if need_break:
+        #     break
+        p = Process(target=calculate_merged_detection_spaces, args=(real_vids, wrapped_frame_id, 
+                    qb_dict, detected_spaces, detection_acc))
         processes.append(p)
+        # if len(processes) >= 30:
+        #     for p in processes:
+        #         p.join()
         p.start()
         # detected_spaces += calculate_merged_detection_spaces(v_ids, wrapped_frame_id, qb_dict)
         # print(detected_spaces)
     for p in processes:
         p.join()
-    return detected_spaces
+    return detected_spaces, detection_acc
 
 
 def get_distributed_helper_assignments(data_dir, num_nodes):
@@ -380,89 +400,102 @@ def get_percentage_frames_within_threshold(node_to_latency, threshold, ssim_t=No
 
 
 def get_stats_on_one_run(dir, num_nodes, helpee_conf, with_ssim=False):
-    helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee
-    sender_ts_dict, encode_choice_dict = {}, {}
-    # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
-    latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
-    # node_id_to_latencies, node_id 
-    overhead, dl_latencies, e2e_latencies,frames_with_rst, e2e_latency_each_node = [], {}, [], {}, {}
-    node_to_encode_qb = {}
-    sent_frames = 0
-    ctrl_msg_size = []
-    for i in range(num_nodes):
-        sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = get_sender_ts(dir + '/logs/node%d.log'%i)
-        sent_frames += int((last_t-min(sender_ts_dict[i].values()))*10)
-        computational_overhead = get_computation_overhead(dir + '/logs/node%d.log'%i)
-        control_msg_size = get_control_msg_size(dir + '/logs/node%d.log'%i)
-        ctrl_msg_size.append(control_msg_size)
-        # dl_latencies.extend(summary_dict['dl-latency'])
-        dl_latencies[i] = summary_dict['dl-latency']
-        e2e_latencies += summary_dict['e2e-latency']
-        node_to_encode_qb[i] = summary_dict['qb']
-        e2e_latency_each_node[i] = summary_dict['e2e-latency']
-        frames_with_rst[i] = summary_dict['frames-with-result']
-        if len(computational_overhead) > 0:
-            print("overhead", np.mean(computational_overhead))
-            overhead.extend(computational_overhead)
+    if os.path.exists(dir+'/summary.pickle') and os.path.exists(dir+'/encode_decisions.pickle'):
+        # restore from saved part
+        with open(dir+'/summary.pickle', 'rb') as s:
+            print(dir+'/summary.pickle')
+            latency_dict = pickle.load(s)
+        with open(dir+'/encode_decisions.pickle', 'rb') as e:
+            node_to_encode_choices = pickle.load(e)
+    else:
+        helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee
+        sender_ts_dict, encode_choice_dict = {}, {}
+        # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
+        latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
+        # node_id_to_latencies, node_id 
+        overhead, dl_latencies, e2e_latencies,frames_with_rst, e2e_latency_each_node = [], {}, [], {}, {}
+        node_to_encode_qb = {}
+        node_sent_frames = []
+        ctrl_msg_size = []
+        for i in range(num_nodes):
+            if os.path.exists(dir + '/logs/node%d.log'%i):
+                sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = get_sender_ts(dir + '/logs/node%d.log'%i)
+                # sent_frames += int((last_t - summary_dict['start-ts']) * 10)
+                node_sent_frames.append(int((last_t - summary_dict['start-ts']) * 10))
+                computational_overhead = get_computation_overhead(dir + '/logs/node%d.log'%i)
+                control_msg_size = get_control_msg_size(dir + '/logs/node%d.log'%i)
+                ctrl_msg_size.append(control_msg_size)
+                # dl_latencies.extend(summary_dict['dl-latency'])
+                dl_latencies[i] = summary_dict['dl-latency']
+                e2e_latencies += summary_dict['e2e-latency']
+                node_to_encode_qb[i] = summary_dict['qb']
+                e2e_latency_each_node[i] = summary_dict['e2e-latency']
+                frames_with_rst[i] = summary_dict['frames-with-result']
+                if len(computational_overhead) > 0:
+                    print("overhead", np.mean(computational_overhead))
+                    overhead.extend(computational_overhead)
 
-        # sent_frames += 556
-        latency_dict[i] = {}
-        if with_ssim:
-            ssims = get_ssims(dir+'/node%d_ssim.log'%i)
-            node_to_ssims[i] = ssims
-    receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies, frame_id_to_senders = get_receiver_ts(dir + '/logs/server.log')
-    
-    detected_areas = calculate_are_carla(frame_id_to_senders, node_to_encode_qb)
-    # detected_areas = None
-    print("Total frames sent in exp", sent_frames)
-    # calculate delay
-    all_delay, helpee_delay, helper_delay = [], [], []
-    full_frames = receiver_ts_dict[0].keys()
-    for i in range(num_nodes):
-        full_frames = full_frames & receiver_ts_dict[i].keys()
-        for frame_idx, recv_ts in receiver_ts_dict[i].items():
-            send_ts = sender_ts_dict[i][frame_idx]
-            latency = recv_ts-sender_ts_dict[i][frame_idx]
-            # if latency < 0:
-            #     print("negative latency! %f, %d"%(latency, frame_idx))
-            #     print(dir)
-            #     print(i)
-            #     exit(1)
-            latency_dict[i][send_ts] = [latency, frame_idx] # add adptation choice
-            if with_ssim:                
-                latency_dict[i][send_ts] = [latency, frame_idx, get_ssim(node_to_ssims[i], frame_idx)]
-            all_delay.append(latency)
-            if i in helpees:
-                helpee_delay.append(latency)
-            else:
-                helper_delay.append(latency)
-    full_frame_delay, full_frame_max_delay = [], []
-    for frame in full_frames:
+                latency_dict[i] = {}
+                if with_ssim:
+                    ssims = get_ssims(dir+'/node%d_ssim.log'%i)
+                    node_to_ssims[i] = ssims
+        sent_frames = (num_nodes*max(node_sent_frames))
+        receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies, frame_id_to_senders = get_receiver_ts(dir + '/logs/server.log')
+        
+        detected_areas, detection_acc = calculate_are_carla(frame_id_to_senders, node_to_encode_qb)
+        # detected_areas = None
+        print("Total frames sent in exp", sent_frames)
+        # calculate delay
+        all_delay, helpee_delay, helper_delay = [], [], []
+        full_frames = receiver_ts_dict[0].keys()
         for i in range(num_nodes):
-            full_frame_delay.append(receiver_ts_dict[i][frame]-sender_ts_dict[i][frame])
-        full_frame_max_delay.append(max(full_frame_delay[-num_nodes:]))
-    for frame_id in frame_id_to_senders:
-        delay = []
-        for i in range(num_nodes):
-            if frame_id in receiver_ts_dict[i]:
-                delay.append(receiver_ts_dict[i][frame_id]-sender_ts_dict[i][frame_id])
-        # full_frame_max_delay.append(max(delay))
-    
-    latency_dict['all'] = np.array(all_delay)
-    latency_dict['helpee'] = np.array(helpee_delay)
-    latency_dict['helper'] = np.array(helper_delay)
-    latency_dict['full_frames'] = np.array(full_frame_delay)
-    latency_dict['sent_frames'] = sent_frames
-    latency_dict['max_full_frames'] = np.array(full_frame_max_delay)
-    latency_dict['e2e-latency'] = np.array(e2e_latencies)
-    latency_dict['e2e-latency-each-node'] = e2e_latency_each_node
-    latency_dict['frame-to-senders'] = frame_id_to_senders
-    latency_dict['frames-with-rst'] = frames_with_rst
-    latency_dict['overhead'] = np.array(overhead)
-    latency_dict['sched_latency'] = np.array(sched_latencies)
-    latency_dict['detected_areas'] = detected_areas
-    latency_dict['dl-latency'] = dl_latencies   
-    latency_dict['ctrl-msg-size'] = np.array(ctrl_msg_size)
+            full_frames = full_frames & receiver_ts_dict[i].keys()
+            for frame_idx, recv_ts in receiver_ts_dict[i].items():
+                send_ts = sender_ts_dict[i][frame_idx]
+                latency = recv_ts-sender_ts_dict[i][frame_idx]
+                latency_dict[i][send_ts] = [latency, frame_idx] # add adptation choice
+                if with_ssim:                
+                    latency_dict[i][send_ts] = [latency, frame_idx, get_ssim(node_to_ssims[i], frame_idx)]
+                all_delay.append(latency)
+                if i in helpees:
+                    helpee_delay.append(latency)
+                else:
+                    helper_delay.append(latency)
+        full_frame_delay, full_frame_max_delay = [], []
+        for frame in full_frames:
+            for i in range(num_nodes):
+                full_frame_delay.append(receiver_ts_dict[i][frame] - sender_ts_dict[i][frame])
+            full_frame_max_delay.append(max(full_frame_delay[-num_nodes:]))
+        for frame_id in frame_id_to_senders:
+            delay = []
+            for i in range(num_nodes):
+                if frame_id in receiver_ts_dict[i]:
+                    delay.append(receiver_ts_dict[i][frame_id]-sender_ts_dict[i][frame_id])
+            # full_frame_max_delay.append(max(delay))
+        
+        latency_dict['all'] = np.array(all_delay)
+        latency_dict['helpee'] = np.array(helpee_delay)
+        latency_dict['helper'] = np.array(helper_delay)
+        latency_dict['full_frames'] = np.array(full_frame_delay)
+        latency_dict['sent_frames'] = sent_frames
+        latency_dict['max_full_frames'] = np.array(full_frame_max_delay)
+        latency_dict['e2e-latency'] = np.array(e2e_latencies)
+        latency_dict['e2e-latency-each-node'] = e2e_latency_each_node
+        latency_dict['frame-to-senders'] = frame_id_to_senders
+        latency_dict['frames-with-rst'] = frames_with_rst
+        latency_dict['overhead'] = np.array(overhead)
+        latency_dict['sched_latency'] = np.array(sched_latencies)
+        latency_dict['detected_areas'] = list(detected_areas)
+        latency_dict['detection_acc'] = list(detection_acc)
+        latency_dict['dl-latency'] = dl_latencies   
+        latency_dict['ctrl-msg-size'] = np.array(ctrl_msg_size)
+        with open(dir+'/summary.pickle', 'wb') as s:
+            pickle.dump(latency_dict, s)
+            # json.dump(latency_dict, s)
+        with open(dir+'/encode_decisions.pickle', 'wb') as e:
+            pickle.dump(node_to_encode_choices, e)
+            # json.dump(node_to_encode_choices, e)
+    print("sent frames", latency_dict['sent_frames'])
     return latency_dict, node_to_encode_choices
 
 
@@ -515,15 +548,11 @@ def construct_ts_latency_array(delay_dict_ts, expected_frames=550):
         ts.append(send_ts)
         delay.append(delay_dict_ts[send_ts][0])
     
-
     print("skipped frames", skipped_frames)
-
                        
     ts = np.array(ts) - np.min(ts)
     delay = np.array(delay)
     return ts, delay
-
-
 
 
 def get_summary_of_settings(settings):
