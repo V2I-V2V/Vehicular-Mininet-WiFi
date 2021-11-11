@@ -48,7 +48,8 @@ def construct_ts_latency_array(delay_dict_ts):
     for i in sorted(delay_dict_ts.keys()):
         ts.append(i)
         delay.append(delay_dict_ts[i])
-    ts = np.array(ts) - np.min(ts)
+    if len(ts) > 0:
+        ts = np.array(ts) - np.min(ts)
     delay = np.array(delay)
     return ts, delay
 
@@ -92,7 +93,7 @@ def plot_all_delay(dir, delay_all):
     plt.savefig(dir+'latency-cdf.png')
 
 
-def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time):
+def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time, config):
     # plot node bw
     v2i_bw.plot_v2i_bw(bw_file, exp_time, num_nodes, dir, helpee_conf)
 
@@ -103,7 +104,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     disconnection.plot_disconnect(helpee_conf, exp_time, num_nodes, dir)
 
         
-    latency_dict, node_to_encode_choices = util.get_stats_on_one_run(dir, num_nodes, helpee_conf)
+    latency_dict, node_to_encode_choices = util.get_stats_on_one_run(dir, num_nodes, helpee_conf, config)
     np.savetxt(dir+'computation_overhead.txt', latency_dict['sched_latency'])
     np.savetxt(dir+'control_msg.txt', latency_dict['ctrl-msg-size'])
 
@@ -120,9 +121,10 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         receiver_ts_dict[i] = {}
         receiver_throughput[i] = []
     for i in range(num_nodes):
-        sender_ts_dict[i], sender_adaptive_choice[i], encode_time, end_t, summary = util.get_sender_ts(dir + 'logs/node%d.log'%i)
-        dl_latency[i], e2e_latency[i] = summary['dl-latency'], summary['e2e-latency']
-        helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
+        if os.path.exists(dir + 'logs/node%d.log'%i):
+            sender_ts_dict[i], sender_adaptive_choice[i], encode_time, end_t, summary = util.get_sender_ts(dir + 'logs/node%d.log'%i)
+            dl_latency[i], e2e_latency[i] = summary['dl-latency'], summary['e2e-latency']
+            helper_ts_dict[i] = get_helper_receive_ts(dir + 'logs/node%d.log'%i)
     receiver_ts_dict, receiver_thrpt, server_node_dict, _, _ = util.get_receiver_ts(dir + 'logs/server.log')
     delay_all = np.empty((300,))
     for i in range(num_nodes):
@@ -134,17 +136,17 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
             delay_all = np.concatenate((delay_all, delay))
 
     # Plot distribution    
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.set_axisbelow(True)
-    for i in range(num_nodes):
-        sns.ecdfplot(np.fromiter(delay_dict[i].values(), dtype=float), label='node%d'%i)
-        np.savetxt(dir+'node%d_latency.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
-    # plt.xlim([0, 0.5])
-    plt.xlabel("Latency (s)")
-    plt.ylabel("CDF")
-    plt.legend()
-    plt.savefig(dir+'latency-cdf-each-node.png')
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111)
+    # ax.set_axisbelow(True)
+    # for i in range(num_nodes):
+    #     sns.ecdfplot(np.fromiter(delay_dict[i].values(), dtype=float), label='node%d'%i)
+    #     # np.savetxt(dir+'node%d_latency.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
+    # # plt.xlim([0, 0.5])
+    # plt.xlabel("Latency (s)")
+    # plt.ylabel("CDF")
+    # plt.legend()
+    # plt.savefig(dir+'latency-cdf-each-node.png')
 
     fig, axes = plt.subplots(num_nodes, 1, sharex=True, figsize=(6, 3*num_nodes))
     for i in range(num_nodes):
@@ -174,7 +176,8 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     for i in range(num_nodes):
         # plot time series data
         ts, delay = construct_ts_latency_array(delay_dict_ts[i])
-        ax.plot(ts, delay, '--o', label='node%d'%i)
+        if len(ts) > 0:
+            ax.plot(ts, delay, '--o', label='node%d'%i)
     plt.xlabel("Time (s)")
     plt.ylabel("Latency (s)")
     plt.legend()
@@ -191,19 +194,24 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
             ax = axes[i]
             ax2 = ax.twinx()
             ts, delay = construct_ts_latency_array(delay_dict_ts[i])
-            ax.plot(ts, delay, '--', label='node%d-latency'%i)
-            encode_levels = []
-            for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
-                encode_levels.append(v)
-            ax.plot(ts, encode_levels[:len(ts)], label='encode level')
-            while bw.shape[0] < int(ts[-1]-ts[0]):
-                bw = np.vstack((bw, bw[-1]))
-            ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
-            ax.set_xlabel('Time (s)')
-            ax.set_ylabel('Latency (s)')
-            ax2.set_ylabel('Bandwidth (Mbps)')
-            ax.legend(loc='upper left')
-            ax2.legend()
+            if len(ts) > 0:
+                ax.plot(ts, delay, '--', label='node%d-latency'%i)
+                encode_levels = []
+                for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
+                    encode_levels.append(v)
+                ax.plot(ts, encode_levels[:len(ts)], label='encode level')
+                while bw.shape[0] < int(ts[-1]-ts[0]):
+                    bw = np.vstack((bw, bw[-1]))
+                
+                # ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
+                numbers = int(len(ts)/10)
+
+                ax2.plot(np.arange(bw[44:44+numbers, i].shape[0]), bw[44:44+numbers, i], label='node%i-bandwidth'%i)
+                ax.set_xlabel('Time (s)')
+                ax.set_ylabel('Latency (s)')
+                ax2.set_ylabel('Bandwidth (Mbps)')
+                ax.legend(loc='upper left')
+                ax2.legend()
 
         plt.tight_layout()
         plt.savefig(dir+'latency-adaptive-decisions.png')
@@ -284,17 +292,19 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
         # plot time series data
         ax = fig.add_subplot(num_nodes+1, 2, 2*i+1)
         # ts, delay = construct_ts_latency_array(delay_dict_ts[i])
-        ts, delay = util.construct_ts_latency_array(latency_dict[i])
-        delay = np.array(delay)
-        # print(np.argwhere(delay < 0))
-        ax.plot(ts, delay, '--o', label='node%d'%i)
-        ax.legend()
-        ax.set_ylabel("Latency (s)")
-        ax.set_xlim(0, exp_time-14)
-        ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
-        ax2.plot(np.arange(bws[:,i].shape[0]), bws[:,i])
-        ax2.set_ylabel('BW')
-        ax2.set_ylim(top=50)
+        if i in latency_dict:
+            ts, delay = util.construct_ts_latency_array(latency_dict[i])
+            if len(ts) > 0:
+                delay = np.array(delay)
+                # print(np.argwhere(delay < 0))
+                ax.plot(ts, delay, '--o', label='node%d'%i)
+                ax.legend()
+                ax.set_ylabel("Latency (s)")
+                ax.set_xlim(0, exp_time-14)
+                ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
+                ax2.plot(np.arange(bws[:,i].shape[0]), bws[:,i])
+                ax2.set_ylabel('BW')
+                ax2.set_ylim(top=50)
 
     if len(server_assignments) != 0:
         ax = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+1)
@@ -316,4 +326,4 @@ if __name__ == '__main__':
     loc_file = config_params['location_file']
     helpee_conf = config_params['helpee_conf']
     exp_time = int(config_params['t'])
-    single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time)
+    single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time, config_params)

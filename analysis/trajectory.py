@@ -19,9 +19,11 @@ def plot_trajectory(loc_file, save_dir='./'):
     ax = fig.add_subplot(111)
 
     for i in range(int(traj.shape[1]/2)):
+    # for i in range(2):
         ax.plot(traj[:,2*i], traj[:,2*i+1], label='node%d'%i)
         trajs[i] = traj[:,2*i:2*i+2]
     for i in range(int(traj.shape[1]/2)):
+    # for i in range(2):
         ax.scatter([traj[:,2*i][0]], [traj[:,2*i+1][0]], s=34)
 
     plt.xlabel('x (m)')

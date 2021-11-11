@@ -18,7 +18,7 @@ def read_traces(num_nodes):
     return traces
 
 
-def process_traces(traces, helpee_conf_file):
+def process_traces(helpee_conf_file):
     disconnect_dict = {}
     disconnect_conf = np.loadtxt(helpee_conf_file, dtype=float)
     if disconnect_conf.ndim == 1 and len(disconnect_conf) > 0:
@@ -44,6 +44,7 @@ def produce_3d_location_arr(location):
         location_str = str(location[2*i])+','+str(location[2*i+1])+',0'
         location_3d_arr.append(location_str)
     return location_3d_arr
+
 
 def produce_assignment_str(assignment):
     assignment_str = ""

@@ -4,8 +4,7 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import time
-from ground import my_ransac_v5
-
+from .ground import my_ransac_v5
 
 def read_ptcl_data(ptcl_fname):
     """ Read point cloud data (.bin/.pcd/.npy) to numpy array
@@ -207,6 +206,56 @@ def calculate_grid_label_ransac(grid_size, points, space_width=100, center=(0, 0
     grid[grid > 0] = 1  # drivable
     grid[grid < 0] = -1  # object
     return grid, density
+
+
+def calculate_grid_label_ransac_new(grid_size, points, space_width=100, center=(0, 0)):
+	x_size, y_size = int(space_width / grid_size), int(space_width / grid_size)
+	shifted_points = np.copy(points)
+	shifted_points[:, 0] -= center[0]
+	shifted_points[:, 1] -= center[1]
+	filtered = get_points_within_center(shifted_points, space_range=space_width)
+	grid = np.zeros((x_size, y_size), dtype=int)
+	# filtered = filtered.astype(np.int)
+	# print(filtered.shape)
+	for point in filtered:
+		x_idx, y_idx = int((point[0] + space_width/2) / grid_size), int((point[1] + space_width/2) / grid_size)
+		if x_idx < 100 and y_idx < 100:
+			# if point[3] == 0:
+			# 	# obj
+			# 	grid[x_idx][y_idx] -= 1
+			# el
+			if point[3] == 1:
+				# ground
+				grid[x_idx][y_idx] += 1
+			else:
+				grid[x_idx][y_idx] -= 1
+
+	grid[grid > 0] = 1  # drivable
+	grid[grid < 0] = -1  # object
+	return grid
+
+
+def calculate_grid_shapely(grid_size, pointcloud, space_width=100, center=(0, 0)):
+	import geopandas as gpd
+	from shapely.geometry import Point, MultiLineString
+	shifted_points = np.copy(pointcloud)
+	shifted_points[:, 0] -= center[0]
+	shifted_points[:, 1] -= center[1]
+	filtered = get_points_within_center(shifted_points, space_range=space_width)
+	points = gpd.GeoDataFrame({"x":filtered[:, 0],"y":filtered[:, 1]})
+	points['geometry'] = points.apply(lambda p: Point(p.x, p.y), axis=1)
+	print(points.head(2))
+	from shapely.ops import polygonize
+	gridy, gridx = np.arange(-space_width/2, space_width/2+1), np.arange(-space_width/2, space_width/2+1)
+	hlines = [((x1, yi), (x2, yi)) for x1, x2 in list(zip(gridx[:-1], gridx[1:])) for yi in gridy]
+	vlines = [((xi, y1), (xi, y2)) for y1, y2 in zip(gridy[:-1], gridy[1:]) for xi in gridx]
+	polys = list(polygonize(MultiLineString(hlines + vlines)))
+	id = [i for i in range(10000)]
+	grid = gpd.GeoDataFrame({"id":id,"geometry":polys})
+	print(grid.head(2))
+	from geopandas.tools import sjoin
+	pointInPolys = sjoin(points, grid, how='left')
+	print(pointInPolys.groupby(['id']).size().reset_index(name='count'))
 
 
 def grid_in_range(x_idx, y_idx, space_range=100):

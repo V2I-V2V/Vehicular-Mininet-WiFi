@@ -12,6 +12,7 @@ matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
+from matplotlib.patches import Rectangle
 from util import *
 from analyze_single_exp import construct_ts_assignment_array, construct_ts_scores_array
 
@@ -32,6 +33,97 @@ BW = []
 HELPEE = []
 config_set = set()
 
+def tablelegend(ax, col_labels=None, row_labels=None, title_label="", *args, **kwargs):
+    """
+    Place a table legend on the axes.
+    
+    Creates a legend where the labels are not directly placed with the artists, 
+    but are used as row and column headers, looking like this:
+    
+    title_label   | col_labels[1] | col_labels[2] | col_labels[3]
+    -------------------------------------------------------------
+    row_labels[1] |
+    row_labels[2] |              <artists go there>
+    row_labels[3] |
+    
+    
+    Parameters
+    ----------
+    
+    ax : `matplotlib.axes.Axes`
+        The artist that contains the legend table, i.e. current axes instant.
+        
+    col_labels : list of str, optional
+        A list of labels to be used as column headers in the legend table.
+        `len(col_labels)` needs to match `ncol`.
+        
+    row_labels : list of str, optional
+        A list of labels to be used as row headers in the legend table.
+        `len(row_labels)` needs to match `len(handles) // ncol`.
+        
+    title_label : str, optional
+        Label for the top left corner in the legend table.
+        
+    ncol : int
+        Number of columns.
+        
+
+    Other Parameters
+    ----------------
+    
+    Refer to `matplotlib.legend.Legend` for other parameters.
+    
+    """
+    #################### same as `matplotlib.axes.Axes.legend` #####################
+    handles, labels, extra_args, kwargs = mlegend._parse_legend_args([ax], *args, **kwargs)
+    if len(extra_args):
+        raise TypeError('legend only accepts two non-keyword arguments')
+    
+    if col_labels is None and row_labels is None:
+        ax.legend_ = mlegend.Legend(ax, handles, labels, **kwargs)
+        ax.legend_._remove_method = ax._remove_legend
+        return ax.legend_
+    #################### modifications for table legend ############################
+    else:
+        ncol = kwargs.pop('ncol')
+        handletextpad = kwargs.pop('handletextpad', 0 if col_labels is None else -2)
+        title_label = [title_label]
+        
+        # blank rectangle handle
+        extra = [Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)]
+        
+        # empty label
+        empty = [""]
+        
+        # number of rows infered from number of handles and desired number of columns
+        nrow = len(handles) // ncol
+        
+        # organise the list of handles and labels for table construction
+        if col_labels is None:
+            assert nrow == len(row_labels), "nrow = len(handles) // ncol = %s, but should be equal to len(row_labels) = %s." % (nrow, len(row_labels))
+            leg_handles = extra * nrow
+            leg_labels  = row_labels
+        elif row_labels is None:
+            assert ncol == len(col_labels), "ncol = %s, but should be equal to len(col_labels) = %s." % (ncol, len(col_labels))
+            leg_handles = []
+            leg_labels  = []
+        else:
+            assert nrow == len(row_labels), "nrow = len(handles) // ncol = %s, but should be equal to len(row_labels) = %s." % (nrow, len(row_labels))
+            assert ncol == len(col_labels), "ncol = %s, but should be equal to len(col_labels) = %s." % (ncol, len(col_labels))
+            leg_handles = extra + extra * nrow
+            leg_labels  = title_label + row_labels
+        for col in range(ncol):
+            if col_labels is not None:
+                leg_handles += extra
+                leg_labels  += [col_labels[col]]
+            leg_handles += handles[col*nrow:(col+1)*nrow]
+            leg_labels  += empty * nrow
+        
+        # Create legend
+        ax.legend_ = mlegend.Legend(ax, leg_handles, leg_labels, ncol=ncol+int(row_labels is not None), handletextpad=handletextpad, **kwargs)
+        ax.legend_._remove_method = ax._remove_legend
+        return ax.legend_
+
 
 def get_key_from_config(config, dir=''):
     global num_nodes
@@ -44,7 +136,12 @@ def get_key_from_config(config, dir=''):
         adapt_frame_skipping = int(config["adapt_frame_skipping"])
     else:
         adapt_frame_skipping = 0
-    if adapt_frame_skipping == 1:
+
+    if "adaptive_encode" in config.keys():
+        adapt_encoding = int(config["adaptive_encode"])
+    else:
+        adapt_encoding = 0
+    if adapt_frame_skipping == 1 or adapt_encoding == 1:
         scheduler += '-adapt'
     # if 'combine_method' in config.keys() and scheduler == 'combined':
     #     scheduler += ('-' + config['combine_method'])
@@ -315,37 +412,43 @@ def plot_full_frame(partial_results, name, idx):
     setting_to_diff_latency_frames, setting_to_diff_latency_frames_std = {}, {}
     setting_to_detection_rst, setting_to_detection_rst_std, setting_to_good_detection_frames \
         = {}, {}, {}
+    setting_to_accuracy, setting_to_latency = {} ,{}
     cnt = 0
     for label in labels:
-        assert label[idx] == ticks[cnt]
-        
+        # print(label)
+        assert label[idx] == ticks[cnt]      
         setting_to_diff_latency_frames[label] = []
         setting_to_diff_latency_frames_std[label] = []
         setting_to_detection_rst[label] = []
         setting_to_detection_rst_std[label] = []
         setting_to_good_detection_frames[label] = []
+        setting_to_accuracy[label] = []
+        setting_to_latency[label] = []
         for t in selected_threshold:
             # calculate mean and std
             one_setting_num_full_frames = []
-            one_setting_mean_detect_area = []
+            # one_setting_mean_detect_area = []
             for one_run in partial_results[label]:
                 one_setting_num_full_frames.append(
                     get_percentage_frames_within_threshold(one_run, t, key='e2e-latency', num_nodes=num_nodes)
                 )
                 # setting_to_detection_rst[label].extend(one_run['detected_areas'])
-                # one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))
-            
+                # one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))            
             
             setting_to_diff_latency_frames[label].append(np.mean(one_setting_num_full_frames))
             setting_to_diff_latency_frames_std[label].append(np.std(one_setting_num_full_frames))
 
-        one_setting_mean_detect_area = []
+        one_setting_mean_detect_area, one_setting_acc, one_setting_latency = [], [], []
         for one_run in partial_results[label]:
             setting_to_detection_rst[label].extend(one_run['detected_areas'])
             one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))
+            one_setting_acc.append(np.mean(one_run['detection_acc']))
+            one_setting_latency.append(np.mean(one_run['e2e-latency']))
             # setting_to_good_detection_frames[label].append(
             #     get_num_frames_above_detected_space_threshold(one_run['detected_areas'], 5000)
             # )
+        setting_to_accuracy[label] = one_setting_acc
+        setting_to_latency[label] = one_setting_latency
         setting_to_detection_rst_std[label].append(np.std(one_setting_mean_detect_area))
 
         ax.errorbar(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], \
@@ -370,16 +473,21 @@ def plot_full_frame(partial_results, name, idx):
     ax = fig.add_subplot(111)
 
     for label in labels:
-        ax.scatter(setting_to_diff_latency_frames[label][3], np.mean(setting_to_detection_rst[label]),
-        color=sched_to_color[label[idx]], label='pure-V2I' if label[idx] == 'emp' else label[idx])
-        ax.errorbar(setting_to_diff_latency_frames[label][3], np.mean(setting_to_detection_rst[label]), \
-            xerr=setting_to_diff_latency_frames_std[label][3], yerr=setting_to_detection_rst_std[label], capsize=2,
-            color=sched_to_color[label[idx]])
+        ax.scatter(setting_to_diff_latency_frames[label][4], np.mean(setting_to_accuracy[label]),
+        color=sched_to_color[label[idx]], label='Harbor' if label[idx] == 'combined-adapt' else label[idx],
+        marker=sched_to_marker[label[idx]])
+        ax.scatter(setting_to_diff_latency_frames[label][7], np.mean(setting_to_accuracy[label]),
+        color=sched_to_color[label[idx]], label='Harbor' if label[idx] == 'combined-adapt' else label[idx],
+        marker=sched_to_marker[label[idx]])
+        # ax.errorbar(np.mean(setting_to_latency[label]), np.mean(setting_to_accuracy[label]), \
+        #     xerr=np.std(setting_to_latency[label]), yerr=np.std(setting_to_accuracy[label]), capsize=2,
+        #     color=sched_to_color[label[idx]], marker=sched_to_marker[label[idx]])
+        # print('xerr', np.std(setting_to_latency[label]), setting_to_latency[label])
         
-
-    plt.xlabel("% of frame within 0.1s")
-    plt.ylabel("Detected space ($m^2$)")
-    plt.ylim([4000, 5200])
+    # plt.xlabel("% of frame within 0.1s")
+    
+    plt.xlabel("Latency (s)")
+    plt.ylabel("Detection Accuracy")
     plt.legend()
     plt.tight_layout()
     plt.savefig('analysis-results/%s-two-dim.png'%name)
@@ -406,7 +514,7 @@ def plot_based_on_setting(num_nodes):
     result = construct_result_based_on_keys(all_keys)
     result_full_frame = construct_full_frame_result_based_on_keys(all_keys)
     result_all_frame = construct_frame_result_based_on_keys(all_keys)
-    print(result)
+    # print(result)
     combined_latency_improvement = {}
     for loc in LOC:
         for bw in BW:
@@ -539,8 +647,8 @@ def get_all_runs_results(data_dir, key, with_ssim=False, parse_exp_stats=True):
             
             if parse_exp_stats:
                 result_each_run[conf_key] = get_stats_on_one_run(data_dir+dir, num_nodes,\
-                    config["helpee_conf"], with_ssim=with_ssim)[0]
-                print(conf_key, result_each_run[conf_key]['sent_frames'])
+                    config["helpee_conf"], config, with_ssim=with_ssim)[0]
+                # print(conf_key, result_each_run[conf_key]['sent_frames'])
             setting_to_folder[str(conf_key)] = dir
     with open('analysis-results/setting_to_folder.json', 'w') as f:
         json.dump(setting_to_folder, f)
@@ -581,7 +689,8 @@ def plot_bars_compare_schedules(schedules):
     schedule_data, schedule_overhead, server_compute_time, schedule_dl_latency = {}, {}, {}, {}
     schedule_helpee_data, schedule_helper_data = {}, {}
     schedule_to_frames_within_threshold = {}
-    schedule_to_detected_spaces = {}
+    sched_to_latency = {}
+    schedule_to_detected_spaces, sched_to_acc = {}, {}
     for schedule in schedules:
         for k, v in result_each_run.items():
             if schedule in k:
@@ -594,6 +703,8 @@ def plot_bars_compare_schedules(schedules):
                     schedule_helper_data[schedule] = v['helper']
                     schedule_to_frames_within_threshold[schedule] = [get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)]
                     schedule_to_detected_spaces[schedule] = [np.mean(v['detected_areas'])]
+                    sched_to_acc[schedule] = [np.mean(v['detection_acc'])]
+                    sched_to_latency[schedule] = [np.mean(v['e2e-latency'])]
                 else:
                     schedule_overhead[schedule] = np.hstack((schedule_overhead[schedule], v['overhead']))
                     # schedule_dl_latency[schedule] = np.hstack((schedule_dl_latency[schedule], v['dl-latency']))
@@ -605,6 +716,8 @@ def plot_bars_compare_schedules(schedules):
                         np.hstack((schedule_to_frames_within_threshold[schedule], \
                             get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)))
                     schedule_to_detected_spaces[schedule].append(np.mean(v['detected_areas']))
+                    sched_to_acc[schedule].append(np.mean(v['detection_acc']))
+                    sched_to_latency[schedule].append(np.mean(v['e2e-latency']))
     for schedule in schedule_data.keys():
         ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-0.2]), whis=(5, 95), autorange=True, showfliers=False)
         ax.boxplot(schedule_helpee_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
@@ -655,7 +768,7 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
     cnt = 0
     for schedule in schedule_data.keys():
-        print(schedule)
+        # print(schedule)
         ax.boxplot(schedule_to_frames_within_threshold[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
         cnt += 1
     ax.set_xticks(x_positions)
@@ -704,15 +817,12 @@ def plot_bars_compare_schedules(schedules):
         for t in selected_thresholds:
             sched_to_different_latency_mean[schedule].append(np.mean(sched_to_different_latency_cnts[schedule][t]))
             sched_to_different_latency_std[schedule].append(np.std(sched_to_different_latency_cnts[schedule][t]))
-        print("*******")
-        print(schedule, sched_to_different_latency_mean[schedule])
-        print(sched_to_different_latency_std[schedule][1])
+        # print("*******")
+        # print(schedule, sched_to_different_latency_mean[schedule])
+        # print(sched_to_different_latency_std[schedule][1])
         ax.plot(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], '-o', label=schedule if schedule is not 'combined-loc' else 'combined-loc-3.5m')
-        # ax.errorbar(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], yerr=sched_to_different_latency_std[schedule], capsize=2, label=schedule)
         ax.set_xticks(np.arange(0, len(selected_thresholds)))
         ax.set_xticklabels(selected_thresholds)
-    # ax.plot(np.arange(0, len(selected_thresholds)), [69.49424460431654, 70.58603117505996, 71.09562350119904, 71.49280575, 71.92745803357315, 73.8459232613909, 74.92505995203837, 76.01918465227818], '--o', label='combined-loc-12m')
-    # ax.plot(np.arange(0, len(selected_thresholds)), [59.59232613908873, 62.18025579536371, 64.8880895283773, 66.207034372502, 67.3960831334932, 72.06235011990408, 74.82014388489209, 78.28737010391687], '--o', label='combined-loc-30m')
     plt.legend()
     plt.ylabel("% of Frames within the latency threshold")
     plt.gca().set_ylim(bottom=0)
@@ -723,25 +833,94 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
 
     for schedule in schedule_data.keys():
-        ax.scatter(sched_to_different_latency_mean[schedule][0], np.mean(schedule_to_detected_spaces[schedule]),
-        label='pure-V2I' if schedule == 'emp' else schedule,
+        ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]),
+        label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],
         color=sched_to_color[schedule])
-        ax.errorbar(sched_to_different_latency_mean[schedule][0], np.mean(schedule_to_detected_spaces[schedule]), \
-            xerr=sched_to_different_latency_std[schedule][0], yerr=np.std(schedule_to_detected_spaces[schedule]), capsize=2,
-            color=sched_to_color[schedule])
-        print(schedule, sched_to_different_latency_mean[schedule][0], np.mean(schedule_to_detected_spaces[schedule]))
-        print(schedule, sched_to_different_latency_std[schedule][0], np.std(schedule_to_detected_spaces[schedule]))
+        ax.scatter(sched_to_different_latency_mean[schedule][4], np.mean(schedule_to_detected_spaces[schedule]),
+        label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],
+        color=sched_to_color[schedule])
+        # ax.errorbar(sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]), \
+        #     xerr=sched_to_different_latency_std[schedule][1], yerr=np.std(schedule_to_detected_spaces[schedule]), capsize=2,
+        #     color=sched_to_color[schedule], marker=sched_to_marker[schedule])
+        # print(schedule, sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]))
+        # print(schedule, sched_to_different_latency_std[schedule][1], np.std(schedule_to_detected_spaces[schedule]))
 
-    plt.ylim([4000, 5200])
-    plt.xlabel("% of frame within 0.1s")
+    plt.ylim([2000, 5200])
+    plt.xlabel("# of frame within latency threshold")
     plt.ylabel("Detected space ($m^2$)")
     plt.legend()
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim.png')
 
+    fig = plt.figure(figsize=(8,5))
+    ax = fig.add_subplot(111)
+    ims, plot_schedules = [], []
+    for schedule in schedule_data.keys():
+        plot_schedules.append('Harbor' if schedule == 'combined-adapt' else schedule)
+        im = ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]),
+            marker=sched_to_marker[schedule], color=sched_to_color[schedule])
+        ims.append(im)
+        im = ax.scatter(sched_to_different_latency_mean[schedule][4], np.mean(sched_to_acc[schedule]),
+            marker=sched_to_marker[schedule], edgecolor=sched_to_color[schedule], facecolors='none')
+        ims.append(im)
+        ax.plot([sched_to_different_latency_mean[schedule][1], sched_to_different_latency_mean[schedule][4]],
+            [np.mean(sched_to_acc[schedule]), np.mean(sched_to_acc[schedule])], '--', color=sched_to_color[schedule], linewidth=1)
+        # ax.errorbar(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]), \
+        #     xerr=sched_to_different_latency_std[schedule][1], yerr=np.std(sched_to_acc[schedule]), capsize=2,
+        #     color=sched_to_color[schedule])
+        # print(schedule, sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]))
+        # print(schedule, sched_to_different_latency_std[schedule][1], np.std(sched_to_acc[schedule]))
+
+
+    # create blank rectangle
+    extra = Rectangle((0, 0), 0.5, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
+
+    #Create organized list containing all handles for table. Extra represent empty space
+    legend_handle = [extra, extra, extra]
+    for index in range(int(len(ims)/2)):
+        legend_handle += [extra, ims[2*index], ims[2*index+1]]
+
+    #Define the labels
+    label_row_1 = [r"threshold", r"200 ms", r"500 ms"]
+    label_arr = label_row_1
+    for scheme in plot_schedules:
+        label_arr += [scheme, "", ""]
+    
+    #organize labels for table construction
+    legend_labels = np.array(label_arr)
+    # legend_labels = np.concatenate([label_row_1, label_j_1, label_empty * 2, label_j_2, label_empty * 2, label_j_3, label_empty * 2])
+
+    #Create legend
+    ax.legend(legend_handle, legend_labels,  ncol = len(plot_schedules) + 1, shadow = True, handletextpad = -2, fontsize=14)
+
+    plt.ylim([0.5, 0.75])
+    plt.xlabel("# of frame within latency threshold")
+    plt.ylabel("Detection Accuracy")
+    # plt.legend()
+    plt.tight_layout()
+    plt.savefig('analysis-results/aggregated-two-dim-acc.png')
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    for schedule in schedule_data.keys():
+        ax.scatter(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
+            label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],\
+            color=sched_to_color[schedule])
+        ax.errorbar(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]), \
+            xerr=np.std(sched_to_latency[schedule]), yerr=np.std(sched_to_acc[schedule]), capsize=2,
+            color=sched_to_color[schedule])
+        # print(schedule, np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
+
+    plt.ylim([0.5, 0.75])
+    plt.xlabel("Frame Latency (s)")
+    plt.ylabel("Detection Accuracy")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('analysis-results/aggregated-two-dim-acc-latency.png')
+
     sched_to_different_metric_cnts = {}
     latency_thresholds = [0.1, 0.2, 0.3]
-    space_thresholds = [4000, 4500, 5000]
+    space_thresholds = [3000, 4000, 4500, 5000]
     for schedule in schedules:
         sched_to_different_metric_cnts[schedule] = {}
         for t in latency_thresholds:
@@ -758,11 +937,11 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
     cnt = 0
     xticks = []
-    selected_metric = (0.1, 5000)
+    selected_metric = (0.2, 3000)
     for schedule in sched_to_different_latency_cnts:
-        xticks.append('pure-V2I' if schedule == 'emp' else schedule)
+        xticks.append('Harbor' if schedule == 'combined-adapt' else schedule)
         ax.bar(cnt, np.mean(sched_to_different_latency_cnts[schedule][selected_metric]),
-            align='center', label='pure-V2I' if schedule == 'emp' else schedule, color=sched_to_color[schedule],
+            align='center', label='Harbor' if schedule == 'combined-adapt' else schedule, color=sched_to_color[schedule],
             alpha=0.5)
         ax.errorbar(cnt, np.mean(sched_to_different_latency_cnts[schedule][selected_metric]),
             yerr=np.std(sched_to_different_latency_cnts[schedule][selected_metric]), capsize=3,
@@ -775,7 +954,7 @@ def plot_bars_compare_schedules(schedules):
 
 
     
-    fig = plt.figure()
+    fig = plt.figure(figsize=(8,6))
     ax = fig.add_subplot(111)
     cnt = 0
     xticks = []
@@ -832,7 +1011,6 @@ def calculate_per_node_mean(setting):
                 else:
                     node_result[i] = [np.mean(node_latency)]
    
-    # print(node_result)
     return node_result
 
 
@@ -927,7 +1105,7 @@ def analyze_msg_overhead():
     # get baseline performance
     nodes_base, perf_mean_base, perf_std_base = [], [], []
     for node, performance_overhead in sorted(sched_to_num_nodes_to_performance_overhead['fixed'].items()):
-        print(node, performance_overhead)
+        # print(node, performance_overhead)
         nodes_base.append(node)
         perf_mean_base.append(np.mean(performance_overhead))
         perf_std_base.append(np.std(performance_overhead))
@@ -938,16 +1116,16 @@ def analyze_msg_overhead():
             overhead_mean.append(np.mean(overheads))
             overhead_std.append(np.std(overheads))
         axes[0].errorbar(nodes, overhead_mean, yerr=overhead_std, capsize=2, label=sched)
-        print('data overhead', overhead_mean, overhead_std)
+        # print('data overhead', overhead_mean, overhead_std)
         nodes, overhead_mean, overhead_std = [], [], []
         for node, performance_overhead in sorted(sched_to_num_nodes_to_performance_overhead[sched].items()):
             nodes.append(node)
             overhead_mean.append(np.mean(performance_overhead))
             overhead_std.append(np.std(performance_overhead))
-        print("perf_overhead", overhead_mean, perf_mean_base, overhead_std, perf_std_base)
+        # print("perf_overhead", overhead_mean, perf_mean_base, overhead_std, perf_std_base)
         perf_improvement_mean, perf_improvement_std = 100. * (np.array(overhead_mean)/np.array(perf_mean_base) - 1), \
             np.array(overhead_std)/np.array(perf_mean_base)
-        print("percentage std ", perf_improvement_std)
+        # print("percentage std ", perf_improvement_std)
 
         axes[1].errorbar(nodes, perf_improvement_mean, yerr=perf_improvement_std, capsize=2, label=sched)
     axes[0].set_ylabel('Data overhead (%)')
@@ -1049,8 +1227,8 @@ def main():
     # plot_compare_latency_of_settings(set_of_settings)
     # repeat_exp_analysis()
     
-    rst = get_folder_based_on_setting(data_dir, ('111', 'lte-28', 'helpee-start-middle', 'combined'))
-    print(rst)
+    # rst = get_folder_based_on_setting(data_dir, ('111', 'lte-28', 'helpee-start-middle', 'combined'))
+    # print(rst)
 
 
 
