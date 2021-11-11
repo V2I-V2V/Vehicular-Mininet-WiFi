@@ -27,7 +27,7 @@ def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, 
     detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
 
 
-def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_list, acc_list):
+def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_list, acc_list, scheme):
     ptcls, vehicle_pos, grid_truth = [], {}, {}
     local_pred, local_points = {}, {}
     for v_id in v_ids:
@@ -63,8 +63,12 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         #     vehicle_pos[int(v_id)]))
         # processes.append(p)
         # p.start()
-        get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
-            vehicle_pos[int(v_id)], local_pred[int(v_id)])
+        if 'combined' in scheme:
+            get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
+                vehicle_pos[int(v_id)], local_pred=local_pred[int(v_id)])
+        else:
+            get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
+                vehicle_pos[int(v_id)], local_pred=None)
     for p in processes:
         p.join()
     # print('space detection takes:', time.time() - start)
