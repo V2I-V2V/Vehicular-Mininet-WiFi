@@ -471,7 +471,7 @@ def plot_full_frame(partial_results, name, idx):
         plt.tight_layout()
         plt.savefig('analysis-results/%s-diff-latency.png'%name)
 
-        fig = plt.figure(figsize=(9,5))
+        fig = plt.figure(figsize=(9,6))
         ax = fig.add_subplot(111)
 
         # print(partial_results)
@@ -493,14 +493,16 @@ def plot_full_frame(partial_results, name, idx):
             ax.plot([setting_to_diff_latency_frames[label][2], setting_to_diff_latency_frames[label][7]],
                 [np.mean(setting_to_accuracy[label]), np.mean(setting_to_accuracy[label])], '--', \
                 color=sched_to_color[label[idx]], linewidth=1)
+            print(name, label, np.mean(setting_to_accuracy[label]))
             # ax.errorbar(np.mean(setting_to_latency[label]), np.mean(setting_to_accuracy[label]), \
             #     xerr=np.std(setting_to_latency[label]), yerr=np.std(setting_to_accuracy[label]), capsize=2,
             #     color=sched_to_color[label[idx]], marker=sched_to_marker[label[idx]])
 
-        tablelegend(ax, ncol=len(plt_schemes), row_labels=['100ms', '200 ms', '500 ms'],
+        tablelegend(ax, bbox_to_anchor=(0.9, 1.5), ncol=len(plt_schemes), row_labels=['100ms', '200 ms', '500 ms'],
                     col_labels=plt_schemes, title_label='threshold')
         
         # plt.xlabel("# of frames within latency")
+        plt.ylim([0.55, 0.75])
         plt.xlabel("% of frames with detection results delivered within latency threshold")
         plt.ylabel("Detection Accuracy")
         plt.tight_layout()

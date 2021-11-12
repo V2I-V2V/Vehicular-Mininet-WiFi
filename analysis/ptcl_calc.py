@@ -8,7 +8,7 @@ import numpy as np
 import multiprocessing
 import time
 
-DATASET_DIR = '/home/'+getpass.getuser()+'/Carla/lidar/'
+DATASET_DIR = '/home/mininet-wifi/Carla/lidar/'
 
 vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
 vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 163, 185, 97]
