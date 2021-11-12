@@ -16,13 +16,14 @@ vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 163, 185, 97]
 def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred = None):
     merged_pred_grid = \
             ptcl.ptcl_utils.calculate_grid_label_ransac_new(1, points, center=center)
-    acc, _ = ptcl.ptcl_utils.calculate_precision(merged_pred_grid, grid_truth)
     if local_pred is None:
+        acc, _ = ptcl.ptcl_utils.calculate_precision(merged_pred_grid, grid_truth)
         detection_accuracy.append(acc)
     else:
         combined_grid = ptcl.ptcl_utils.combine_merged_results(local_pred, merged_pred_grid)
         # combined_grid = ptcl.ptcl_utils.combine_merged_results_on_remote(local_pred, merged_pred_grid)
         acc, _ = ptcl.ptcl_utils.calculate_precision(combined_grid, grid_truth)
+        # acc = ptcl.ptcl_utils.calculate_oracle_accuracy(local_pred, merged_pred_grid, grid_truth)
         detection_accuracy.append(acc)
     detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
 
