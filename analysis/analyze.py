@@ -865,7 +865,7 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
     ims, plot_schedules = [], []
     for schedule in schedule_data.keys():
-        plot_schedules.append('Harbor' if schedule == 'combined-adapt' else schedule)
+        plot_schedules.append(shced_to_displayed_name[schedule])
         im = ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]),
             marker=sched_to_marker[schedule], color=sched_to_color[schedule])
         ims.append(im)
@@ -900,7 +900,7 @@ def plot_bars_compare_schedules(schedules):
     # legend_labels = np.concatenate([label_row_1, label_j_1, label_empty * 2, label_j_2, label_empty * 2, label_j_3, label_empty * 2])
 
     #Create legend
-    ax.legend(legend_handle, legend_labels,  ncol = len(plot_schedules) + 1, shadow = True, handletextpad = -2, fontsize=14)
+    ax.legend(legend_handle, legend_labels, ncol = len(plot_schedules) + 1, shadow = True, handletextpad = -2, fontsize=14)
 
     plt.ylim([0.5, 0.75])
     plt.xlabel("# of frame within latency threshold")
