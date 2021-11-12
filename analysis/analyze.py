@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import json
 from matplotlib.patches import Rectangle
+import matplotlib.legend as mlegend
 from util import *
 from analyze_single_exp import construct_ts_assignment_array, construct_ts_scores_array
 
@@ -120,7 +121,7 @@ def tablelegend(ax, col_labels=None, row_labels=None, title_label="", *args, **k
             leg_labels  += empty * nrow
         
         # Create legend
-        ax.legend_ = mlegend.Legend(ax, leg_handles, leg_labels, ncol=ncol+int(row_labels is not None), handletextpad=handletextpad, **kwargs)
+        ax.legend_ = mlegend.Legend(ax, leg_handles, leg_labels, ncol=ncol+int(row_labels is not None), handletextpad=handletextpad, fontsize=13, **kwargs)
         ax.legend_._remove_method = ax._remove_legend
         return ax.legend_
 
@@ -401,96 +402,104 @@ def plot_dict_data_box(dict, name, idx):
   
    
 def plot_full_frame(partial_results, name, idx):
-    fig = plt.figure()   
-    labels, data = partial_results.keys(), partial_results.values() 
-    print(labels)
-    ticks = []
-    for label in labels:
-        ticks.append(label[idx])
-    ax = fig.add_subplot(111)
-    selected_threshold = [0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 1.0, 1.5, 2.0]
-    setting_to_diff_latency_frames, setting_to_diff_latency_frames_std = {}, {}
-    setting_to_detection_rst, setting_to_detection_rst_std, setting_to_good_detection_frames \
-        = {}, {}, {}
-    setting_to_accuracy, setting_to_latency = {} ,{}
-    cnt = 0
-    for label in labels:
-        # print(label)
-        assert label[idx] == ticks[cnt]      
-        setting_to_diff_latency_frames[label] = []
-        setting_to_diff_latency_frames_std[label] = []
-        setting_to_detection_rst[label] = []
-        setting_to_detection_rst_std[label] = []
-        setting_to_good_detection_frames[label] = []
-        setting_to_accuracy[label] = []
-        setting_to_latency[label] = []
-        for t in selected_threshold:
-            # calculate mean and std
-            one_setting_num_full_frames = []
-            # one_setting_mean_detect_area = []
+    if partial_results != {}:
+        fig = plt.figure()   
+        labels, data = partial_results.keys(), partial_results.values() 
+        print(labels)
+        ticks = []
+        for label in labels:
+            ticks.append(label[idx])
+        ax = fig.add_subplot(111)
+        selected_threshold = [0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 1.0, 1.5, 2.0]
+        setting_to_diff_latency_frames, setting_to_diff_latency_frames_std = {}, {}
+        setting_to_detection_rst, setting_to_detection_rst_std, setting_to_good_detection_frames \
+            = {}, {}, {}
+        setting_to_accuracy, setting_to_latency = {} ,{}
+        cnt = 0
+        for label in labels:
+            # print(label)
+            assert label[idx] == ticks[cnt]      
+            setting_to_diff_latency_frames[label] = []
+            setting_to_diff_latency_frames_std[label] = []
+            setting_to_detection_rst[label] = []
+            setting_to_detection_rst_std[label] = []
+            setting_to_good_detection_frames[label] = []
+            setting_to_accuracy[label] = []
+            setting_to_latency[label] = []
+            for t in selected_threshold:
+                # calculate mean and std
+                one_setting_num_full_frames = []
+                # one_setting_mean_detect_area = []
+                for one_run in partial_results[label]:
+                    one_setting_num_full_frames.append(
+                        get_percentage_frames_within_threshold(one_run, t, key='e2e-latency', num_nodes=num_nodes)
+                    )
+                    # setting_to_detection_rst[label].extend(one_run['detected_areas'])
+                    # one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))            
+                
+                setting_to_diff_latency_frames[label].append(np.mean(one_setting_num_full_frames))
+                setting_to_diff_latency_frames_std[label].append(np.std(one_setting_num_full_frames))
+
+            one_setting_mean_detect_area, one_setting_acc, one_setting_latency = [], [], []
             for one_run in partial_results[label]:
-                one_setting_num_full_frames.append(
-                    get_percentage_frames_within_threshold(one_run, t, key='e2e-latency', num_nodes=num_nodes)
-                )
-                # setting_to_detection_rst[label].extend(one_run['detected_areas'])
-                # one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))            
-            
-            setting_to_diff_latency_frames[label].append(np.mean(one_setting_num_full_frames))
-            setting_to_diff_latency_frames_std[label].append(np.std(one_setting_num_full_frames))
+                setting_to_detection_rst[label].extend(one_run['detected_areas'])
+                one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))
+                one_setting_acc.append(np.mean(one_run['detection_acc']))
+                one_setting_latency.append(np.mean(one_run['e2e-latency']))
+                # setting_to_good_detection_frames[label].append(
+                #     get_num_frames_above_detected_space_threshold(one_run['detected_areas'], 5000)
+                # )
+            setting_to_accuracy[label] = one_setting_acc
+            setting_to_latency[label] = one_setting_latency
+            setting_to_detection_rst_std[label].append(np.std(one_setting_mean_detect_area))
 
-        one_setting_mean_detect_area, one_setting_acc, one_setting_latency = [], [], []
-        for one_run in partial_results[label]:
-            setting_to_detection_rst[label].extend(one_run['detected_areas'])
-            one_setting_mean_detect_area.append(np.mean(one_run['detected_areas']))
-            one_setting_acc.append(np.mean(one_run['detection_acc']))
-            one_setting_latency.append(np.mean(one_run['e2e-latency']))
-            # setting_to_good_detection_frames[label].append(
-            #     get_num_frames_above_detected_space_threshold(one_run['detected_areas'], 5000)
-            # )
-        setting_to_accuracy[label] = one_setting_acc
-        setting_to_latency[label] = one_setting_latency
-        setting_to_detection_rst_std[label].append(np.std(one_setting_mean_detect_area))
-
-        ax.errorbar(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], \
-                yerr=setting_to_diff_latency_frames_std[label], capsize=2, color=sched_to_color[label[idx]], \
-                ls=linestyles[label[idx]], label=label[idx])
-        print(label[idx], "Mean threshold value")
-        print(setting_to_diff_latency_frames[label])
-        print(setting_to_diff_latency_frames_std[label])
-        cnt += 1
-    
-    ax.set_xticks(np.arange(1,len(selected_threshold)+1))
-    ax.set_xticklabels(selected_threshold)
-
-    plt.legend()
-    plt.ylabel("% of Frames within latency")
-    plt.xlabel('Latency (s)')
-    plt.gca().set_ylim(bottom=0)
-    plt.tight_layout()
-    plt.savefig('analysis-results/%s-diff-latency.png'%name)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-
-    for label in labels:
-        ax.scatter(setting_to_diff_latency_frames[label][4], np.mean(setting_to_accuracy[label]),
-        color=sched_to_color[label[idx]], label='Harbor' if label[idx] == 'combined-adapt' else label[idx],
-        marker=sched_to_marker[label[idx]])
-        ax.scatter(setting_to_diff_latency_frames[label][7], np.mean(setting_to_accuracy[label]),
-        color=sched_to_color[label[idx]], label='Harbor' if label[idx] == 'combined-adapt' else label[idx],
-        marker=sched_to_marker[label[idx]])
-        # ax.errorbar(np.mean(setting_to_latency[label]), np.mean(setting_to_accuracy[label]), \
-        #     xerr=np.std(setting_to_latency[label]), yerr=np.std(setting_to_accuracy[label]), capsize=2,
-        #     color=sched_to_color[label[idx]], marker=sched_to_marker[label[idx]])
-        # print('xerr', np.std(setting_to_latency[label]), setting_to_latency[label])
+            ax.errorbar(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], \
+                    yerr=setting_to_diff_latency_frames_std[label], capsize=2, color=sched_to_color[label[idx]], \
+                    ls=linestyles[label[idx]], label=label[idx])
+            print(label[idx], "Mean threshold value")
+            print(setting_to_diff_latency_frames[label])
+            print(setting_to_diff_latency_frames_std[label])
+            cnt += 1
         
-    # plt.xlabel("% of frame within 0.1s")
-    
-    plt.xlabel("Latency (s)")
-    plt.ylabel("Detection Accuracy")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig('analysis-results/%s-two-dim.png'%name)
+        ax.set_xticks(np.arange(1,len(selected_threshold)+1))
+        ax.set_xticklabels(selected_threshold)
+
+        plt.legend()
+        plt.ylabel("% of Frames within latency")
+        plt.xlabel('Latency (s)')
+        plt.gca().set_ylim(bottom=0)
+        plt.tight_layout()
+        plt.savefig('analysis-results/%s-diff-latency.png'%name)
+
+        fig = plt.figure(figsize=(9,5))
+        ax = fig.add_subplot(111)
+
+        # print(partial_results)
+        plt_schemes = []
+        for label in labels:
+            plt_schemes.append('Harbor' if label[idx] == 'combined-adapt' else label[idx])
+            label_str = "%s, %s"%('Harbor' if label[idx] == 'combined-adapt' else label[idx], '200 ms')
+            ax.scatter(setting_to_diff_latency_frames[label][4], np.mean(setting_to_accuracy[label]),
+            color=sched_to_color[label[idx]], label=label_str,
+            marker=sched_to_marker[label[idx]])
+            label_str = "%s, %s"%('Harbor' if label[idx] == 'combined-adapt' else label[idx], '500 ms')
+            ax.scatter(setting_to_diff_latency_frames[label][7], np.mean(setting_to_accuracy[label]),
+            edgecolor=sched_to_color[label[idx]], facecolors='none', marker=sched_to_marker[label[idx]],
+            label=label_str)
+            ax.plot([setting_to_diff_latency_frames[label][4], setting_to_diff_latency_frames[label][7]],
+                [np.mean(setting_to_accuracy[label]), np.mean(setting_to_accuracy[label])], '--', \
+                color=sched_to_color[label[idx]], linewidth=1)
+            # ax.errorbar(np.mean(setting_to_latency[label]), np.mean(setting_to_accuracy[label]), \
+            #     xerr=np.std(setting_to_latency[label]), yerr=np.std(setting_to_accuracy[label]), capsize=2,
+            #     color=sched_to_color[label[idx]], marker=sched_to_marker[label[idx]])
+
+        tablelegend(ax, ncol=len(plt_schemes), row_labels=['200 ms', '500 ms'],
+                    col_labels=plt_schemes, title_label='threshold')
+        
+        plt.xlabel("# of frames within latency")
+        plt.ylabel("Detection Accuracy")
+        plt.tight_layout()
+        plt.savefig('analysis-results/%s-two-dim.png'%name)
 
     
             
@@ -852,7 +861,7 @@ def plot_bars_compare_schedules(schedules):
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim.png')
 
-    fig = plt.figure(figsize=(8,5))
+    fig = plt.figure(figsize=(9,5))
     ax = fig.add_subplot(111)
     ims, plot_schedules = [], []
     for schedule in schedule_data.keys():

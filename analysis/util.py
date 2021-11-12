@@ -18,6 +18,9 @@ from multiprocessing import Process
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
+shced_to_displayed_name = {
+    'combined-adapt': 's', 'v2v' : '^', 'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o'
+}
 sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
     'combined-adapt': 'midnightblue', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
     'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
