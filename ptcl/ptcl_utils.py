@@ -303,11 +303,11 @@ def calculate_precision(grid_pred, grid_truth):
                     result_grid[x_idx][y_idx] = 4  # TN
     precision = correct / total
 
-    pre = TP / (TP + FP)
-    recall = TP / (TP + FN)
+    # pre = TP / (TP + FP)
+    # recall = TP / (TP + FN)
 
-    print(pre, recall)
-    print(TP, FP, FN, TN, TP + FP + FN + TN, (TP + TN) / (TP + FP + FN + TN))
+    # print(pre, recall)
+    # print(TP, FP, FN, TN, TP + FP + FN + TN, (TP + TN) / (TP + FP + FN + TN))
 
     # rst = grid_pred == grid_truth
     # # precision
@@ -432,5 +432,16 @@ def ransac_predict(points, threshold=0.1):
     points_copy[p2, 3] = 1  # ground
     return points_copy
 
+
+def calculate_oracle_accuracy(single_grid, merged_grid, grid_truth):
+    correct, total = 0, 0
+    for x_idx in range(grid_truth.shape[0]):
+        for y_idx in range(grid_truth.shape[1]):
+            if grid_truth[x_idx][y_idx] != 0:
+                if single_grid[x_idx][y_idx] == grid_truth[x_idx][y_idx] or \
+                   merged_grid[x_idx][y_idx] == grid_truth[x_idx][y_idx]:
+                    correct += 1
+                total += 1
+    return correct/total
 
 ## TODO: Transform the ptcl to a global reference?
