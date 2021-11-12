@@ -478,25 +478,30 @@ def plot_full_frame(partial_results, name, idx):
         plt_schemes = []
         for label in labels:
             plt_schemes.append('Harbor' if label[idx] == 'combined-adapt' else label[idx])
+            label_str = "%s, %s"%('Harbor' if label[idx] == 'combined-adapt' else label[idx], '100 ms')
+            ax.scatter(setting_to_diff_latency_frames[label][2], np.mean(setting_to_accuracy[label]),
+            color=sched_to_color[label[idx]], label=label_str,
+            marker=sched_to_marker[label[idx]])
             label_str = "%s, %s"%('Harbor' if label[idx] == 'combined-adapt' else label[idx], '200 ms')
             ax.scatter(setting_to_diff_latency_frames[label][4], np.mean(setting_to_accuracy[label]),
             color=sched_to_color[label[idx]], label=label_str,
-            marker=sched_to_marker[label[idx]])
+            marker=sched_to_marker[label[idx]],alpha=0.5)
             label_str = "%s, %s"%('Harbor' if label[idx] == 'combined-adapt' else label[idx], '500 ms')
             ax.scatter(setting_to_diff_latency_frames[label][7], np.mean(setting_to_accuracy[label]),
             edgecolor=sched_to_color[label[idx]], facecolors='none', marker=sched_to_marker[label[idx]],
             label=label_str)
-            ax.plot([setting_to_diff_latency_frames[label][4], setting_to_diff_latency_frames[label][7]],
+            ax.plot([setting_to_diff_latency_frames[label][2], setting_to_diff_latency_frames[label][7]],
                 [np.mean(setting_to_accuracy[label]), np.mean(setting_to_accuracy[label])], '--', \
                 color=sched_to_color[label[idx]], linewidth=1)
             # ax.errorbar(np.mean(setting_to_latency[label]), np.mean(setting_to_accuracy[label]), \
             #     xerr=np.std(setting_to_latency[label]), yerr=np.std(setting_to_accuracy[label]), capsize=2,
             #     color=sched_to_color[label[idx]], marker=sched_to_marker[label[idx]])
 
-        tablelegend(ax, ncol=len(plt_schemes), row_labels=['200 ms', '500 ms'],
+        tablelegend(ax, ncol=len(plt_schemes), row_labels=['100ms', '200 ms', '500 ms'],
                     col_labels=plt_schemes, title_label='threshold')
         
-        plt.xlabel("# of frames within latency")
+        # plt.xlabel("# of frames within latency")
+        plt.xlabel("% of frames with detection results delivered within latency threshold")
         plt.ylabel("Detection Accuracy")
         plt.tight_layout()
         plt.savefig('analysis-results/%s-two-dim.png'%name)
@@ -861,18 +866,21 @@ def plot_bars_compare_schedules(schedules):
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim.png')
 
-    fig = plt.figure(figsize=(9,5))
+    fig = plt.figure(figsize=(9,6))
     ax = fig.add_subplot(111)
     ims, plot_schedules = [], []
     for schedule in schedule_data.keys():
         plot_schedules.append(shced_to_displayed_name[schedule])
-        im = ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]),
+        im = ax.scatter(sched_to_different_latency_mean[schedule][0], np.mean(sched_to_acc[schedule]),
             marker=sched_to_marker[schedule], color=sched_to_color[schedule])
+        ims.append(im)
+        im = ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]),
+            marker=sched_to_marker[schedule], color=sched_to_color[schedule], alpha=0.5)
         ims.append(im)
         im = ax.scatter(sched_to_different_latency_mean[schedule][4], np.mean(sched_to_acc[schedule]),
             marker=sched_to_marker[schedule], edgecolor=sched_to_color[schedule], facecolors='none')
         ims.append(im)
-        ax.plot([sched_to_different_latency_mean[schedule][1], sched_to_different_latency_mean[schedule][4]],
+        ax.plot([sched_to_different_latency_mean[schedule][0], sched_to_different_latency_mean[schedule][4]],
             [np.mean(sched_to_acc[schedule]), np.mean(sched_to_acc[schedule])], '--', color=sched_to_color[schedule], linewidth=1)
         # ax.errorbar(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]), \
         #     xerr=sched_to_different_latency_std[schedule][1], yerr=np.std(sched_to_acc[schedule]), capsize=2,
@@ -885,25 +893,26 @@ def plot_bars_compare_schedules(schedules):
     extra = Rectangle((0, 0), 0.5, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
 
     #Create organized list containing all handles for table. Extra represent empty space
-    legend_handle = [extra, extra, extra]
-    for index in range(int(len(ims)/2)):
-        legend_handle += [extra, ims[2*index], ims[2*index+1]]
+    legend_handle = [extra, extra, extra, extra]
+    for index in range(int(len(ims)/3)):
+        legend_handle += [extra, ims[3*index], ims[3*index+1], ims[3*index+2]]
 
     #Define the labels
-    label_row_1 = [r"threshold", r"200 ms", r"500 ms"]
+    label_row_1 = [r"threshold", r"100 ms", r"200 ms", r"500 ms"]
     label_arr = label_row_1
     for scheme in plot_schedules:
-        label_arr += [scheme, "", ""]
+        label_arr += [scheme, "", "", ""]
     
     #organize labels for table construction
     legend_labels = np.array(label_arr)
     # legend_labels = np.concatenate([label_row_1, label_j_1, label_empty * 2, label_j_2, label_empty * 2, label_j_3, label_empty * 2])
 
     #Create legend
-    ax.legend(legend_handle, legend_labels, ncol = len(plot_schedules) + 1, shadow = True, handletextpad = -2, fontsize=14)
+    ax.legend(legend_handle, legend_labels, ncol = len(plot_schedules) + 1, shadow = True, 
+              handletextpad = -2, fontsize=14, bbox_to_anchor=(0.9,1.45))
 
     plt.ylim([0.5, 0.75])
-    plt.xlabel("# of frame within latency threshold")
+    plt.xlabel("% of frames with detection results delivered within latency threshold")
     plt.ylabel("Detection Accuracy")
     # plt.legend()
     plt.tight_layout()

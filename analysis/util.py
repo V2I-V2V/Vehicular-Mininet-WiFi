@@ -312,6 +312,8 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config):
         qb_dict = {}
         real_vids = []
         for v_id in v_ids:
+            if int(v_id) not in node_id_to_encode:
+                continue
             if frame_id not in node_id_to_encode[int(v_id)].keys():
                 continue
             else:
@@ -393,8 +395,8 @@ def get_percentage_frames_within_threshold(node_to_latency, threshold, ssim_t=No
     if key == 'max_full_frames':
         return num_frames/node_to_latency['sent_frames'] * 100.0 * num_nodes
     else:
-        # return num_frames/node_to_latency['sent_frames'] * 100.0
-        return num_frames
+        return num_frames/node_to_latency['sent_frames'] * 100.0
+        # return num_frames
 
 
 def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
