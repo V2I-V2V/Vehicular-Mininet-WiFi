@@ -1,10 +1,12 @@
 import numpy as np
 import open3d as o3d
 import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import time
-from .ground import my_ransac_v5
+from ptcl.ground import my_ransac_v5
 
 def read_ptcl_data(ptcl_fname):
     """ Read point cloud data (.bin/.pcd/.npy) to numpy array
@@ -308,8 +310,8 @@ def calculate_precision(grid_pred, grid_truth):
                     result_grid[x_idx][y_idx] = 4  # TN
     precision = correct / total
 
-    pre = TP / (TP + FP)
-    recall = TP / (TP + FN)
+    # pre = TP / (TP + FP)
+    # recall = TP / (TP + FN)
 
     # print(pre, recall)
     # print(TP, FP, FN, TN, TP + FP + FN + TN, (TP + TN) / (TP + FP + FN + TN))

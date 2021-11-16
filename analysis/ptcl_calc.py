@@ -10,20 +10,32 @@ import time
 
 DATASET_DIR = '/home/'+getpass.getuser()+'/Carla/lidar/'
 
-vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
-vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 163, 185, 97]
+# vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
+vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 130, 174, 185]
+remote_accs = []
+oracle_accs = []
 
-def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred = None):
+
+def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred=None):
+    global remote_acc
     merged_pred_grid = \
             ptcl.ptcl_utils.calculate_grid_label_ransac_new(1, points, center=center)
-    acc, _ = ptcl.ptcl_utils.calculate_precision(merged_pred_grid, grid_truth)
     if local_pred is None:
+        acc, _ = ptcl.ptcl_utils.calculate_precision(merged_pred_grid, grid_truth)
         detection_accuracy.append(acc)
     else:
         combined_grid = ptcl.ptcl_utils.combine_merged_results(local_pred, merged_pred_grid)
         # combined_grid = ptcl.ptcl_utils.combine_merged_results_on_remote(local_pred, merged_pred_grid)
         acc, _ = ptcl.ptcl_utils.calculate_precision(combined_grid, grid_truth)
         detection_accuracy.append(acc)
+        local_acc, _ = ptcl.ptcl_utils.calculate_precision(local_pred, grid_truth)
+        # print('local', local_acc, center)
+        remote_acc, _ = ptcl.ptcl_utils.calculate_precision(merged_pred_grid, grid_truth)
+        remote_accs.append(remote_acc)
+        # print('remote', remote_acc, center)
+        oracle = ptcl.ptcl_utils.calculate_oracle_accuracy(local_pred, merged_pred_grid, grid_truth)
+        print(local_acc, remote_acc, acc, oracle)
+        oracle_accs.append(oracle)
     detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
 
 
@@ -52,7 +64,8 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         new_pos = np.dot(trans, dummy).T
         vehicle_pos[int(v_id)]= (new_pos[0,0], new_pos[0,1])
     merged = np.vstack(ptcls)
-    merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.08)
+    merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.1)
+    np.save('pred_%d.npy' % frame_id, merged_pred)
     manager = multiprocessing.Manager()
     detected_spaces = manager.list()
     detection_accuracy = []
@@ -64,6 +77,7 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         # processes.append(p)
         # p.start()
         if 'combined' in scheme:
+            print(frame_id, v_id)
             get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
                 vehicle_pos[int(v_id)], local_pred=local_pred[int(v_id)])
         else:
@@ -82,10 +96,16 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
 
 
 if __name__ == '__main__':
-    v_ids = [0, 1, 2, 3, 4, 5]
+    v_ids = [0, 1, 2, 3, 4]
     frame_id = 0
-    qb_dict = {0: 11, 1:11, 2:11, 3:11, 4:11, 5:11}
+    qb_dict = {0: 11, 1:11, 2:11, 3:11, 4:11}
+    for i in range(5):
+        qb_dict[i] = 11
     detected_space_list = []
+    acc_list = []
     time_start = time.time()
-    calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_space_list)
+    for frame_id in range(0, 80):
+        calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_space_list, acc_list, 'combined')
     print('Passed:', time.time() - time_start)
+    print(acc_list)
+    print(np.mean(acc_list), np.mean(remote_accs), np.mean(oracle_accs))
