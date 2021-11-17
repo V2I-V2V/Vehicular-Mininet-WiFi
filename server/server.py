@@ -19,7 +19,7 @@ import pickle
 import group
 
 MAX_VEHICLES = 100
-MAX_FRAMES = 160
+MAX_FRAMES = 800
 TYPE_PCD = 0
 TYPE_OXTS = 1
 HELPEE = 0
@@ -27,8 +27,8 @@ HELPER = 1
 NODE_LEFT_TIMEOUT = 0.8
 SCHED_PERIOD = 0.2
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEADLINE = 0.05
-DIVIDE_THRESHOLD = 6
+DEADLINE = 0.20
+DIVIDE_THRESHOLD = 10
 
 sys.stderr = sys.stdout
 
@@ -69,8 +69,6 @@ pcd_data_type = args.data_type
 fixed_assignment = ()
 save = args.data_save
 num_vehicles = args.num_vehicles
-# if args.v2v_mode == 1:
-#     num_vehicles -= 1
 is_one_to_one = 1 - args.multi
 combine_method = args.combine_method
 score_method = args.score_method
@@ -107,12 +105,12 @@ finished_frames = set()
 
 def get_bws():
     curr_time = time.time()
-    if curr_time - init_time < 13: # sync with mininet bw update
+    if curr_time - init_time < 58: # sync with mininet bw update
         bw_idx = 0  
     elif curr_time - init_time > all_bandwidth.shape[0]:
         bw_idx = int(all_bandwidth.shape[0] - 1)
     else:
-        bw_idx = int(curr_time - init_time - 13)
+        bw_idx = int(curr_time - init_time - 58)
     for i in range(num_vehicles):
         bws[i] = all_bandwidth[bw_idx][i]
 
@@ -134,6 +132,7 @@ class SchedThread(threading.Thread):
         self.last_assignment = None
         self.assignment_change_threshold = 0.8
         self.last_assignment_scores = {}
+        self.fallback = False
 
     def check_if_loc_map_complete(self, vids):
         return set(vids).issubset(set(location_map.keys()))
@@ -174,6 +173,26 @@ class SchedThread(threading.Thread):
             sched_start_t = time.time()
             skip_sending_assignment = False
             print("loc:" + str(location_map), flush=True)
+            get_bws()
+            sum_bw = 0
+            for v_id in current_connected_vids:
+                sum_bw += bws[v_id]
+            if sum_bw == 0 and len(current_connected_vids) > 0:
+                # fallback to V2V
+                print("Fallback to V2V")
+                for node, soc in client_sockets.items():
+                    fallback_payload = int(0).to_bytes(2, 'big')
+                    header = network.message.construct_control_msg_header(fallback_payload, network.message.TYPE_FALLBACK)
+                    network.message.send_msg(soc, header, fallback_payload)
+                self.fallback = True
+            elif self.fallback and sum(bws.values()) > 0:
+                # resume
+                print("Resume to V2I")
+                for node, soc in client_sockets.items():
+                    reconnect_payload =  int(0).to_bytes(2, 'big')
+                    header = network.message.construct_control_msg_header(fallback_payload, network.message.TYPE_RECONNECT)
+                    network.message.send_msg(soc, header, reconnect_payload)
+                self.fallback = False
             if scheduler_mode == 'fixed':
                 assignment = fixed_assignment
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
@@ -227,9 +246,8 @@ class SchedThread(threading.Thread):
                             routing_tables[cnt] = routing_table
                     sched_start = time.time()
                     if scheduler_mode == 'combined':
-                        # get_bws() # need to map here
-                        bws = get_mapped_bw(mapped_nodes)
-                        assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, bws, routing_tables, 
+                        mapped_bws = get_mapped_bw(mapped_nodes)
+                        assignment, score, scores = scheduling.combined_sched(helpee_count, helper_count, positions, mapped_bws, routing_tables, 
                                                                             is_one_to_one, combine_method, score_method)
                         if self.last_assignment is not None:
                             last_assignment_id = scheduling.get_id_from_assignment(self.last_assignment)
@@ -246,9 +264,8 @@ class SchedThread(threading.Thread):
                     elif scheduler_mode == 'minDist':
                         assignment = scheduling.min_total_distance_sched(helpee_count, helper_count, positions, is_one_to_one)
                     elif scheduler_mode == 'bwAware':
-                        # get_bws()
-                        bws = get_mapped_bw(mapped_nodes)
-                        assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, bws, is_one_to_one)
+                        mapped_bws = get_mapped_bw(mapped_nodes)
+                        assignment = scheduling.wwan_bw_sched(helpee_count, helper_count, mapped_bws, is_one_to_one)
                     elif scheduler_mode == 'routeAware':
                         # print("unmapped:", route_map)
                         # print("routing tables", routing_tables)
@@ -404,7 +421,7 @@ def server_recv_data(client_socket, client_addr):
         if client_vid_determined is False: #or client_socket != client_data_sockets[v_id]
             # need a map from v_id to data sockets to broadcast inference results
             client_data_sockets[v_id] = client_socket
-            client_vid_determined = True
+            # client_vid_determined = True
         # received_bytes[vehicle_id] += msg_size
         # print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
         #         (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
@@ -451,13 +468,13 @@ def server_recv_data(client_socket, client_addr):
             # if data_ready:
             data_ready = data_ready or np.sum(data_ready_matrix[:, frame_id%MAX_FRAMES]) == num_vehicles
             if args.v2v_mode == 1:
-                v_ids = [i for i in range(num_vehicles)]
+                v_ids = check_current_connected_vehicles()
             if data_ready and frame_id not in finished_frames:
                 # ready to merge
                 if frame_id not in first_frame_arrival_ts:
                     conn_lock.release()
                     continue
-                # finished_frames.add(frame_id)
+                finished_frames.add(frame_id)
                 # first_frame_arrival_ts.pop(frame_id)
                 if frame_id <= 5:
                     data_ready_matrix[:, 0] = 0 
@@ -513,7 +530,7 @@ def send_rst_on_deadline():
             if time.time() - first_frame_arrival_ts[curr_processed_frame] >= DEADLINE:
                 # deadline to send
                 
-                print('[Deadline passed, Send rst back to node]', data_ready_matrix[:, curr_processed_frame%MAX_FRAMES],
+                print('[Deadline passed, Send rst back to node]', data_ready_matrix[:num_vehicles, curr_processed_frame%MAX_FRAMES],
                 curr_processed_frame)
                 finished_frames.add(curr_processed_frame)
                 # data_ready_matrix[:, curr_processed_frame%MAX_FRAMES] = 0
@@ -614,13 +631,9 @@ def main():
     data_channel_thread = DataConnectionThread()
     data_channel_thread.daemon = True
     data_channel_thread.start()
-    # deadline_send_thread = threading.Thread(target=send_rst_on_deadline)
-    # deadline_send_thread.start()
-    # data_process_thread = threading.Thread(target=merge_data_when_ready)
-    # data_process_thread.deamon = True
-    # data_process_thread.start()
-    # thrpt_calc_thread = threading.Thread(target=throughput_calc)
-    # thrpt_calc_thread.start()
+    if 'combined' in scheduler_mode:
+        deadline_send_thread = threading.Thread(target=send_rst_on_deadline)
+        deadline_send_thread.start()
     while True:
         server.listen()
         client_socket, client_address = server.accept()
@@ -628,6 +641,12 @@ def main():
         newthread = ControlConnectionThread(client_address, client_socket)
         newthread.daemon = True
         newthread.start()
+    # data_process_thread = threading.Thread(target=merge_data_when_ready)
+    # data_process_thread.deamon = True
+    # data_process_thread.start()
+    # thrpt_calc_thread = threading.Thread(target=throughput_calc)
+    # thrpt_calc_thread.start()
+
 
 
 
