@@ -1,5 +1,6 @@
 # this file handles the main process run by each vehicle node
  # -*- coding: utf-8 -*-
+from locale import currency
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -119,10 +120,17 @@ control_seq_num = 0 # self seq number
 
 frame_lock = threading.Lock()
 v2i_control_socket_lock = threading.Lock()
-v2i_control_socket, scheduler_mode = wwan.setup_p2p_links(vehicle_id, SERVER_IP, \
-                                        config.server_ctrl_port, recv_sched_scheme=True)
+v2v_no_route = False
+try:
+    v2i_control_socket, scheduler_mode = wwan.setup_p2p_links(vehicle_id, SERVER_IP, \
+                                            config.server_ctrl_port, recv_sched_scheme=True)
+    v2i_data_socket = wwan.setup_p2p_links(vehicle_id, SERVER_IP, config.server_data_port)
+except OSError as e:
+    print('no route to host in V2V mode')
+    v2i_control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    v2v_no_route = True
+    scheduler_mode = 'v2v'
 print("server sched mode", scheduler_mode)
-v2i_data_socket = wwan.setup_p2p_links(vehicle_id, SERVER_IP, config.server_data_port)
 v2v_control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 v2v_data_control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 curr_frame_id = 0
@@ -134,6 +142,8 @@ helper_control_recv_port = 8888
 helpee_rst_recv_port = 8000 # this is the port that traffic should be prioritized for
 self_ip = "10.0.0." + str(vehicle_id+2)
 capture_finished = False
+fallback_socket_pool = {}
+current_mode = scheduler_mode
 
 
 def throughput_calc_thread():
@@ -166,18 +176,14 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
 
         if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
-            # partitioned = ptcl.partition.simple_partition(pcd_np, 20)
-            partitioned = pcd_np
+            partitioned = ptcl.partition.simple_partition(pcd_np, 50)
+            # partitioned = pcd_np
             pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
             pcd_data_buffer.append(pcd)
         else:            
-            # partitions = ptcl.partition.layered_partition(pcd_np, [5, 8, 15])
-            # encodeds = []
-            # for partition in partitions:
-            #     encoded, ratio = ptcl.pointcloud.dracoEncode(partition, PCD_ENCODE_LEVEL, PCD_QB)
-            #     encodeds.append(encoded)
+            partitioned = ptcl.partition.simple_partition(pcd_np, 50)
             for qb in range(7, PCD_QB+1):
-                encoded, ratio = ptcl.pointcloud.dracoEncode(pcd_np, PCD_ENCODE_LEVEL, qb)
+                encoded, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, qb)
                 pcd_data_buffer_adaptive[qb].append(encoded)
             # pcd_data_buffer.append(pcd_np)
         # t_elapsed = time.time() - t_s
@@ -323,7 +329,7 @@ def v2i_data_send_thread():
     """Thread to handle V2I data sending
     """
     global curr_frame_id, last_frame_sent_ts, curr_frame_rate
-    ack_recv_thread = threading.Thread(target=v2i_ack_recv_thread)
+    ack_recv_thread = threading.Thread(target=v2i_ack_recv_thread, args=(v2i_data_socket,))
     ack_recv_thread.start()
     while True:
         if connection_state == "Connected":
@@ -346,9 +352,14 @@ def v2i_data_send_thread():
             last_frame_sent_ts = get_frame_ready_timestamp(curr_f_id, FRAMERATE)
             print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts), flush=True)
             frame_sent_time[curr_f_id] = time.time()
-            send(v2i_data_socket, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd)
+            # check if fallbacked
+            if current_mode != 'pure-V2V':
+                send_soc = v2i_data_socket
+            else:
+                send_soc = fallback_socket_pool['server-data']
+            send(send_soc, pcd, curr_f_id, TYPE_PCD, num_chunks, pcd)
             oxts = oxts_data_buffer[data_f_id]
-            send(v2i_data_socket, oxts, curr_f_id, TYPE_OXTS)
+            send(send_soc, oxts, curr_f_id, TYPE_OXTS)
             t_elapsed = time.time() - t_start
             if capture_finished and is_adaptive_frame_skipped:
                 curr_frame_rate = get_updated_fps(get_latency(e2e_frame_latency))
@@ -367,10 +378,9 @@ def v2i_data_send_thread():
             time.sleep(0.1)
 
 
-def v2i_ack_recv_thread():
+def v2i_ack_recv_thread(soc):
     while True:
-        header, payload = network.message.recv_msg(v2i_data_socket, 
-                                network.message.TYPE_SERVER_REPLY_MSG)
+        header, payload = network.message.recv_msg(soc, network.message.TYPE_SERVER_REPLY_MSG)
         payload_size, frame_id, msg_type, ts = network.message.parse_server_reply_msg_header(header)
         downlink_latency = time.time() - ts
         if msg_type == network.message.TYPE_SEVER_ACK_MSG:
@@ -466,7 +476,7 @@ class ServerControlThread(threading.Thread):
             # always receive assignment information from server
             # Note: sending location information is done in VehicleConnThread.run()
             # triggered by receiving location info from helpees
-            global current_helpee_id, self_group
+            global current_helpee_id, self_group, current_mode
             data, msg_type = wwan.recv_control_msg(v2i_control_socket)
             
             if is_helper_recv() and msg_type == network.message.TYPE_ASSIGNMENT:
@@ -490,6 +500,20 @@ class ServerControlThread(threading.Thread):
                     helpee_addr = "10.0.0." + str(current_helpee_id+2)
                     network.message.send_msg(send_note_sock, header, payload, is_udp=True,\
                         remote_addr=(helpee_addr, helper_control_recv_port))
+            elif msg_type == network.message.TYPE_FALLBACK:
+                # fallback to V2V
+                server_ip =  "10.0.0.2"
+                if current_mode != "pure-V2V":
+                    # fallback_socket_pool['server-ctrl'] = wwan.setup_p2p_links(vehicle_id, server_ip, \
+                    #                 config.server_ctrl_port, recv_sched_scheme=True)[0]
+                    fallback_socket_pool['server-data'] = wwan.setup_p2p_links(vehicle_id, server_ip, \
+                                    config.server_data_port)
+                    current_mode = "pure-V2V"
+                    ack_recv_thread = threading.Thread(target=v2i_ack_recv_thread, args=(fallback_socket_pool['server-data'],))
+                    ack_recv_thread.start()
+            elif msg_type == network.message.TYPE_RECONNECT:
+                if current_mode == "pure-V2V":
+                    current_mode = scheduler_mode
 
 
 
@@ -967,9 +991,13 @@ def main():
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())
     loction_update_thread.daemon = True
     loction_update_thread.start()
-    v2i_control_thread = ServerControlThread()
-    v2i_control_thread.daemon = True
-    v2i_control_thread.start()
+    if not v2v_no_route:
+        v2i_control_thread = ServerControlThread()
+        v2i_control_thread.daemon = True
+        v2i_control_thread.start()
+        v2i_data_thread = threading.Thread(target=v2i_data_send_thread, args=())
+        v2i_data_thread.daemon = True
+        v2i_data_thread.start()
     if args.v2v_mode == 0:
         v2v_control_thread = VehicleControlThread()
         v2v_control_thread.daemon = True
@@ -979,9 +1007,7 @@ def main():
         v2v_data_thread = threading.Thread(target=v2v_data_recv_thread, args=())
         v2v_data_thread.daemon = True
         v2v_data_thread.start()
-    v2i_data_thread = threading.Thread(target=v2i_data_send_thread, args=())
-    v2i_data_thread.daemon = True
-    v2i_data_thread.start()
+
 
     # throughput_thread = threading.Thread(target=throughput_calc_thread, args=())
     # throughput_thread.daemon = True

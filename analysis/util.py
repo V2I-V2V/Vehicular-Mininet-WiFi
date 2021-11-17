@@ -11,22 +11,28 @@ from collections import OrderedDict, defaultdict
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from analysis.ptcl_calc import calculate_merged_detection_spaces
+from analysis.ptcl_calc import calculate_merged_detection_spaces, calculate_local_detection_spaces, vehicle_deadline
 import multiprocessing
 import pickle
 from multiprocessing import Process
 
+computation_overhead = 0.035
+# vehicle_deadline = 0.5
+
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
 shced_to_displayed_name = {
-    'combined-adapt': 'Harbor', 'v2v' : 'V2V', 'v2i-adapt': 'V2I-adapt', 'v2v-adapt': 'V2V-adapt', 'v2i': 'V2I'
+    'combined-adapt': 'Harbor', 'v2v' : 'V2V', 'v2i-adapt': 'V2I-adapt', 'v2v-adapt': 'V2V-adapt', 'v2i': 'V2I',
+    'combined-no-fallback-adapt': 'Harbor (w/o fallback)'
 }
 sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
     'combined-adapt': 'midnightblue', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
     'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
     'combined-op_sum-harmonic': 'cyan', 'v2i': 'orange', 'combined-deadline': 'olive',
-    'v2v' : 'crimson', 'v2i-adapt': 'forestgreen', 'v2v-adapt': 'darkviolet'}
-sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o'}
+    'v2v' : 'crimson', 'v2i-adapt': 'forestgreen', 'v2v-adapt': 'darkviolet',
+    'combined-no-fallback-adapt': 'maroon'}
+sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o',
+                    'combined-no-fallback-adapt': '^'}
 sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed': '--', 'combined': ':',\
     'combined-adapt': '-'}
 
@@ -48,29 +54,14 @@ linestyles = OrderedDict(
      ('v2v-adapt',  (0, (3, 1, 1, 1))),
 
      ('combined-op_sum-harmonic', (0, (3, 10, 1, 10, 1, 10))),
-     ('combined-loc',         (0, (3, 5, 1, 5, 1, 5))),
+     ('combined-no-fallback-adapt',         (0, (3, 5, 1, 5, 1, 5))),
      ('bwAware', (0, (3, 1, 1, 1, 1, 1)))])
 
 
 detected_spaces_label = [[[] for _ in range(80)] for _ in range(6)]
 detected_space_label = collections.defaultdict(list)
 
-# for i in range(1, 7):
-#     for j in range(80):
-#         grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(j, i))
-#         detected_space = len(grid_label[grid_label != 0])
-#         detected_spaces_label[i-1][j] = detected_space
-
-# labels = os.listdir('/home/mininet-wifi/grid_labels_all_comb/')
-# for label in sorted(labels):
-#     path = '/home/mininet-wifi/grid_labels_all_comb/' + label
-#     grids = np.loadtxt(path)
-#     detected_space = len(grids[grids != 0])
-#     comb = label[7:-4]
-#     detected_space_label[comb].append(detected_space)
 import json
-# with open("/home/mininet-wifi/all-grid-label.json", 'w') as outfile:
-#     json.dump(detected_space_label, outfile)
 f = open("/home/mininet-wifi/all-grid-label.json", 'r')
 detected_space_label = json.load(f)
 
@@ -156,7 +147,7 @@ def get_sender_ts(filename):
     sender_ts = {}
     encode_choice = {}
     summary_dict = {'dl-latency': [], 'e2e-latency': [], 'frames-with-result': [],
-                     'qb': {}} # sumamry of related metrics
+                     'qb': {}, 'latency-e2e-all' : {}} # sumamry of related metrics
     encode_t, last_t = 30, 0
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -180,11 +171,8 @@ def get_sender_ts(filename):
                 summary_dict['qb'][frame_id] = qb
                 encode_choice[frame_id] = qb
             elif line.startswith("frame id:"):
-                num_chunks = int(parse[-1])
                 frame = int(parse[2])
-                # encode_choice[frame] = num_chunks
                 last_t = float(parse[-1])
-            # elif line.startswith
             elif line.startswith("read and encode takes"):
                 encode_t = math.ceil(float(parse[-1]))
             elif line.startswith("[relay throughput]"):
@@ -195,18 +183,23 @@ def get_sender_ts(filename):
                 frame = int(parse[-5][:-1])
                 if frame not in summary_dict['frames-with-result']:
                     e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
+                    e2e_latency += computation_overhead # 10 ms decode 25 ms detect 
                     if e2e_latency < 0:
                         print('E2E latency < 0!!!!', frame)
+                    elif e2e_latency > vehicle_deadline:
+                        e2e_latency = vehicle_deadline
                     # if frame in sender_ts:
                     #     e2e_latency = timestamp - sender_ts[frame]
-                    # if len(summary_dict['frames-with-result']) > 0 \
-                    #     and frame != summary_dict['frames-with-result'][-1] + 1:
-                    #     print("lost frame result!!!", frame, summary_dict['frames-with-result'][-1])
+                    summary_dict['latency-e2e-all'][frame] = e2e_latency
                     summary_dict['e2e-latency'].append(e2e_latency)
                     summary_dict['frames-with-result'].append(frame)
                     summary_dict['dl-latency'].append(float(parse[-2]))
 
-
+    expected_frames = int((last_t - summary_dict['start-ts']) * 10)
+    for frame_id in range(expected_frames):
+        if frame_id not in summary_dict['latency-e2e-all']:
+            summary_dict['latency-e2e-all'][frame_id] = vehicle_deadline
+            summary_dict['e2e-latency'].append(vehicle_deadline)
                 
     return sender_ts, encode_choice, encode_t, last_t, summary_dict
 
@@ -232,10 +225,6 @@ def get_receiver_ts(filename):
                     receiver_ts_dict[sender_id] = {}
                 receiver_throughput[sender_id].append([ts, thrpt])
                 receiver_ts_dict[sender_id][frame] = ts
-                # if str(sender_id) not in frame_id_to_senders[frame]:
-                #     frame_id_to_senders[frame] += str(sender_id)
-                # if frame_id_to_senders[frame] < 6:
-                #     frame_id_to_senders[frame] += 1
             elif line.startswith("Helpers:"):
                 parse = line.split()
                 helper_cnt, helpee_cnt, ts = int(parse[1]), int(parse[3]), float(parse[-1])
@@ -298,18 +287,19 @@ def calculate_detected_areas(frame_id_to_senders):
     return detected_spaces
 
 
-def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config):
+def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_e2e_latency, expected_num_frames):
     detected_spaces = []
     manager = multiprocessing.Manager()
     detected_spaces = manager.list()
     detection_acc = manager.list()
     processes = []
-    for frame_id, v_num in frame_id_to_senders.items():
+    num_nodes = int(config['num_of_nodes'])
+
+    for frame_id, v_num in sorted(frame_id_to_senders.items()):
         v_ids = v_num.split('-')
         # print(frame_id,v_ids)
-
         wrapped_frame_id = frame_id % 80
-        qb_dict = {}
+        qb_dict, latency_dict = {}, {}
         real_vids = []
         for v_id in v_ids:
             if int(v_id) not in node_id_to_encode:
@@ -318,12 +308,24 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config):
                 continue
             else:
                 qb_dict[v_id] = node_id_to_encode[int(v_id)][frame_id]
-                real_vids.append(v_id)
+                real_vids.append(v_id)                
+        for node_id in range(num_nodes):
+            if frame_id not in node_to_e2e_latency[node_id]:
+                latency_dict[node_id] = vehicle_deadline
+            else:
+                latency_dict[node_id] = node_to_e2e_latency[node_id][frame_id]
         p = Process(target=calculate_merged_detection_spaces, args=(real_vids, wrapped_frame_id, 
-                    qb_dict, detected_spaces, detection_acc, config["scheduler"]))
+                    qb_dict, detected_spaces, detection_acc, config["scheduler"], num_nodes, latency_dict))
         processes.append(p)
         p.start()
+        # p.join()
         # print(detected_spaces)
+    if max(frame_id_to_senders.keys()) < expected_num_frames:
+        start_frame_id = max(frame_id_to_senders.keys())
+        while start_frame_id < expected_num_frames:
+            for v_id in range(num_nodes):
+                detection_acc.append(calculate_local_detection_spaces(v_id, start_frame_id%80))
+            start_frame_id += 1                    
     for p in processes:
         p.join()
     return detected_spaces, detection_acc
@@ -407,7 +409,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
             latency_dict = pickle.load(s)
             e2e_latency = latency_dict['e2e-latency'].tolist()
             while len(e2e_latency) < latency_dict['sent_frames']:
-                e2e_latency.append(10) # append 10s latency
+                e2e_latency.append(vehicle_deadline) # append 10s latency
             latency_dict['e2e-latency'] = np.array(e2e_latency)
         with open(dir+'/encode_decisions.pickle', 'rb') as e:
             node_to_encode_choices = pickle.load(e)
@@ -435,7 +437,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
                 dl_latencies[i] = summary_dict['dl-latency']
                 e2e_latencies += summary_dict['e2e-latency']
                 node_to_encode_qb[i] = summary_dict['qb']
-                e2e_latency_each_node[i] = summary_dict['e2e-latency']
+                e2e_latency_each_node[i] = summary_dict['latency-e2e-all']
                 frames_with_rst[i] = summary_dict['frames-with-result']
                 if len(computational_overhead) > 0:
                     # print("overhead", np.mean(computational_overhead))
@@ -445,12 +447,20 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
                     ssims = get_ssims(dir+'/node%d_ssim.log'%i)
                     node_to_ssims[i] = ssims
         sent_frames = (num_nodes*max(node_sent_frames))
+        # compensate for no frame sent, fill e2e latency:
+        for i in range(num_nodes):
+            if i not in e2e_latency_each_node:
+                e2e_latency_each_node[i] = {}
+            if len(e2e_latency_each_node[i]) < max(node_sent_frames):
+                for f_id in range(max(node_sent_frames)):
+                    if f_id not in e2e_latency_each_node[i]:
+                        e2e_latency_each_node[i][f_id] = vehicle_deadline
         while len(e2e_latencies) < sent_frames:
-            e2e_latencies.append(10) # append 10s latency
+            e2e_latencies.append(vehicle_deadline) # append 10s latency
 
         receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies, frame_id_to_senders = get_receiver_ts(dir + '/logs/server.log')
         
-        detected_areas, detection_acc = calculate_are_carla(frame_id_to_senders, node_to_encode_qb, config)
+        detected_areas, detection_acc = calculate_are_carla(frame_id_to_senders, node_to_encode_qb, config, e2e_latency_each_node, max(node_sent_frames))
         # detected_areas = None
         # print("Total frames sent in exp", sent_frames)
         # calculate delay
@@ -522,8 +532,8 @@ def get_num_frames_within_latency_above_detected_space(node_to_latency_dict, lat
     for node_id in e2e_latency_each_node.keys():
         frame_ids_lower = set()
         for frame_idx in range(len(e2e_latency_each_node[node_id])):
-            if e2e_latency_each_node[node_id][frame_idx] <= latency_t:
-                frame_ids_lower.add(frames_with_rst[node_id][frame_idx])
+                if e2e_latency_each_node[node_id][frame_idx] <= latency_t:
+                    frame_ids_lower.add(frames_with_rst[node_id][frame_idx])
         
         frame_ids_both = frame_ids_lower & frame_ids_higher
         satisfied_frame_num += len(frame_ids_both)

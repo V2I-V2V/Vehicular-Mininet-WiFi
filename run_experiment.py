@@ -7,6 +7,23 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from analysis.analyze_single_exp import single_exp_analysis
 
 
+def parse_config_setting(filename, sched=['v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt']):
+    settings = []
+    config_file = open(filename, 'r')
+    i = 0
+    for line in config_file.readlines():
+        parse = line.split()
+        num_node = parse[0].split('=')[1]
+        loc = parse[1].split('=')[1]
+        bw = parse[2].split('=')[1]
+        helpee_conf = parse[3].split('=')[1]
+        for s in sched:
+            setting = (num_node, s, loc, bw, helpee_conf)
+            i += 1
+            settings.append(setting)
+    return settings
+
+
 def parse_config_from_file(filename):
     config_params = {}
     config_file = open(filename, 'r')
@@ -37,6 +54,33 @@ def init_config():
                      "adapt_frame_skipping": "0", "combine_method": "op_sum", "score_method": "harmonic",
                      "v2v_mode": "0"}
     return config_params
+
+
+def write_log():
+    if os.path.exists('/home/'+ getpass.getuser() + '/exp_log.txt'):
+        log = open('/home/'+ getpass.getuser() + '/exp_log.txt', 'a+')
+    else:
+        log = open('/home/'+ getpass.getuser() + '/exp_log.txt', 'w+')
+    cwd_str = os.getcwd()
+    from datetime import datetime
+    now = datetime.now()
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+    cwd_str = dt_string + ' ' + cwd_str + '\n'
+    log.write(cwd_str)
+    log.close()
+
+
+def write_exp_config(setting_repeat):
+    if os.path.exists('config_summary.txt'):
+        summary = open('config_summary.txt', 'a+')
+    else:
+        summary = open('config_summary.txt', 'w+')
+    for setting in setting_repeat:
+        summary_str = "num_node="+ setting[4] +"\tloc="+setting[0] + "\tbw="+setting[1] + "\thelpee_config="+setting[2] + '\n' # \
+                        # "\trepeat="+setting[3] + '\n'
+        summary.write(summary_str)
+        
+    summary.close()
 
 
 def kill_mininet(n):
@@ -131,11 +175,12 @@ def move_output(folder, is_save_data=False):
 
 def run_analysis(folder, config_params):
     single_exp_analysis(folder+'/', int(config_params["num_of_nodes"]), config_params["network_trace"], \
-         config_params["location_file"], config_params["helpee_conf"], int(config_params["t"]))
+         config_params["location_file"], config_params["helpee_conf"], int(config_params["t"]), config_params)
 
 
 
 def main():
+    # print(parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_summary.txt'))
     print("This is juat a template on running experiments. Please do not direcly call\
              python3 run_experiment.py. Exiting.....")
     sys.exit(1)
