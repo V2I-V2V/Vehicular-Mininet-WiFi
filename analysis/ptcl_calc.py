@@ -8,12 +8,18 @@ import numpy as np
 import multiprocessing
 import time
 
-DATASET_DIR = '/home/'+getpass.getuser()+'/Carla/lidar/'
+DATASET_DIR = '/home/mininet-wifi/Carla/lidar/'
+vehicle_deadline = 0.5
 
+<<<<<<< HEAD
 # vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
 vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 130, 174, 185]
 remote_accs = []
 oracle_accs = []
+=======
+vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
+vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 130, 174, 185]
+>>>>>>> 1a742304c3eb379f05adb9f084ba1a1d165fcbf5
 
 
 def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred=None):
@@ -27,6 +33,7 @@ def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, 
         combined_grid = ptcl.ptcl_utils.combine_merged_results(local_pred, merged_pred_grid)
         # combined_grid = ptcl.ptcl_utils.combine_merged_results_on_remote(local_pred, merged_pred_grid)
         acc, _ = ptcl.ptcl_utils.calculate_precision(combined_grid, grid_truth)
+        # acc = ptcl.ptcl_utils.calculate_oracle_accuracy(local_pred, merged_pred_grid, grid_truth)
         detection_accuracy.append(acc)
         local_acc, _ = ptcl.ptcl_utils.calculate_precision(local_pred, grid_truth)
         # print('local', local_acc, center)
@@ -39,7 +46,11 @@ def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, 
     detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
 
 
-def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_list, acc_list, scheme):
+# def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred = None):
+
+
+def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_list, acc_list, scheme, num_nodes, nodes_latency):
+    # print(v_ids, frame_id, qb_dict, nodes_latency)
     ptcls, vehicle_pos, grid_truth = [], {}, {}
     local_pred, local_points = {}, {}
     for v_id in v_ids:
@@ -63,26 +74,39 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         dummy[3] = 1
         new_pos = np.dot(trans, dummy).T
         vehicle_pos[int(v_id)]= (new_pos[0,0], new_pos[0,1])
+    for v_id in range(num_nodes):    
+        # load every gt and local
+        gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
+             + '-' + str(1000+frame_id) + '.txt'
+        local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
+             + '-' + str(1000+frame_id) + '.txt'
+        grid_truth[v_id] = np.loadtxt(gt_file)
+        local_pred[v_id] = np.loadtxt(local_file)
     merged = np.vstack(ptcls)
     merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.1)
     np.save('pred_%d.npy' % frame_id, merged_pred)
     manager = multiprocessing.Manager()
-    detected_spaces = manager.list()
+    detected_spaces = []
     detection_accuracy = []
     processes = []
     # start = time.time()
-    for v_id in v_ids:
-        # p = multiprocessing.Process(target=get_detected_space, args=(merged_pred, detected_spaces, 
-        #     vehicle_pos[int(v_id)]))
-        # processes.append(p)
-        # p.start()
-        if 'combined' in scheme:
-            print(frame_id, v_id)
-            get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
-                vehicle_pos[int(v_id)], local_pred=local_pred[int(v_id)])
+    for v_id in range(num_nodes):        
+        if str(v_id) in v_ids and nodes_latency[v_id] <= vehicle_deadline:
+            # for v_id in v_ids:
+            #     # p = multiprocessing.Process(target=get_detected_space, args=(merged_pred, detected_spaces, 
+            #     #     vehicle_pos[int(v_id)]))
+            #     # processes.append(p)
+            #     # p.start()
+            if 'combined' in scheme:
+                get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
+                    vehicle_pos[int(v_id)], local_pred=local_pred[int(v_id)])
+            else:
+                get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
+                    vehicle_pos[int(v_id)], local_pred=None)
         else:
-            get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
-                vehicle_pos[int(v_id)], local_pred=None)
+            # use local detection instead
+            detection_accuracy.append(ptcl.ptcl_utils.calculate_precision(local_pred[int(v_id)], grid_truth[int(v_id)])[0])
+            
     for p in processes:
         p.join()
     # print('space detection takes:', time.time() - start)
@@ -90,10 +114,23 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         #     ptcl.ptcl_utils.calculate_grid_label_ransac_new(1, merged_pred, center=vehicle_pos[int(v_id)])
         # detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
     # print(detected_spaces)
-    detected_spaces_list += detected_spaces
-    acc_list += detection_accuracy
+    if len(detected_spaces) > 0:
+        detected_spaces_list += detected_spaces
+    if len(detection_accuracy) == 0:
+        print("error detection acc empty")
+    # print(detection_accuracy)
+    acc_list.extend(detection_accuracy)
     return detected_spaces, detection_accuracy
 
+
+def calculate_local_detection_spaces(v_id, frame_id):
+    gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
+             + '-' + str(1000+frame_id) + '.txt'
+    local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
+             + '-' + str(1000+frame_id) + '.txt'
+    grid_truth = np.loadtxt(gt_file)
+    local_pred = np.loadtxt(local_file)
+    return ptcl.ptcl_utils.calculate_precision(local_pred, grid_truth)[0]
 
 if __name__ == '__main__':
     v_ids = [0, 1, 2, 3, 4]

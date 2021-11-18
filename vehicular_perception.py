@@ -46,7 +46,7 @@ CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
-    time.sleep(14)
+    time.sleep(59)
     print("start update bw:", time.time())
     for throughput_idx in range(min(len(trace), time_to_run-20)):
         start_t = time.time()
@@ -111,7 +111,7 @@ def config_mobility_mininet_replay(net, stations, loc_file, plot=True):
 
 def config_mobility(net, stations, loc_file, plot=False):
     loc_trace = read_location_traces(loc_file)
-    time.sleep(14)
+    time.sleep(59)
     print("\nstart update location at %f" % time.time())
     # loc_update_logs = []
     # for station_idx in range(len(stations)):
@@ -170,6 +170,10 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
         stations[0].cmd(server_cmd)
     else:
         server.cmd(server_cmd)
+        # Use a backup V2V server
+        v2v_server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s --combine_method %s --score_method %s --v2v_mode %d > %s/logs/v2v_server.log 2>&1 &"\
+                % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, 1, CODE_DIR)    
+        stations[0].cmd(v2v_server_cmd)    
 
     vehicle_app_commands = []
     for node_num in range(len(stations)):
@@ -185,8 +189,6 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
 
     # execute application commands
     for node_num in range(len(stations)):
-        # if is_v2v_mode and node_num == 0:
-        #     continue
         stations[node_num].cmd(vehicle_app_commands[node_num])
 
 
@@ -247,10 +249,11 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
 
     ### Trace replaying ###
     replaying_threads = []
-    if not v2v_mode:
-        for i in range(num_nodes):
-            replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i%len(v2i_bw_traces.keys())])
-            replaying_threads.append(replaying_thread)
+    # if not v2v_mode:
+    # it should not matter if we replay trace on v2v mode
+    for i in range(num_nodes):
+        replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i%len(v2i_bw_traces.keys())])
+        replaying_threads.append(replaying_thread)
 
 
     ### Configure routing if custom
@@ -284,7 +287,10 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
 
     info("*** Running CLI\n")
     if run_app:
+        start = time.time()
+        print("--- start sleep", start)
         time.sleep(time_to_run)
+        print("--- stop", time.time() - start)
     else:
         CLI(net)
 
