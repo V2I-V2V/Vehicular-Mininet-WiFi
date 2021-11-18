@@ -59,11 +59,11 @@ linestyles = OrderedDict(
 
 
 detected_spaces_label = [[[] for _ in range(80)] for _ in range(6)]
-detected_space_label = collections.defaultdict(list)
+# detected_space_label = collections.defaultdict(list)
 
-import json
-f = open("/home/mininet-wifi/all-grid-label.json", 'r')
-detected_space_label = json.load(f)
+# import json
+# f = open("/home/mininet-wifi/all-grid-label.json", 'r')
+# detected_space_label = json.load(f)
 
 
 def get_server_assignments(filename):
@@ -264,27 +264,27 @@ def construct_comb(vnum_list, truth_list):
         s += truth_list[int(i)]
     return s
 
-def calculate_detected_areas(frame_id_to_senders):
-    # return 10
-    detected_spaces = []
-    for frame_id, v_num in frame_id_to_senders.items():
-        if len(v_num) > 4:
-            detected_spaces.append(2500) # return a dummy variable for now
-            continue
-        if frame_id < 550:
-            wrapped_frame_id = frame_id % 80
-            # print(v_num)
-            v_num_comb = sorted(v_num)
-            key = construct_comb(v_num_comb, ['0', '2', '4', '5']) # , '0', '2', '4', '5', '0', '2', '4', '5'
-            # grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(wrapped_frame_id, v_num))
-            # detected_space = len(grid_label[grid_label != 0])
-            # detected_spaces.append(detected_space)
-            # print(type(wrapped_frame_id))
-            if key is not '':
-                detected_spaces.append(detected_space_label[key][wrapped_frame_id])
-            else:
-                detected_spaces.append(0)
-    return detected_spaces
+# def calculate_detected_areas(frame_id_to_senders):
+#     # return 10
+#     detected_spaces = []
+#     for frame_id, v_num in frame_id_to_senders.items():
+#         if len(v_num) > 4:
+#             detected_spaces.append(2500) # return a dummy variable for now
+#             continue
+#         if frame_id < 550:
+#             wrapped_frame_id = frame_id % 80
+#             # print(v_num)
+#             v_num_comb = sorted(v_num)
+#             key = construct_comb(v_num_comb, ['0', '2', '4', '5']) # , '0', '2', '4', '5', '0', '2', '4', '5'
+#             # grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(wrapped_frame_id, v_num))
+#             # detected_space = len(grid_label[grid_label != 0])
+#             # detected_spaces.append(detected_space)
+#             # print(type(wrapped_frame_id))
+#             if key is not '':
+#                 detected_spaces.append(detected_space_label[key][wrapped_frame_id])
+#             else:
+#                 detected_spaces.append(0)
+#     return detected_spaces
 
 
 def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_e2e_latency, expected_num_frames):
