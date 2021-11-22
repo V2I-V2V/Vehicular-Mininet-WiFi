@@ -123,6 +123,10 @@ def get_mapped_bw(mapped_node_ids):
     return mapped_bw
 
 
+def check_if_loc_map_complete(vids):
+    return set(vids).issubset(set(location_map.keys()))
+
+
 class SchedThread(threading.Thread):
 
     def __init__(self):
@@ -134,9 +138,6 @@ class SchedThread(threading.Thread):
         self.last_assignment_scores = {}
         self.fallback = False
 
-    def check_if_loc_map_complete(self, vids):
-        return set(vids).issubset(set(location_map.keys()))
-    
     def check_if_route_map_conplete(self, vids):
         return set(vids).issubset(set(route_map.keys()))
 

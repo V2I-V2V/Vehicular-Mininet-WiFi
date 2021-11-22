@@ -3,7 +3,8 @@ import numpy as np
 MAX_FRAMES = 80
 
 simulation_time = 10.0
-server_ip = "192.168.0.1"
+server_ip = "141.212.108.160"
+v2v_server_ip = "10.42.0.1"
 server_ctrl_port = 6666
 server_data_port = 6667
 

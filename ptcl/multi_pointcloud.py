@@ -54,18 +54,18 @@ def draw_open3d(pointclouds, labels, show=True, save=""):
     for pcl in pointclouds:
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(pcl[:, :3])
-        pcd.paint_uniform_color(colors.pop(0))
+        pcd.paint_uniform_color([1, 0, 0]) # colors.pop(0)
         pcds.append(pcd)
 
     bboxes = []
-    location = labels[:, 3:6]
-    extent = labels[:, 6:9] * 2
-    rotation = labels[:, 9:12] * np.pi / 180
-    R = rotation_matrix(rotation[:, 0], rotation[:, 1], rotation[:, 2])
-    for i in range(labels.shape[0]):
-        bbox = o3d.geometry.OrientedBoundingBox(center=location[i, :], R=R[:, :, i], extent=extent[i, :])
-        bbox.color = [1, 0, 0]
-        bboxes.append(bbox)
+    # location = labels[:, 3:6]
+    # extent = labels[:, 6:9] * 2
+    # rotation = labels[:, 9:12] * np.pi / 180
+    # R = rotation_matrix(rotation[:, 0], rotation[:, 1], rotation[:, 2])
+    # for i in range(labels.shape[0]):
+    #     bbox = o3d.geometry.OrientedBoundingBox(center=location[i, :], R=R[:, :, i], extent=extent[i, :])
+    #     bbox.color = [1, 0, 0]
+    #     bboxes.append(bbox)
 
     o3d.visualization.draw_geometries(bboxes + pcds)
 
@@ -88,7 +88,7 @@ def main(args):
     if args.datadir != "" and args.frame >= 0:
         # load pointclouds
         lidar_dir = os.path.join(args.datadir, "lidar")
-        for vehicle_id in os.listdir(lidar_dir):
+        for vehicle_id in ['ego']: # os.listdir(lidar_dir)
             pcd_file = os.path.join(lidar_dir, vehicle_id, str(args.frame))
             if os.path.isfile(pcd_file + ".npy"):
                 pcd = np.load(pcd_file + ".npy")
@@ -116,8 +116,9 @@ def main(args):
                 # region_points[vehicle_id] = get_number_of_points_in_region(pcd, 25, -8, 1, 1)
 
         # load label
-        label_file = os.path.join(args.datadir, "label", "{}.csv".format(args.frame))
-        label_data = np.genfromtxt(label_file, delimiter=',')
+        # label_file = os.path.join(args.datadir, "label", "{}.csv".format(args.frame))
+        # label_data = np.genfromtxt(label_file, delimiter=',')
+        label_data = None
 
     # provided filenames directly
     else:

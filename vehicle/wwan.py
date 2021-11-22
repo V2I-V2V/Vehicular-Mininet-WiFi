@@ -12,6 +12,7 @@ import pickle
 
 
 def setup_p2p_links(vehicle_id, ip, port, recv_sched_scheme=False):
+    print("connect to", ip, port)
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65536)
     client_socket.connect((ip, port))
