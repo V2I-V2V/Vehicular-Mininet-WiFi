@@ -35,8 +35,8 @@ def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num, ad
         loc_x, loc_y = mobility_noise.add_random_noise_on_loc(position[0], position[1], std_deviation=30.0)
     else:
         loc_x, loc_y = position[0], position[1]
-    x = int(loc_x).to_bytes(2, 'big')
-    y = int(loc_y).to_bytes(2, 'big')
+    x = int(loc_x).to_bytes(2, 'big', signed=True)
+    y = int(loc_y).to_bytes(2, 'big', signed=True)
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + x + y + seq
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)

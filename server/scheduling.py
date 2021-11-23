@@ -152,7 +152,6 @@ def get_distance_scores(assignment, positions):
             distance_to_helpee = get_distance(positions[helpee], positions[i])
             if distance_to_helpee > max_distance:
                 max_distance = distance_to_helpee
-        # print(max_distance)
         # avoid the distance to be 0
         scores.append(1 - get_distance(positions[helpee], positions[helper]) / max_distance)
     # print(assignment, scores)
@@ -279,8 +278,10 @@ def get_interference_counts(assignment, routing_tables):
     valid_neighbor_map = get_valid_neighbor_map(neighbor_map, nodes_on_routes, tx_nodes, assignment, routing_tables)
     interference_counts = []
     for helpee, helper in enumerate(assignment):
+        # print(helpee, helper)
         routing_path = vehicle.route.get_routing_path(helpee, helper, routing_tables)
         interference_counts.append(get_path_interference_count(routing_path, valid_neighbor_map))
+    # print('intf count', interference_counts)
     return interference_counts
 
 
@@ -329,7 +330,7 @@ def get_interference_scores(assignment, interference_counts, routing_tables, pos
         nodes_on_routes = get_nodes_on_routes(assignment, routing_tables)
         path_nodes = set(routing_path)
         min_neighbor_map = get_valid_neighbor_map(neighbor_map, nodes_on_routes, path_nodes, assignment, routing_tables)
-        # print("min neighbour map", neighbor_map)
+        # print("min neighbour map", min_neighbor_map)
         min_interference_count = get_path_interference_count(routing_path, min_neighbor_map)
         # print('intf score components: ic(pi,A) %d, ic(pi,pi) %d, ic(pi,G) %d'%\
         #     (interference_count, min_interference_count, max_interference_count))
@@ -399,8 +400,8 @@ def combined_sched(num_of_helpees, num_of_helpers, positions, bws, routing_table
         distance_scores = get_distance_scores(assignment, positions)
         bw_scores = get_bw_scores(assignment, v2i_bws)
         interference_scores, not_reachable_cnt = get_interference_scores(assignment, interference_counts, routing_tables, positions)
-        # print(distance_scores, bw_scores, interference_scores)
-        print(assignment, "%.3f"%statistics.harmonic_mean(distance_scores), "%.3f"%statistics.harmonic_mean(bw_scores), "%.3f"%statistics.harmonic_mean(interference_scores))
+        print("scores: ", distance_scores, bw_scores, interference_scores)
+        print("assignment score:", assignment, "%.3f"%statistics.harmonic_mean(distance_scores), "%.3f"%statistics.harmonic_mean(bw_scores), "%.3f"%statistics.harmonic_mean(interference_scores))
         assignment_id = get_id_from_assignment(assignment)
         scores_dist[assignment_id] = get_score(distance_scores, score_method)
         scores_bw[assignment_id] = get_score(bw_scores, score_method)

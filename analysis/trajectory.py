@@ -42,7 +42,20 @@ def get_node_dists(loc):
     for i in range(int(traj.shape[1]/2)):
         trajs[i] = traj[:,2*i:2*i+2]
     
-    return plot_distance_for_each_node(trajs, save_plot=False)
+    return get_distance_for_each_node(trajs)
+
+
+def get_distance_for_each_node(trajs):
+    node_to_distances = {}
+    for start_node in trajs.keys():
+        node_to_distances[start_node] = []
+        for end_node in trajs.keys():
+            if start_node != end_node:
+                start_node_traj, end_node_traj = trajs[start_node], trajs[end_node]
+                dist = np.linalg.norm(start_node_traj - end_node_traj, axis=1)
+                node_to_distances[start_node].append(dist)   
+    return node_to_distances
+    
     
 def plot_distance_for_each_node(trajs, save_dir='./', save_plot=True):
     node_to_distances = {}

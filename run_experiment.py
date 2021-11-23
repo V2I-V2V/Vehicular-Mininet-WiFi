@@ -57,10 +57,13 @@ def init_config():
 
 
 def write_log():
-    if os.path.exists('/home/'+ getpass.getuser() + '/exp_log.txt'):
-        log = open('/home/'+ getpass.getuser() + '/exp_log.txt', 'a+')
+    user = getpass.getuser()
+    if getpass.getuser() == 'root':
+        user = 'mininet-wifi'
+    if os.path.exists('/home/'+ user + '/exp_log.txt'):
+        log = open('/home/'+ user + '/exp_log.txt', 'a+')
     else:
-        log = open('/home/'+ getpass.getuser() + '/exp_log.txt', 'w+')
+        log = open('/home/'+ user + '/exp_log.txt', 'w+')
     cwd_str = os.getcwd()
     from datetime import datetime
     now = datetime.now()

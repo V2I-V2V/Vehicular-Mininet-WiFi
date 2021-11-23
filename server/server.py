@@ -426,17 +426,17 @@ def server_recv_data(client_socket, client_addr):
         # print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
         #         (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
         latency = time.time() - ts
-        print("[receive header] node %d latency %f" % (v_id, latency))
+        # print("[receive header] node %d latency %f" % (v_id, latency))
         node_last_rx_time_lock.acquire()
         node_last_recv_timestamp[v_id] = time.time()
         node_last_rx_time_lock.release()
         if data_type == TYPE_PCD:
             if frame_id not in first_frame_arrival_ts:
                 first_frame_arrival_ts[frame_id] = ts
-            print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
-                        (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
             # send back a ACK back
             conn_lock.acquire()
+            print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
+                        (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
             try:
                 reply_header = network.message.construct_reply_msg_header(frame_id.to_bytes(2, 'big'), \
                     network.message.TYPE_SEVER_ACK_MSG, frame_id)
@@ -462,7 +462,7 @@ def server_recv_data(client_socket, client_addr):
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
             # check if ready to merge and send back results
             conn_lock.acquire()
-            print("[mark data ready]", v_id, frame_id%MAX_FRAMES, group_map)
+            # print("[mark data ready]", v_id, frame_id%MAX_FRAMES, group_map)
             data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
             data_ready, v_ids = group.group_data_ready(data_ready_matrix, group_map, v_id, frame_id%MAX_FRAMES)
             # if data_ready:
