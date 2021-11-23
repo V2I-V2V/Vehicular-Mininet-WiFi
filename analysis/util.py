@@ -16,8 +16,8 @@ import multiprocessing
 import pickle
 from multiprocessing import Process
 
-computation_overhead = 0.035
-computation_overhead_v2v = 0.08
+computation_overhead = 0.045
+computation_overhead_v2v = 0.092
 # vehicle_deadline = 0.5
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
