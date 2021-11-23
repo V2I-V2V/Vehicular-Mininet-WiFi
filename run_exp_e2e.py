@@ -2,10 +2,10 @@ from run_experiment import *
 
 
 def main():
-    scheds = ['v2v', 'v2i', 'v2v-adapt', 'v2i-adapt'] # 'v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt'
-    settings = parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_4-6.txt', sched=scheds)
+    scheds = ['combined-adapt'] # 'v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt'
+    settings = parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_8.txt', sched=scheds)
     write_log()
-    start = 25
+    start = 10
     for setting in settings[start:]:
         num_nodes, sched, loc, bw_trace, helpee_conf = setting
         loc = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/" + loc
@@ -38,7 +38,7 @@ def main():
         # config_params["add_loc_noise"] = "1"
         config_params["fps"] = "10"
         config_params["routing"] = 'olsrd'
-        # config_params["t"] = '100'
+        config_params["t"] = '50'
         input_path = os.path.dirname(os.path.abspath(__file__)) + "/input"
         config_params["ptcl_config"] = input_path + "/pcds/carla-data-config.txt"
         # config_params["adaptive_encode"] = "1"

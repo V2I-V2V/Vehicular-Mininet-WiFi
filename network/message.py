@@ -3,6 +3,8 @@ import struct
 import pickle
 from tokenize import group
 
+from numpy.lib.function_base import sinc
+
 TYPE_CONTROL_MSG = 0
 TYPE_DATA_MSG = 1
 TYPE_SERVER_REPLY_MSG = 2
@@ -223,8 +225,8 @@ def vehicle_parse_location_packet_data(data):
     """
     # return helpee id, location
     helpee_id = int.from_bytes(data[0:2], "big")
-    x = int.from_bytes(data[2:4], "big")
-    y = int.from_bytes(data[4:6], "big")
+    x = int.from_bytes(data[2:4], "big", signed=True)
+    y = int.from_bytes(data[4:6], "big", signed=True)
     seq_num = int.from_bytes(data[6:10], "big")
     group_id = pickle.loads(data[12:])
     return helpee_id, [x, y], seq_num, group_id
@@ -257,8 +259,8 @@ def vehicle_parse_sos_packet_data(data):
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")
     v_id = int.from_bytes(msg_payload[2:4], "big")
-    x = int.from_bytes(msg_payload[4:6], "big")
-    y = int.from_bytes(msg_payload[6:8], "big")
+    x = int.from_bytes(msg_payload[4:6], "big", signed=True)
+    y = int.from_bytes(msg_payload[6:8], "big", signed=True)
     seq_num = int.from_bytes(msg_payload[8:12], "big")
     return v_type, v_id, x, y, seq_num
 

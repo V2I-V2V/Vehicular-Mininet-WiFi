@@ -17,6 +17,7 @@ import pickle
 from multiprocessing import Process
 
 computation_overhead = 0.035
+computation_overhead_v2v = 0.08
 # vehicle_deadline = 0.5
 
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
@@ -59,11 +60,11 @@ linestyles = OrderedDict(
 
 
 detected_spaces_label = [[[] for _ in range(80)] for _ in range(6)]
-detected_space_label = collections.defaultdict(list)
+# detected_space_label = collections.defaultdict(list)
 
-import json
-f = open("/home/mininet-wifi/all-grid-label.json", 'r')
-detected_space_label = json.load(f)
+# import json
+# f = open("/home/mininet-wifi/all-grid-label.json", 'r')
+# detected_space_label = json.load(f)
 
 
 def get_server_assignments(filename):
@@ -248,6 +249,7 @@ def get_receiver_ts(filename):
                 frame_id_to_senders[frame] = senders
             elif line.startswith("[Deadline passed, Send rst back to node]"):
                 # get node id
+                parse = line.split()
                 frame = int(parse[-1])
                 recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
                 recved_node_arr = eval(recved_node_str)
@@ -264,27 +266,27 @@ def construct_comb(vnum_list, truth_list):
         s += truth_list[int(i)]
     return s
 
-def calculate_detected_areas(frame_id_to_senders):
-    # return 10
-    detected_spaces = []
-    for frame_id, v_num in frame_id_to_senders.items():
-        if len(v_num) > 4:
-            detected_spaces.append(2500) # return a dummy variable for now
-            continue
-        if frame_id < 550:
-            wrapped_frame_id = frame_id % 80
-            # print(v_num)
-            v_num_comb = sorted(v_num)
-            key = construct_comb(v_num_comb, ['0', '2', '4', '5']) # , '0', '2', '4', '5', '0', '2', '4', '5'
-            # grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(wrapped_frame_id, v_num))
-            # detected_space = len(grid_label[grid_label != 0])
-            # detected_spaces.append(detected_space)
-            # print(type(wrapped_frame_id))
-            if key is not '':
-                detected_spaces.append(detected_space_label[key][wrapped_frame_id])
-            else:
-                detected_spaces.append(0)
-    return detected_spaces
+# def calculate_detected_areas(frame_id_to_senders):
+#     # return 10
+#     detected_spaces = []
+#     for frame_id, v_num in frame_id_to_senders.items():
+#         if len(v_num) > 4:
+#             detected_spaces.append(2500) # return a dummy variable for now
+#             continue
+#         if frame_id < 550:
+#             wrapped_frame_id = frame_id % 80
+#             # print(v_num)
+#             v_num_comb = sorted(v_num)
+#             key = construct_comb(v_num_comb, ['0', '2', '4', '5']) # , '0', '2', '4', '5', '0', '2', '4', '5'
+#             # grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(wrapped_frame_id, v_num))
+#             # detected_space = len(grid_label[grid_label != 0])
+#             # detected_spaces.append(detected_space)
+#             # print(type(wrapped_frame_id))
+#             if key is not '':
+#                 detected_spaces.append(detected_space_label[key][wrapped_frame_id])
+#             else:
+#                 detected_spaces.append(0)
+#     return detected_spaces
 
 
 def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_e2e_latency, expected_num_frames):
@@ -302,6 +304,8 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_
         qb_dict, latency_dict = {}, {}
         real_vids = []
         for v_id in v_ids:
+            if v_id == "":
+                break
             if int(v_id) not in node_id_to_encode:
                 continue
             if frame_id not in node_id_to_encode[int(v_id)].keys():
@@ -414,7 +418,9 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         with open(dir+'/encode_decisions.pickle', 'rb') as e:
             node_to_encode_choices = pickle.load(e)
     else:
-        helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee
+        # helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee
+        print(dir)
+        helpees = []
         sender_ts_dict, encode_choice_dict = {}, {}
         # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
         latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
@@ -581,6 +587,12 @@ def get_summary_of_settings(settings):
         print("Get stats for setting", setting)
         num_nodes, bw_file, loc, helpee_conf, run_time =\
             int(setting[0]), setting[1], setting[2], setting[3], int(setting[4])
+        if 'mn-wifi' in bw_file:
+            bw_file = bw_file.replace('mn-wifi', 'mininet-wifi')
+        if 'mn-wifi' in loc:
+            loc = loc.replace('mn-wifi', 'mininet-wifi')
+        if 'mn-wifi' in helpee_conf:
+            helpee_conf = helpee_conf.replace('mn-wifi', 'mininet-wifi')
         v2i_bw = get_nodes_v2i_bw(bw_file, run_time, num_nodes, helpee_conf)
         setting_summary.write("-------BW_Summary------\n")
         for i in range(num_nodes):

@@ -65,9 +65,9 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
              + '-' + str(1000+frame_id) + '.txt'
         grid_truth[v_id] = np.loadtxt(gt_file)
         local_pred[v_id] = np.loadtxt(local_file)
-    merged = np.vstack(ptcls)
-    merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.08)
-    manager = multiprocessing.Manager()
+    if len(ptcls) > 0:
+        merged = np.vstack(ptcls)
+        merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.08)
     detected_spaces = []
     detection_accuracy = []
     processes = []
