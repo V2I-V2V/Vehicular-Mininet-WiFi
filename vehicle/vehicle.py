@@ -453,7 +453,7 @@ def notify_helpee_node(helpee_id):
     Args:
         helpee_id (int): helpee id to notify
     """
-    # print("[notifying the helpee]")
+    print("[notifying the helpee]")
     send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     msg = vehicle_id.to_bytes(2, 'big')
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_ASSIGNMENT)
@@ -584,7 +584,8 @@ class VehicleControlThread(threading.Thread):
                     print("[Helpee get helper assignment] helper_id: "\
                             + str(helper_id) + ' ' + str(time.time()), flush=True)
                     if helper_id != current_helper_id:
-                        helper_ip = "10.0.0." + str(helper_id+2)   
+                        print("[helpee connect to helper] ", helper_id)
+                        helper_ip = addr[0]  
                         new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port, helper_id)
                         new_send_thread.daemon = True
                         new_send_thread.start()
@@ -806,7 +807,8 @@ class VehicleDataSendThread(threading.Thread):
         try:
             self.v2v_data_send_sock.connect((helper_ip, helper_port))
             self.is_helper_alive = True
-            self.ack_recv_thread = threading.Thread(target=self.ack_recv_thread, args=())
+            print("connect to helper!")
+            # self.ack_recv_thread = threading.Thread(target=self.ack_recv_thread, args=())
             current_helper_id = helper_id
         except:
             print('[Connection to helper failed]')

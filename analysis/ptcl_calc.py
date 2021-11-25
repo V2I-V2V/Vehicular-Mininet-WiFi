@@ -9,10 +9,12 @@ import multiprocessing
 import time
 
 DATASET_DIR = '/home/mininet-wifi/Carla/lidar/'
+DATASET_DIR = '/home/mininet-wifi/dense_120_town05/lidar/'
 vehicle_deadline = 0.5
 
-vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
 vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 130, 174, 185]
+vehicle_id_to_dir = [209, 221, 233, 269, 270, 295, 152, 163, 185, 97]
+
 
 def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred = None):
     merged_pred_grid = \

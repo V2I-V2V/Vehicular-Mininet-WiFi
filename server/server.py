@@ -341,7 +341,7 @@ class ControlConnectionThread(threading.Thread):
             elif msg_type == network.message.TYPE_ROUTE:
                 v_type, v_id, routing_table, seq_num = network.message.server_parse_route_msg(payload)
                 route_map[v_id] = routing_table
-                print(route_map)
+                print("[Route]", v_id, route_map)
                 vehicle_types[v_id] = v_type
                 node_seq_nums[v_id] = seq_num
             node_last_rx_time_lock.acquire()
