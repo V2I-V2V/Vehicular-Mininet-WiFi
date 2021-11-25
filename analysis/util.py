@@ -249,6 +249,7 @@ def get_receiver_ts(filename):
                 frame_id_to_senders[frame] = senders
             elif line.startswith("[Deadline passed, Send rst back to node]"):
                 # get node id
+                print(line)
                 parse = line.split()
                 frame = int(parse[-1])
                 recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
@@ -300,7 +301,7 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_
     for frame_id, v_num in sorted(frame_id_to_senders.items()):
         v_ids = v_num.split('-')
         # print(frame_id,v_ids)
-        wrapped_frame_id = frame_id % 80
+        wrapped_frame_id = frame_id % 300
         qb_dict, latency_dict = {}, {}
         real_vids = []
         for v_id in v_ids:
@@ -598,6 +599,7 @@ def get_summary_of_settings(settings):
         for i in range(num_nodes):
             setting_summary.write("node%d_bw_mean/std=%f/%f\n"%(i, np.mean(v2i_bw[:, i]), np.std(v2i_bw[:, i])))
         bw_mean.append(np.mean(v2i_bw))
+        
         num_helpees, disconnect_percentage = \
             get_disconect_duration_in_percentage(helpee_conf, run_time, num_nodes)
         connect.append(disconnect_percentage)

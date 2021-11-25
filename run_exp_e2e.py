@@ -2,10 +2,10 @@ from run_experiment import *
 
 
 def main():
-    scheds = ['combined-adapt'] # 'v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt'
-    settings = parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_8.txt', sched=scheds)
+    scheds = ['v2v', 'v2i', 'v2v-adapt', 'v2i-adapt'] # 'v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt'
+    settings = parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_town05.txt', sched=scheds)
     write_log()
-    start = 10
+    start = 0
     for setting in settings[start:]:
         num_nodes, sched, loc, bw_trace, helpee_conf = setting
         loc = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/" + loc
@@ -20,10 +20,10 @@ def main():
         os.system(cmd)
         print("+", cmd)
         config_params = init_config()
+        config_params["ptcl_config"] = loc.replace("locations", "pcds")
         config_params["num_of_nodes"] = num_nodes
         if sched == 'combined-adapt':
             config_params["scheduler"] = 'combined'
-            # config_params['adapt_frame_skipping'] = '1'
             config_params['adaptive_encode'] = '1'
         else:
             config_params["scheduler"] = sched
@@ -38,11 +38,11 @@ def main():
         # config_params["add_loc_noise"] = "1"
         config_params["fps"] = "10"
         config_params["routing"] = 'olsrd'
+        if sched == 'combined-adapt':
+            config_params["routing"] = 'custom'
         config_params["t"] = '50'
-        input_path = os.path.dirname(os.path.abspath(__file__)) + "/input"
-        config_params["ptcl_config"] = input_path + "/pcds/carla-data-config.txt"
-        # config_params["adaptive_encode"] = "1"
-        # config_params['adapt_frame_skipping'] = '1'
+        # input_path = os.path.dirname(os.path.abspath(__file__)) + "/input"
+        # config_params["ptcl_config"] = input_path + "/pcds/carla-data-config.txt"
         print(config_params)
         write_config_to_file(config_params, folder + "/config.txt")
         # config_params = parse_config_from_file(folder + "/config.txt")
