@@ -16,55 +16,65 @@ import multiprocessing
 import pickle
 from multiprocessing import Process
 
-computation_overhead = 0.045
-computation_overhead_v2v = 0.092
+computation_overhead = 0.050
+computation_overhead_v2v = 0.140
 # vehicle_deadline = 0.5
 
-colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
 shced_to_displayed_name = {
     'combined-adapt': 'Harbor', 'v2v' : 'V2V', 'v2i-adapt': 'V2I-adapt', 'v2v-adapt': 'V2V-adapt', 'v2i': 'V2I',
-    'combined-no-fallback-adapt': 'Harbor (w/o fallback)'
+    'combined-no-fallback-adapt': 'Harbor (w/o fallback)', 
+    'combined-deadline-unaware-adapt': 'no-deadl\nine-aware',
+    'combined-no-prioritization-adapt': 'no-priori\ntization',
+    'combined-unoptimized-delivery-adapt': 'no-ddl-awa\nre+no-prio',
+    'random-adapt': 'random',
+    'distributed-adapt': 'distributed',
+    'minDist-adapt': 'minDist',
+    'bwAware-adapt': 'bwAware'
 }
-sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
-    'combined-adapt': 'midnightblue', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
+sched_to_color = {'minDist-adapt': 'r', 'random-adapt': 'b', 'distributed-adapt': 'maroon', 'combined': 'g',\
+    'combined-adapt': 'midnightblue', 'bwAware-adapt': 'darkblue', 'combined-op_min-min': 'blueviolet',
     'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
     'combined-op_sum-harmonic': 'cyan', 'v2i': 'orange', 'combined-deadline': 'olive',
     'v2v' : 'crimson', 'v2i-adapt': 'forestgreen', 'v2v-adapt': 'darkviolet',
-    'combined-no-fallback-adapt': 'maroon'}
+    'combined-no-fallback-adapt': 'maroon', 'combined-deadline-unaware-adapt': 'g',
+    'combined-no-prioritization-adapt': 'brown',
+    'combined-unoptimized-delivery-adapt': 'r'}
 sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o',
-                    'combined-no-fallback-adapt': '^'}
-sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed': '--', 'combined': ':',\
+                    'combined-no-fallback-adapt': '^', 'combined-deadline-unaware-adapt': '^',
+                    'combined-no-prioritization-adapt': 'h',
+                    'combined-unoptimized-delivery-adapt': 'X',
+                    'random-adapt': '^',
+                    'distributed-adapt': 'h',
+                    'minDist-adapt': 'X',
+                    'bwAware-adapt': 'o'}
+sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed-adapt': '--', 'combined': ':',\
     'combined-adapt': '-'}
 
 linestyles = OrderedDict(
     [('combined-adapt',               (0, ())),
-     ('minDist',      (0, (1, 10))),
+     ('minDist-adapt',      (0, (1, 10))),
      ('combined-op_min-min',              (0, (1, 5))),
      ('combined',      (0, (1, 1))),
 
      ('combined-op_sum-min',      (0, (5, 10))),
      ('dashed',              (0, (5, 5))),
-     ('random',      (0, (5, 1))),
+     ('combined-deadline-unaware-adapt',      (0, (5, 1))),
+     ('combined-no-prioritization-adapt',      (0, (5, 1))),
+     ('combined-unoptimized-delivery-adapt',      (0, (5, 1))),
      ('v2i',      (0, (5, 1))),
      ('v2i-adapt',      (0, (5, 1))),
+     ('random-adapt',      (0, (5, 1))),
 
      ('combined-deadline',  (0, (3, 10, 1, 10))),
-     ('distributed',          (0, (3, 5, 1, 5))),
+     ('distributed-adapt',          (0, (3, 5, 1, 5))),
      ('v2v',  (0, (3, 1, 1, 1))),
      ('v2v-adapt',  (0, (3, 1, 1, 1))),
 
      ('combined-op_sum-harmonic', (0, (3, 10, 1, 10, 1, 10))),
      ('combined-no-fallback-adapt',         (0, (3, 5, 1, 5, 1, 5))),
-     ('bwAware', (0, (3, 1, 1, 1, 1, 1)))])
+     ('bwAware-adapt', (0, (3, 1, 1, 1, 1, 1)))])
 
-
-detected_spaces_label = [[[] for _ in range(80)] for _ in range(6)]
-# detected_space_label = collections.defaultdict(list)
-
-# import json
-# f = open("/home/mininet-wifi/all-grid-label.json", 'r')
-# detected_space_label = json.load(f)
 
 
 def get_server_assignments(filename):
@@ -89,7 +99,6 @@ def get_server_assignments(filename):
                     assignment = ()
                 node_mapping_str = line.split('[')[1].split(']')[0]
                 node_mapping_str = node_mapping_str.replace(' ', ', ')
-                # node_mapping = eval(node_mapping_str)
                 if len(node_mapping_str) != 0:
                     node_mapping = eval(node_mapping_str)
                 try:
@@ -144,7 +153,7 @@ def get_computation_overhead(filename):
     return computation_latency
 
 
-def get_sender_ts(filename):
+def get_sender_ts(filename, scheme):
     sender_ts = {}
     encode_choice = {}
     summary_dict = {'dl-latency': [], 'e2e-latency': [], 'frames-with-result': [],
@@ -184,13 +193,14 @@ def get_sender_ts(filename):
                 frame = int(parse[-5][:-1])
                 if frame not in summary_dict['frames-with-result']:
                     e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
-                    e2e_latency += computation_overhead # 10 ms decode 25 ms detect 
-                    if e2e_latency < 0:
-                        print('E2E latency < 0!!!!', frame)
-                    elif e2e_latency > vehicle_deadline:
-                        e2e_latency = vehicle_deadline
-                    # if frame in sender_ts:
-                    #     e2e_latency = timestamp - sender_ts[frame]
+                    if 'v2v' in scheme:
+                        print("V2V scheme use V2V computation latency")
+                        e2e_latency += computation_overhead_v2v
+                    else:
+                        e2e_latency += computation_overhead  
+                    if e2e_latency > vehicle_deadline:
+                        e2e_latency = vehicle_deadline + 0.01
+
                     summary_dict['latency-e2e-all'][frame] = e2e_latency
                     summary_dict['e2e-latency'].append(e2e_latency)
                     summary_dict['frames-with-result'].append(frame)
@@ -249,7 +259,6 @@ def get_receiver_ts(filename):
                 frame_id_to_senders[frame] = senders
             elif line.startswith("[Deadline passed, Send rst back to node]"):
                 # get node id
-                print(line)
                 parse = line.split()
                 frame = int(parse[-1])
                 recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
@@ -432,7 +441,8 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         ctrl_msg_size = []
         for i in range(num_nodes):
             if os.path.exists(dir + '/logs/node%d.log'%i):
-                sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = get_sender_ts(dir + '/logs/node%d.log'%i)
+                sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = \
+                    get_sender_ts(dir + '/logs/node%d.log'%i, config["scheduler"])
                 if last_t == 0:
                     continue
                 # sent_frames += int((last_t - summary_dict['start-ts']) * 10)
