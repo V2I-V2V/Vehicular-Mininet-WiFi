@@ -11,15 +11,11 @@ import time
 DATASET_DIR = '/home/mininet-wifi/Carla/lidar/'
 vehicle_deadline = 0.5
 
-<<<<<<< HEAD
 # vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
 vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 130, 174, 185]
 remote_accs = []
 oracle_accs = []
-=======
-vehicle_id_to_dir = [86, 130, 174, 108, 119, 141, 152, 163, 185, 97]
-vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 130, 174, 185]
->>>>>>> 1a742304c3eb379f05adb9f084ba1a1d165fcbf5
+
 
 
 def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred=None):

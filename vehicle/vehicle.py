@@ -1,6 +1,5 @@
 # this file handles the main process run by each vehicle node
 # -*- coding: utf-8 -*-
-from locale import currency
 import os
 import sys
 
@@ -14,7 +13,6 @@ import time
 import pickle
 import config
 import network.message
-import numpy as np
 import ptcl.partition
 import ptcl.pointcloud
 import utils
@@ -108,15 +106,23 @@ def self_loc_update_thread():
     """Thread to update self location every 100ms
     """
     global self_loc
-    print("[start loc update] at %f" % time.time())
-    # loc_log = open('%d_v.txt'%vehicle_id, 'w+')
-    for loc in self_loc_trace:
-        t_s = time.time()
-        self_loc = loc
-        # loc_log.write(str(time.time()) + ' ' + str(self_loc[0]) + ' ' +str(self_loc[1]) + '\n')
-        t_passed = time.time() - t_s
-        if t_passed < 0.1:
-            time.sleep(0.1 - t_passed)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('localhost', int(20175)))
+    while True:
+        data = s.recv(4096)
+        if not data:
+            break
+        line = data.decode('utf-8')
+        # print(line)
+        split = line.split(',')
+        if line.startswith('$GPGGA'):
+            longitude, latitude = float(split[2]), float(split[4])
+            # print(longitude, latitude, time.time())
+            self_loc = (longitude, latitude)
+        elif line.startswith('$GPRMC') and split[2] == 'A':
+            longitude, latitude = float(split[3]), float(split[5])
+            self_loc = (longitude, latitude)
+            # print(longitude, latitude, time.time())
 
 
 vehicle_seq_dict = {}  # store other vehicle's highest seq

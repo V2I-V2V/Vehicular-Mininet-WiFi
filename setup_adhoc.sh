@@ -11,5 +11,5 @@ sudo iwconfig eth1 essid 'adhoc-v2v'
 sudo iwconfig eth1 key 1234567890
 # activation
 sudo ip link set eth1 up
-sudo ip addr add 169.254.34.${ip_addr}/16 dev ${iface}
+sudo ip addr add 10.42.0.${ip_addr}/24 dev ${iface}
 
