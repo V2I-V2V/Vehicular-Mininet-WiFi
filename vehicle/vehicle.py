@@ -41,14 +41,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
 parser.add_argument('-d', '--data_path', default='~/DeepGTAV-data/object-0227-1/', \
                     type=str, help='point cloud and oxts data path')
-parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
+parser.add_argument('--data_type', default="Carla", choices=["GTA", "Carla"])
 parser.add_argument('-l', '--location_file',
                     default=os.path.dirname(os.path.abspath(__file__)) + "/input/object-0227-loc.txt",
                     type=str, help='location file name')
 parser.add_argument('-c', '--helpee_conf',
                     default=os.path.dirname(os.path.abspath(__file__)) + "/input/helpee_conf/helpee-nodes.txt",
                     type=str, help='helpee nodes configuration file')
-parser.add_argument('-f', '--fps', default=1, type=int, help='FPS of pcd data')
+parser.add_argument('-f', '--fps', default=10, type=int, help='FPS of pcd data')
 parser.add_argument('-n', '--disable_control', default=0, type=int, help='disable control msgs')
 parser.add_argument('--adaptive', default=0, type=int,
                     help="adaptive encoding type (0 for no adaptive encoding, 1 for adaptive, 2 for adaptive but always use full 4 chunks")
@@ -103,7 +103,7 @@ frame_sent_time = {}
 
 
 def self_loc_update_thread():
-    """Thread to update self location every 100ms
+    """Thread to update self location by GPS
     """
     global self_loc
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -399,7 +399,7 @@ def v2i_ack_recv_thread(soc):
             print("[Recv ack from server] frame %d, latency %f, dl latency %f" %
                   (frame_id, frame_latency, downlink_latency), time.time())
             e2e_frame_latency_lock.acquire()
-            e2e_frame_latency[frame_id] = frame_latency
+            e2e_frame_latency[frame_id] = frame_latency - downlink_latency
             e2e_frame_latency_lock.release()
         elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
             print("[Recv rst from server] frame %d, DL latency %f" % (frame_id, downlink_latency),
@@ -705,7 +705,7 @@ class VehicleDataControlRecvThread(threading.Thread):
                     print("[V2V Recv ack from helper] frame %d, latency %f, DL latency %f"
                           % (frame_id, frame_latency, downlink_latency))
                     e2e_frame_latency_lock.acquire()
-                    e2e_frame_latency[frame_id] = frame_latency
+                    e2e_frame_latency[frame_id] = frame_latency - downlink_latency
                     e2e_frame_latency_lock.release()
                 elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
                     print("[V2V Recv rst from helper] frame %d, DL latency %f" %
@@ -995,8 +995,8 @@ def main():
     t_elapsed = time.time() - t_start
     print("read and encode takes %f" % t_elapsed)
     # explicitly sync on encoding
-    if t_elapsed < 15:
-        time.sleep(15 - t_elapsed)
+    if t_elapsed < 30:
+        time.sleep(30 - t_elapsed)
     start_timestamp = time.time()
     print("[start timestamp] ", start_timestamp)
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())

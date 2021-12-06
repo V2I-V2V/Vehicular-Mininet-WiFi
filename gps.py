@@ -14,13 +14,12 @@ def netcat(host, port):
         split = line.split(',')
         if line.startswith('$GPGGA'):
             longitude, latitude = float(split[2])/100, float(split[4])/100
-            print(longitude, latitude, time.time())
+            print('location', longitude, latitude, time.time())
         elif line.startswith('$GPRMC') and split[2] == 'A':
             longitude, latitude = float(split[3])/100, float(split[5])/100
-            print(longitude, latitude, time.time())
+            print('location', longitude, latitude, time.time())
         
     s.close()
     
 if __name__ == '__main__':
-    print('here')
     netcat('localhost', 20175)
