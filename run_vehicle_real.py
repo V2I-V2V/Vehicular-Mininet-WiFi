@@ -5,6 +5,9 @@ import time
 import subprocess
 import signal
 
+# sync time
+os.system('sudo ntpdate NTP-server-dili')
+
 start_time = time.time()
 
 id_to_data_dir = ['86', '97', '108', '119', '130', '141', '152', '163', '174', '185']
