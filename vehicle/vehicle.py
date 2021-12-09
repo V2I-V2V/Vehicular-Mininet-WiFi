@@ -35,7 +35,6 @@ NO_ADAPTIVE_ENCODE = 0
 ADAPTIVE_ENCODE = 1
 ADAPTIVE_ENCODE_FULL_CHUNK = 2
 
-sys.stderr = sys.stdout
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
@@ -57,6 +56,7 @@ parser.add_argument('--adapt_skip_frames', default=False, action="store_true",
 parser.add_argument('--add_loc_noise', default=False, action='store_true',
                     help="enable noise to location")
 parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1])
+parser.add_argument('--start_timestamp', default=time.time(), type=float)
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
@@ -826,7 +826,7 @@ class VehicleDataSendThread(threading.Thread):
         try:
             self.v2v_data_send_sock.connect((helper_ip, helper_port))
             self.is_helper_alive = True
-            self.ack_recv_thread = threading.Thread(target=self.ack_recv_thread, args=())
+            self.ack_thread = threading.Thread(target=self.ack_recv_thread, args=())
             current_helper_id = helper_id
         except:
             print('[Connection to helper failed]')
@@ -983,11 +983,8 @@ def check_connection_state(disconnect_timestamps):
 
 def main():
     global start_timestamp
-    # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
-    #          args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
-    # senser_data_capture_thread.start()
-    # trace_files = 'trace.txt'
-    # lte_traces = utils.read_traces(trace_files)
+    while time.time() < args.start_timestamp:
+        time.sleep(0.005)
     disconnect_timestamps = utils.process_traces(HELPEE_CONF)
 
     if args.v2v_mode == 1:
@@ -1033,4 +1030,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Keyboard interrupted.")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
