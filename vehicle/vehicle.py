@@ -56,7 +56,7 @@ parser.add_argument('--adapt_skip_frames', default=False, action="store_true",
 parser.add_argument('--add_loc_noise', default=False, action='store_true',
                     help="enable noise to location")
 parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1])
-parser.add_argument('--start_timestamp', default=time.time(), type=float)
+parser.add_argument('-t', '--start_timestamp', default=time.time(), type=float)
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
