@@ -270,8 +270,7 @@ def get_encoding_qb(e2e_frame_latency):
         if id in encoding_sizes:
             if latency < 0:
                 print('err!!! latency < 0')
-            else:
-                latency = 0.2
+                latency = 0.4
             thrpt = encoding_sizes[id] / latency
             # print('thrpt:', thrpt)
             thrpts.append(thrpt)
