@@ -271,9 +271,9 @@ def get_encoding_qb(e2e_frame_latency):
             if latency < 0:
                 print('err!!! latency < 0')
             else:
-                latency = 0.05
+                latency = 0.2
             thrpt = encoding_sizes[id] / latency
-            print('thrpt:', thrpt)
+            # print('thrpt:', thrpt)
             thrpts.append(thrpt)
             cnt += 1
             if cnt == 5:
@@ -385,6 +385,9 @@ def v2i_data_send_thread():
                 print("capture finished, sleep %f" % (1.0 / curr_frame_rate - t_elapsed))
                 time_to_next_ready_frame = (time.time() - start_timestamp) % (1.0 / curr_frame_rate)
                 time.sleep(1.0 / curr_frame_rate - time_to_next_ready_frame)
+            elif (1.0 / curr_frame_rate - t_elapsed) < 0:
+                print('sending is taking too long!')
+
             # if curr_frame_rate != 10:
             #     frame_lock.acquire()
             #     curr_frame_id += int(10/curr_frame_rate)

@@ -13,5 +13,5 @@ sudo iwconfig ${iface} essid 'adhoc-v2v'
 sudo iwconfig ${iface} key 1234567890
 # activation
 sudo ip link set ${iface} up
-sudo ip addr add 10.0.0.${ip_addr}/24 dev ${iface}
+sudo ip addr add 10.0.0.${ip_addr}/24 brd + dev ${iface}
 
