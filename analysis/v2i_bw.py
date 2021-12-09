@@ -23,7 +23,7 @@ def get_nodes_v2i_bw(bw_file, time, num_nodes, helpee_conf):
     for i in range(num_nodes):
         if conn_status is not None:
             if i in conn_status.keys():
-                used_thrpts[:time,i] *= conn_status[i]
+                used_thrpts[:time,i%used_thrpts.shape[1]] *= conn_status[i]
     return used_thrpts
 
 def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
@@ -37,7 +37,7 @@ def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
     axes = []
     for i in range(num_nodes):
         axes.append(fig.add_subplot(num_nodes, 1, i+1))
-        thrpt_i = v2i_thrpts[:, i]
+        thrpt_i = v2i_thrpts[:, i%(v2i_thrpts.shape[1])]
         if len(thrpt_i) < time:
             thrpt = np.ones((time,))
             thrpt[:len(thrpt_i)] = thrpt_i
@@ -48,7 +48,7 @@ def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
         if conn_status is not None:
             if i in conn_status.keys():
                 thrpt_i *= conn_status[i]
-        axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i], label='node%d'%i)
+        axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i%len(colors)], label='node%d'%i)
         axes[-1].legend()
         axes[-1].set_xlim([0, int(time)])
         axes[-1].set_ylim([0, 50])

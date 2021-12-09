@@ -17,6 +17,7 @@ import network.message
 import config
 import pickle
 import group
+import collections
 
 MAX_VEHICLES = 100
 MAX_FRAMES = 800
@@ -28,7 +29,7 @@ NODE_LEFT_TIMEOUT = 0.8
 SCHED_PERIOD = 0.2
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEADLINE = 0.20
-DIVIDE_THRESHOLD = 10
+DIVIDE_THRESHOLD = 7
 
 sys.stderr = sys.stdout
 
@@ -112,7 +113,7 @@ def get_bws():
     else:
         bw_idx = int(curr_time - init_time - 58)
     for i in range(num_vehicles):
-        bws[i] = all_bandwidth[bw_idx][i]
+        bws[i] = all_bandwidth[bw_idx][i%all_bandwidth.shape[1]]
 
 
 def get_mapped_bw(mapped_node_ids):
@@ -130,7 +131,7 @@ class SchedThread(threading.Thread):
         self.flip_cnt = 0
         self.last_assignment_score = 0 # used for combined sched
         self.last_assignment = None
-        self.assignment_change_threshold = 0.8
+        self.assignment_change_threshold = 0.3
         self.last_assignment_scores = {}
         self.fallback = False
 
@@ -143,7 +144,7 @@ class SchedThread(threading.Thread):
     def ready_to_schedule(self, scheduler_mode):
         global current_connected_vids
         current_connected_vids = check_current_connected_vehicles()
-        print("Current connected vehicles " + str(current_connected_vids))
+        # print("Current connected vehicles " + str(current_connected_vids))
         helpee_count, helper_count = 0, 0
         for i in current_connected_vids:
             if vehicle_types[i] == HELPEE:
@@ -270,6 +271,7 @@ class SchedThread(threading.Thread):
                         # print("unmapped:", route_map)
                         # print("routing tables", routing_tables)
                         assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
+                        # print('route aware assignment', assignment)
                     elif scheduler_mode == 'random':
                         random_seed = (time.time() - init_time) // 5
                         assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
@@ -333,15 +335,15 @@ class ControlConnectionThread(threading.Thread):
                 if v_id not in node_seq_nums.keys() or \
                 node_seq_nums[v_id] < seq_num:
                     # only update location when seq num is larger
-                    print("Recv loc msg with seq num %d from vehicle %d" % (seq_num, v_id))
-                    print("[T2] recv loc msg from ", v_id, time.time())
+                    # print("Recv loc msg with seq num %d from vehicle %d" % (seq_num, v_id))
+                    # print("[T2] recv loc msg from ", v_id, time.time())
                     location_map[v_id] = (x, y)
                     vehicle_types[v_id] = v_type
                     node_seq_nums[v_id] = seq_num
             elif msg_type == network.message.TYPE_ROUTE:
                 v_type, v_id, routing_table, seq_num = network.message.server_parse_route_msg(payload)
                 route_map[v_id] = routing_table
-                print("[Route]", v_id, route_map)
+                # print("[Route]", v_id, route_map)
                 vehicle_types[v_id] = v_type
                 node_seq_nums[v_id] = seq_num
             node_last_rx_time_lock.acquire()
@@ -418,9 +420,12 @@ def server_recv_data(client_socket, client_addr):
             return
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
         msg_size, frame_id, v_id, data_type, ts, num_chunks, chunk_sizes = network.message.parse_data_msg_header(header)
-        if client_vid_determined is False: #or client_socket != client_data_sockets[v_id]
+        
+        # if client_vid_determined is False: #or client_socket != client_data_sockets[v_id]
             # need a map from v_id to data sockets to broadcast inference results
-            client_data_sockets[v_id] = client_socket
+        conn_lock.acquire()
+        client_data_sockets[v_id] = client_socket
+        conn_lock.release()
             # client_vid_determined = True
         # received_bytes[vehicle_id] += msg_size
         # print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
@@ -432,6 +437,7 @@ def server_recv_data(client_socket, client_addr):
         node_last_rx_time_lock.release()
         if data_type == TYPE_PCD:
             if frame_id not in first_frame_arrival_ts:
+                # group_id = group.get_group_id_based_on_location(location_map[v_id])
                 first_frame_arrival_ts[frame_id] = ts
             # send back a ACK back
             conn_lock.acquire()
@@ -453,7 +459,7 @@ def server_recv_data(client_socket, client_addr):
                 saving_thread.daemon = True
                 saving_thread.start()
         elif data_type == TYPE_OXTS:
-            # print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
+            print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
             if pcd_data_type == 'GTA':
                 oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
             elif pcd_data_type == 'Carla':
@@ -494,7 +500,7 @@ def server_recv_data(client_socket, client_addr):
                 header = network.message.construct_reply_msg_header(encoded_payload, 
                     network.message.TYPE_SERVER_REPLY_MSG, frame_id)
                 # send back results to all clients
-                for vehicle_id in v_ids:
+                for vehicle_id in client_data_sockets:
                     try:
                         network.message.send_msg(client_data_sockets[vehicle_id], header, encoded_payload)
                         print('send result to ', vehicle_id)
@@ -641,9 +647,6 @@ def main():
         newthread = ControlConnectionThread(client_address, client_socket)
         newthread.daemon = True
         newthread.start()
-    # data_process_thread = threading.Thread(target=merge_data_when_ready)
-    # data_process_thread.deamon = True
-    # data_process_thread.start()
     # thrpt_calc_thread = threading.Thread(target=throughput_calc)
     # thrpt_calc_thread.start()
 

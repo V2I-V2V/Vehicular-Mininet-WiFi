@@ -4,7 +4,6 @@ import socket
 import threading
 import time
 import utils
-import fcntl, os
 import network.message
 import config
 import mobility_noise
