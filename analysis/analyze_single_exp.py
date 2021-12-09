@@ -11,7 +11,7 @@ import analysis.v2i_bw as v2i_bw, analysis.trajectory as trajectory, analysis.di
 import run_experiment
 
 font = {'family' : 'DejaVu Sans',
-        'size'   : 15}
+        'size'   : 21}
 matplotlib.rc('font', **font)
 
 MAX_FRAMES = 80
@@ -185,6 +185,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     plt.savefig(dir+'latency-over-time.png')
 
     # plot adaptive encode
+    node_encode_level = {}
     if len(sender_adaptive_choice[0]) != 0:
         bw = np.loadtxt(bw_file)
         # fig = plt.figure(figsize=(9, 18))
@@ -195,10 +196,11 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
             ax2 = ax.twinx()
             ts, delay = construct_ts_latency_array(delay_dict_ts[i])
             if len(ts) > 0:
-                ax.plot(ts, delay, '--', label='node%d-latency'%i)
+                # ax.plot(ts, delay, '--', label='node%d-latency'%i)
                 encode_levels = []
                 for k, v in sorted(sender_adaptive_choice[i].items(), key=lambda item: item[0]):
                     encode_levels.append(v)
+                node_encode_level[i] = (ts, encode_levels[:len(ts)])
                 ax.plot(ts, encode_levels[:len(ts)], label='encode level')
                 while bw.shape[0] < int(ts[-1]-ts[0]):
                     bw = np.vstack((bw, bw[-1]))
@@ -206,7 +208,7 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
                 # ax2.plot(np.arange(int(ts[-1]-ts[0])), bw[:int(ts[-1]-ts[0]), i], label='node%i-bandwidth'%i)
                 numbers = int(len(ts)/10)
 
-                ax2.plot(np.arange(bw[44:44+numbers, i].shape[0]), bw[44:44+numbers, i], label='node%i-bandwidth'%i)
+                ax2.plot(np.arange(bw[9:numbers+9, i%bw.shape[1]].shape[0]), bw[9:numbers+9, i%bw.shape[1]], label='node%i-bandwidth'%i)
                 ax.set_xlabel('Time (s)')
                 ax.set_ylabel('Latency (s)')
                 ax2.set_ylabel('Bandwidth (Mbps)')
@@ -286,36 +288,85 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     plot_all_delay(dir, delay_all)
 
     # plot the summary figure
-    fig = plt.figure(figsize=(18, 12))
+    fig = plt.figure(figsize=(12, 9))
     bws = v2i_bw.get_nodes_v2i_bw(bw_file,exp_time,num_nodes,helpee_conf)
-    for i in range(num_nodes):
+    cnt = 0
+    selected = [0, 1 ,4]
+    for i in selected:
         # plot time series data
-        ax = fig.add_subplot(num_nodes+1, 2, 2*i+1)
-        # ts, delay = construct_ts_latency_array(delay_dict_ts[i])
+        ax = fig.add_subplot(len(selected), 2, 2*cnt+1)
         if i in latency_dict:
             ts, delay = util.construct_ts_latency_array(latency_dict[i])
             if len(ts) > 0:
                 delay = np.array(delay)
-                # print(np.argwhere(delay < 0))
-                ax.plot(ts, delay, '--o', label='node%d'%i)
-                ax.legend()
-                ax.set_ylabel("Latency (s)")
-                ax.set_xlim(0, exp_time-14)
-                ax2 = fig.add_subplot(num_nodes+1, 2, 2*i+2)
-                ax2.plot(np.arange(bws[:,i].shape[0]), bws[:,i])
-                ax2.set_ylabel('BW')
-                ax2.set_ylim(top=50)
+                if i in [0, 1]:
+                    ax.plot(ts, delay, '-x', label='helpee node %d'%i)
+                    ax.set_ylabel("Helpee %d\nLatency (s)"%i)
+                    if i == 0:
+                        ax.annotate("V2I Disconnection", fontsize=18, horizontalalignment="center", xy=(12, 0.22), xycoords='data',
+                            xytext=(16, 0.25), textcoords='data',
+                            arrowprops=dict(arrowstyle="->, head_width=0.3", connectionstyle="arc3", lw=3)
+                            )
+                    else:
+                        ax.annotate("V2I Disconnection", fontsize=18, horizontalalignment="center", xy=(21.5, 0.16), xycoords='data',
+                            xytext=(15, 0.20), textcoords='data',
+                            arrowprops=dict(arrowstyle="->, head_width=0.3", connectionstyle="arc3", lw=3)
+                            )
+                else:
+                    ax.plot(ts, delay, '-o', label='helper node')
+                    ax.set_ylabel("Helper Node\nLatency (s)")
+                # ax.legend()
+                ax.set_ylim(top=0.3)
+                
+                ax.set_xlim(0, exp_time - 20)
+                ax2 = fig.add_subplot(len(selected), 2, 2*cnt+2)
+                ax3 = ax2.twinx()
+                ax2.plot(np.arange(bws[:,i].shape[0]), bws[:,i], '-^', color='blue')
+                if i in [0, 1]:
+                    ax2.set_ylabel('Helpee %d\nV2I BW (Mbps)'%i, color='blue')
+                    if i == 0:
+                        ax3.annotate("Switch to V2V", fontsize=18, 
+                                     horizontalalignment="center",
+                                     xy=(12, 9), xycoords='data',
+                                     xytext=(16, 11), textcoords='data',
+                                     arrowprops=dict(arrowstyle="->, head_width=0.3", 
+                                     connectionstyle="arc3", lw=3)
+                            )
+                    else:
+                        ax3.annotate("Switch to V2V", fontsize=18, 
+                                     horizontalalignment="center", xy=(22, 9), xycoords='data',
+                                     xytext=(15, 11), textcoords='data',
+                                     arrowprops=dict(arrowstyle="->, head_width=0.3",
+                                     connectionstyle="arc3", lw=3)
+                            )
+                else:
+                    ax2.set_ylabel('Helper Node\nV2I BW (Mbps)', color='blue')
+                    ax3.annotate("Help Node 0", fontsize=18, 
+                                     horizontalalignment="center", xy=(13, 10), xycoords='data',
+                                     xytext=(16, 11), textcoords='data',
+                                     arrowprops=dict(arrowstyle="->, head_width=0.3",
+                                     connectionstyle="arc3", lw=3)
+                            )
+                ax2.tick_params(axis='y', color='blue')
+                ax2.set_xlim(0, exp_time-20)
+                ax2.set_ylim(top=20)
+                ax3.plot(node_encode_level[i][0], node_encode_level[i][1], '--.', label='encode-level', color='darkorange')
+                ax3.set_ylabel('Encode Level (qb)', color='darkorange')
+                ax3.tick_params(axis='y', colors='darkorange')
+                ax3.set_ylim(6, 12)
 
-    if len(server_assignments) != 0:
-        ax = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+1)
-        ax.plot(timestamps, assignments, color='darkblue', label='assignment')
-        ax.set_ylabel('Assignment\n(helpee: helper)')
-        ax.set_yticks(np.arange(0, len(assignment_enums), 1))
-        ax.set_yticklabels(assignment_enums)
-
-    plt.xlabel("Time (s)")
+        cnt += 1
+        
+    # if len(server_assignments) != 0:
+    #     ax = fig.add_subplot(num_nodes+1, 2, 2*num_nodes+1)
+    #     ax.plot(timestamps, assignments, color='darkblue', label='assignment')
+    #     ax.set_ylabel('Assignment\n(helpee: helper)')
+    #     ax.set_yticks(np.arange(0, len(assignment_enums), 1))
+    #     ax.set_yticklabels(assignment_enums)
+    ax.set_xlabel("Time (s)")
+    ax2.set_xlabel("Time (s)")
     plt.tight_layout()
-    plt.savefig(dir+'summary.png')
+    plt.savefig(dir+'summary.pdf')
 
 
 if __name__ == '__main__':

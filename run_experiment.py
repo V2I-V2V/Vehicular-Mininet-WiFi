@@ -125,7 +125,7 @@ def create_folder():
     return folder
 
 
-def run_experiment(config_params, is_save_data=False, is_run_app=True, is_tcpdump_enabled=False):
+def run_experiment(config_params, is_save_data=False, is_run_app=True, is_tcpdump_enabled=False, is_grouping=False):
     cmd = "sudo python3 " +  os.path.dirname(os.path.abspath(__file__)) + "/vehicular_perception.py -n " +\
          config_params["num_of_nodes"] + " -l " + config_params["location_file"] + " --trace " +\
          config_params["network_trace"] + " -p " + config_params["ptcl_config"] + " -s " + config_params["scheduler"] +\
@@ -145,6 +145,8 @@ def run_experiment(config_params, is_save_data=False, is_run_app=True, is_tcpdum
         cmd += " --collect-traffic"
     if is_run_app:
         cmd += " --run_app"
+    if is_grouping:
+        cmd += ' --group'
 
     os.system(cmd)
     print("+" + cmd)

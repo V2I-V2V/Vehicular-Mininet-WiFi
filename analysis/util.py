@@ -24,32 +24,44 @@ computation_overhead_v2v = 0.140
 shced_to_displayed_name = {
     'combined-adapt': 'Harbor', 'v2v' : 'V2V', 'v2i-adapt': 'V2I-adapt', 'v2v-adapt': 'V2V-adapt', 'v2i': 'V2I',
     'combined-no-fallback-adapt': 'Harbor (w/o fallback)', 
-    'combined-deadline-unaware-adapt': 'no-deadl\nine-aware',
-    'combined-no-prioritization-adapt': 'no-priori\ntization',
-    'combined-unoptimized-delivery-adapt': 'no-ddl-awa\nre+no-prio',
-    'random-adapt': 'random',
-    'distributed-adapt': 'distributed',
+    'combined-no-group-adapt': 'Harbor (w/o grouping)',
+    'combined-deadline-unaware-adapt': 'Prioritization',
+    'combined-no-prioritization-adapt': 'DDL-aware',
+    'combined-unoptimized-delivery-adapt': 'Baseline',
+    'random-adapt': 'Random',
+    'distributed-adapt': 'Distributed',
     'minDist-adapt': 'minDist',
-    'bwAware-adapt': 'bwAware'
+    'bwAware-adapt': 'V2I-BW',
+    'routeAware-adapt': 'V2V-intf'
+    
 }
-sched_to_color = {'minDist-adapt': 'r', 'random-adapt': 'b', 'distributed-adapt': 'maroon', 'combined': 'g',\
-    'combined-adapt': 'midnightblue', 'bwAware-adapt': 'darkblue', 'combined-op_min-min': 'blueviolet',
-    'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
+sched_to_color = {'minDist-adapt': 'r', 'random-adapt': 'limegreen', 'distributed-adapt': 'purple', 'combined': 'g',\
+    'combined-adapt': 'midnightblue', 'bwAware-adapt': 'chocolate', 'combined-op_min-min': 'blueviolet',
+    'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',  'routeAware-adapt': 'fuchsia',
     'combined-op_sum-harmonic': 'cyan', 'v2i': 'orange', 'combined-deadline': 'olive',
     'v2v' : 'crimson', 'v2i-adapt': 'forestgreen', 'v2v-adapt': 'darkviolet',
     'combined-no-fallback-adapt': 'maroon', 'combined-deadline-unaware-adapt': 'g',
     'combined-no-prioritization-adapt': 'brown',
-    'combined-unoptimized-delivery-adapt': 'r'}
-sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o',
-                    'combined-no-fallback-adapt': '^', 'combined-deadline-unaware-adapt': '^',
+    'combined-unoptimized-delivery-adapt': 'r',
+    'combined-no-group-adapt': 'blueviolet'}
+sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 
+                   'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o',
+                    'combined-no-fallback-adapt': '^', 
+                    'combined-deadline-unaware-adapt': '^',
                     'combined-no-prioritization-adapt': 'h',
                     'combined-unoptimized-delivery-adapt': 'X',
                     'random-adapt': '^',
                     'distributed-adapt': 'h',
                     'minDist-adapt': 'X',
-                    'bwAware-adapt': 'o'}
-sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed-adapt': '--', 'combined': ':',\
-    'combined-adapt': '-'}
+                    'bwAware-adapt': 'o',
+                    'routeAware-adapt': '^',
+                    'combined-no-group-adapt': '^'}
+sched_to_line_style = {'minDist-adapt': '--', 
+                       'random-adapt': '-.', 
+                       'distributed-adapt': '--', 
+                       'bwAware-adapt': ':',
+                       'combined-adapt': '-'}
+
 
 linestyles = OrderedDict(
     [('combined-adapt',               (0, ())),
@@ -58,7 +70,7 @@ linestyles = OrderedDict(
      ('combined',      (0, (1, 1))),
 
      ('combined-op_sum-min',      (0, (5, 10))),
-     ('dashed',              (0, (5, 5))),
+     ('routeAware-adapt',              (0, (5, 5))),
      ('combined-deadline-unaware-adapt',      (0, (5, 1))),
      ('combined-no-prioritization-adapt',      (0, (5, 1))),
      ('combined-unoptimized-delivery-adapt',      (0, (5, 1))),
@@ -67,11 +79,11 @@ linestyles = OrderedDict(
      ('random-adapt',      (0, (5, 1))),
 
      ('combined-deadline',  (0, (3, 10, 1, 10))),
-     ('distributed-adapt',          (0, (3, 5, 1, 5))),
+     ('distributed-adapt',          (0, (3, 1, 1, 1, 1, 1))),
      ('v2v',  (0, (3, 1, 1, 1))),
      ('v2v-adapt',  (0, (3, 1, 1, 1))),
 
-     ('combined-op_sum-harmonic', (0, (3, 10, 1, 10, 1, 10))),
+     ('combined-no-group-adapt', (0, (3, 10, 1, 10, 1, 10))),
      ('combined-no-fallback-adapt',         (0, (3, 5, 1, 5, 1, 5))),
      ('bwAware-adapt', (0, (3, 1, 1, 1, 1, 1)))])
 
@@ -421,10 +433,13 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         with open(dir+'/summary.pickle', 'rb') as s:
             print(dir+'/summary.pickle')
             latency_dict = pickle.load(s)
+            # latency_dict['e2e-latency'][latency_dict['e2e-latency'] < 0] = 0.4
             e2e_latency = latency_dict['e2e-latency'].tolist()
             while len(e2e_latency) < latency_dict['sent_frames']:
                 e2e_latency.append(vehicle_deadline) # append 10s latency
             latency_dict['e2e-latency'] = np.array(e2e_latency)
+            acc_arr = np.array(latency_dict['detection_acc']).reshape(-1, num_nodes)
+            print("node number:", num_nodes, np.mean(acc_arr, axis=0), np.mean(acc_arr))
         with open(dir+'/encode_decisions.pickle', 'rb') as e:
             node_to_encode_choices = pickle.load(e)
     else:

@@ -3,7 +3,7 @@ from run_experiment import *
 
 def main():
     scheds = ['v2v', 'v2i', 'v2v-adapt', 'v2i-adapt'] # 'v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt'
-    settings = parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_town05.txt', sched=scheds)
+    settings = parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_8.txt', sched=scheds)
     write_log()
     start = 0
     for setting in settings[start:]:
@@ -22,14 +22,14 @@ def main():
         config_params = init_config()
         config_params["ptcl_config"] = loc.replace("locations", "pcds")
         config_params["num_of_nodes"] = num_nodes
-        if sched == 'combined-adapt':
-            config_params["scheduler"] = 'combined'
-            config_params['adaptive_encode'] = '1'
-        else:
-            config_params["scheduler"] = sched
         if 'adapt' in sched:
             config_params['adaptive_encode'] = '1'
             config_params["scheduler"] = sched[:-6]
+        else:
+            config_params["scheduler"] = sched
+        if sched == 'combined-adapt-group':
+            config_params["scheduler"] = 'combined'
+            config_params['adaptive_encode'] = '1'
         if 'v2v' in sched:
             config_params["v2v_mode"] = "1"
         config_params["location_file"] = loc
@@ -40,13 +40,16 @@ def main():
         config_params["routing"] = 'olsrd'
         if sched == 'combined-adapt':
             config_params["routing"] = 'custom'
-        config_params["t"] = '50'
-        # input_path = os.path.dirname(os.path.abspath(__file__)) + "/input"
-        # config_params["ptcl_config"] = input_path + "/pcds/carla-data-config.txt"
+        config_params["t"] = '10'
         print(config_params)
         write_config_to_file(config_params, folder + "/config.txt")
         # config_params = parse_config_from_file(folder + "/config.txt")
-        run_experiment(config_params, is_save_data=False, is_run_app=True, is_tcpdump_enabled=False)
+        if 'group' in sched:
+            run_experiment(config_params, is_save_data=False, is_run_app=True, 
+                           is_tcpdump_enabled=False, is_grouping=True)
+        else:
+            run_experiment(config_params, is_save_data=False, is_run_app=True, 
+                           is_tcpdump_enabled=False)
         check_exception_in_output()
         move_output(folder, is_save_data=False)
         run_analysis(folder, config_params)

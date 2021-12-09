@@ -1,6 +1,5 @@
 # this file handles the main process run by each vehicle node
  # -*- coding: utf-8 -*-
-from locale import currency
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,10 +9,10 @@ import bisect
 import socket
 import threading
 import time
+print('time after importing', time.time())
 import pickle
 import config
 import network.message
-import numpy as np
 import ptcl.partition
 import ptcl.pointcloud
 import utils
@@ -36,8 +35,6 @@ NO_ADAPTIVE_ENCODE = 0
 ADAPTIVE_ENCODE = 1
 ADAPTIVE_ENCODE_FULL_CHUNK = 2
 
-sys.stderr = sys.stdout
-
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
 parser.add_argument('-d', '--data_path', default='~/DeepGTAV-data/object-0227-1/',\
@@ -56,13 +53,14 @@ parser.add_argument('--adapt_skip_frames', default=False, action="store_true", \
 parser.add_argument('--add_loc_noise', default=False, action='store_true', \
     help="enable noise to location")
 parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1])
+parser.add_argument('--start_timestamp', default=time.time(), type=float)
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
 is_adaptive_frame_skipped = args.adapt_skip_frames
 add_noise_to_loc = args.add_loc_noise
-print("Noise enabled?", add_noise_to_loc)
+print("Noise enabled?", add_noise_to_loc, time.time())
 
 pcd_data_type = args.data_type
 if args.data_type == "GTA":
@@ -87,7 +85,7 @@ current_helper_id = 65535
 start_timestamp = 0.0
 last_frame_sent_ts = 0.0
 vehicle_locs = mobility.read_locations(LOCATION_FILE)
-self_loc_trace = vehicle_locs[vehicle_id]
+self_loc_trace = vehicle_locs[vehicle_id%len(vehicle_locs)]
 if len(self_loc_trace) > 5:
     self_loc_trace = self_loc_trace[5:] # manually sync location update with vechiular_perception.py
 self_loc = self_loc_trace[0]
@@ -105,11 +103,9 @@ def self_loc_update_thread():
     """
     global self_loc
     print("[start loc update] at %f" % time.time())
-    # loc_log = open('%d_v.txt'%vehicle_id, 'w+')
     for loc in self_loc_trace:
         t_s = time.time()
         self_loc = loc
-        # loc_log.write(str(time.time()) + ' ' + str(self_loc[0]) + ' ' +str(self_loc[1]) + '\n')
         t_passed = time.time() - t_s
         if t_passed < 0.1:
             time.sleep(0.1-t_passed)
@@ -170,8 +166,8 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
             pcd_f_name = pcd_data_path + "%06d.bin"%i
             oxts_f_name = oxts_data_path + "%06d.txt"%i
         elif pcd_data_type == "Carla":
-            pcd_f_name = pcd_data_path + str(1000+i) + ".npy"
-            oxts_f_name = oxts_data_path + str(1000+i) + ".trans.npy"
+            pcd_f_name = pcd_data_path + str(800+i) + ".npy"
+            oxts_f_name = oxts_data_path + str(800+i) + ".trans.npy"
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
         pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
 
@@ -345,6 +341,7 @@ def v2i_data_send_thread():
                 continue
             data_f_id = curr_f_id % config.MAX_FRAMES
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # pcd = b""
             curr_frame_id += 1
             frame_lock.release()
             last_frame_sent_ts = time.time()
@@ -388,7 +385,7 @@ def v2i_ack_recv_thread(soc):
             print("[Recv ack from server] frame %d, latency %f, dl latency %f"%(frame_id, frame_latency, downlink_latency),
                 time.time())
             e2e_frame_latency_lock.acquire()
-            e2e_frame_latency[frame_id] = frame_latency
+            e2e_frame_latency[frame_id] = (frame_latency-downlink_latency)
             e2e_frame_latency_lock.release()
         elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
             print("[Recv rst from server] frame %d, DL latency %f"%(frame_id, downlink_latency),
@@ -693,7 +690,7 @@ class VehicleDataControlRecvThread(threading.Thread):
                     print("[V2V Recv ack from helper] frame %d, latency %f, DL latency %f"
                         %(frame_id, frame_latency, downlink_latency))
                     e2e_frame_latency_lock.acquire()
-                    e2e_frame_latency[frame_id] = frame_latency
+                    e2e_frame_latency[frame_id] = (frame_latency - downlink_latency)
                     e2e_frame_latency_lock.release()
                 elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
                     print("[V2V Recv rst from helper] frame %d, DL latency %f"%
@@ -830,6 +827,7 @@ class VehicleDataSendThread(threading.Thread):
                 # time.sleep(0.01)
                 continue
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # pcd = b""
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
@@ -917,7 +915,7 @@ def send_control_msgs(node_type):
         if node_type == HELPEE:
             wlan.broadcast_sos_msg(v2v_control_socket, vehicle_id)
     if scheduler_mode == 'minDist' or scheduler_mode == 'combined' or scheduler_mode == 'bwAware' \
-        or scheduler_mode == 'random':
+        or scheduler_mode == 'random' or scheduler_mode == 'routeAware':
         # send helpee/helper info/loc 
         if node_type == HELPER:
             wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, control_seq_num, add_noise=add_noise_to_loc)
@@ -968,6 +966,9 @@ def check_connection_state(disconnect_timestamps):
 
 def main():
     global start_timestamp
+    while time.time() < args.start_timestamp:
+        time.sleep(0.005)
+    print('starting', time.time())
     # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
     #          args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
     # senser_data_capture_thread.start()

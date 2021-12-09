@@ -31,6 +31,14 @@ num_nodes = 6
 all_bw = []
 helpee_disconnection = []
 all_dist = []
+import scipy
+
+def mean_confidence_interval(data, confidence=0.95):
+    a = 1.0 * np.array(data)
+    n = len(a)
+    m, se = np.mean(a), scipy.stats.sem(a)
+    h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+    return h
 
 def get_setting_characteristic(setting):
     num_nodes, bw_file, loc, helpee_conf, run_time = int(setting[0]), setting[1], setting[2], setting[3], int(setting[4])
@@ -49,9 +57,10 @@ def get_setting_characteristic(setting):
     node_dists = get_node_dists(loc)
     mean_dists = []
     for i in range(num_nodes):
-        dists = node_dists[i][:num_nodes-1]
-        mean, std = np.mean(dists), np.std(dists)
-        mean_dists.append(mean)
+        if i in node_dists:
+            dists = node_dists[i][:num_nodes-1]
+            mean, std = np.mean(dists), np.std(dists)
+            mean_dists.append(mean)
     dist_metric = np.mean(mean_dists)
     all_dist.append(dist_metric)
     return mean_bw, disconnect_percentage, dist_metric
@@ -136,6 +145,15 @@ def get_result_based_on_metric(metric, key_idx):
     return result, result_metric
 
 
+def get_rsult_equal_to_node(metric):
+    result = collections.defaultdict(list)
+    for k,v in result_each_run.items():
+        m = k[-1]
+        if m == metric:
+            result[k[1]].append(v)
+    return result
+
+
 def get_result_based_on_mix_metric(metric):
     result = collections.defaultdict(list)
     for k,v in result_each_run.items():
@@ -179,7 +197,9 @@ def plot_compare_scheds():
             metric = [conn_threshold[i-1], conn_threshold[i]]
         result = get_result_based_on_metric(metric, -3)[0]
         plot_one_category(result, SCHEDULERS, 'conn', metric)
-        
+    
+    if os.path.exists('stats_summary.txt'):
+        os.system('rm stats_summary.txt')
     
     fig, axes = plt.subplots(1, 3, sharex=True, figsize=(18,5))
     threshold = [30, 50]
@@ -193,12 +213,12 @@ def plot_compare_scheds():
         result, rst_metrics = get_result_based_on_metric(metric, -2)
         print(np.mean(rst_metrics['bw']), np.mean(rst_metrics['disconnect']), np.mean(rst_metrics['dist']),
               np.mean(rst_metrics['bw'])* np.mean(rst_metrics['dist']))
-        if i ==  0:
-            plot_one_category_ax(result, SCHEDULERS, 'distance', metric, axes[1])
+        if i == 0:
+            plot_one_category_ax(result, SCHEDULERS, 'distance', metric, axes[1], 1)
         elif i == 1:
-            plot_one_category_ax(result, SCHEDULERS, 'distance', metric, axes[0])
+            plot_one_category_ax(result, SCHEDULERS, 'distance', metric, axes[0], 2)
         else:
-            plot_one_category_ax(result, SCHEDULERS, 'distance', metric, axes[i])
+            plot_one_category_ax(result, SCHEDULERS, 'distance', metric, axes[i], 3)
         
     axes[1].set_title('b) Similar V2I+V2V Conditions' , y=-0.28)
     axes[1].annotate("Better", fontsize=20, horizontalalignment="center", xy=(0.1, 0.75), xycoords='data',
@@ -220,9 +240,57 @@ def plot_compare_scheds():
     plt.tight_layout()
     plt.savefig('analysis-results/two-dim-acc-latency.pdf')
     
-
-
-def plot_one_category_ax(data, schedules, key, metric, ax):
+    node_nums = [12, 14, 16, 18, 20]
+    fig, axes = plt.subplots(1, 2, sharex=True, figsize=(8,3))
+    latency, acc = collections.defaultdict(list), collections.defaultdict(list)
+    latency_err, acc_err = collections.defaultdict(list), collections.defaultdict(list)
+    for num in node_nums:
+        result = get_rsult_equal_to_node(num)
+        schedule_data = {}
+        sched_to_acc = {}
+        for schedule in SCHEDULERS:
+            for k, v_list in result.items():
+                if schedule in k:
+                    print(schedule, k)
+                    for v in v_list:
+                        if schedule not in schedule_data.keys():
+                            schedule_data[schedule] = v['e2e-latency']
+                            sched_to_acc[schedule]  = v['detection_acc']
+                        else:
+                            schedule_data[schedule] = np.hstack((schedule_data[schedule], v['e2e-latency']))
+                            sched_to_acc[schedule] = np.hstack((sched_to_acc[schedule],v['detection_acc']))
+            latency[schedule].append(np.mean(schedule_data[schedule]))
+            acc[schedule].append(np.mean(sched_to_acc[schedule]))
+            latency_err[schedule].append(mean_confidence_interval(schedule_data[schedule], 0.99))
+            acc_err[schedule].append(mean_confidence_interval(sched_to_acc[schedule]))
+            print(num, schedule, np.mean(schedule_data[schedule]), np.std(schedule_data[schedule]))
+            print(np.mean(sched_to_acc[schedule]), np.std(sched_to_acc[schedule]))
+    for schedule in SCHEDULERS:  
+        
+        axes[0].errorbar(node_nums, latency[schedule], yerr=latency_err[schedule], capsize=3)
+        
+        if 'no-group' in schedule:
+            axes[0].scatter(node_nums, latency[schedule], marker='^',s=20)
+            axes[1].scatter(node_nums, acc[schedule], marker='^', s=20)
+            axes[1].errorbar(node_nums, acc[schedule], yerr=acc_err[schedule], capsize=3, label='w/o grouping')
+        else:
+            axes[0].scatter(node_nums, latency[schedule], s=20)
+            axes[1].scatter(node_nums, acc[schedule], s=20)
+            axes[1].errorbar(node_nums, acc[schedule], yerr=acc_err[schedule], capsize=3, label='w/ grouping')
+    axes[0].set_xticks(node_nums)
+    axes[1].set_xticks(node_nums)
+    axes[0].set_ylabel('Detection Latency (s)')
+    axes[1].set_ylabel('Detection Accuracy')
+    axes[0].grid(linestyle='--')
+    axes[1].grid(linestyle='--')
+    axes[0].set_xlabel('Number of Vehicles')
+    axes[1].set_xlabel('Number of Vehicles')
+    plt.tight_layout()
+    plt.legend()
+    plt.savefig('fig14.pdf')
+    
+    
+def plot_one_category_ax(data, schedules, key, metric, ax, fig_num=1):
     schedule_data, schedule_overhead, server_compute_time = {}, {}, {}
     schedule_helpee_data, schedule_helper_data = {}, {}
     sched_to_latency = {}
@@ -254,24 +322,25 @@ def plot_one_category_ax(data, schedules, key, metric, ax):
                         sched_to_latency[schedule].append(np.mean(v['e2e-latency']))
                         sched_to_latency_std[schedule].append(np.std(v['e2e-latency']))
     for schedule in schedule_data.keys():
-        summary[schedule] = (np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
-        ax.scatter(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
-            label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],\
-            color=sched_to_color[schedule])
-        ax.errorbar(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]), \
-            xerr=np.std(sched_to_latency[schedule]), yerr=np.std(sched_to_acc[schedule]), capsize=2,
-            color=sched_to_color[schedule])
-        
-        if schedule =='v2i':
-            ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] + 0.04, summary[schedule][1]-0.01))
-        elif schedule =='v2v-adapt':
-            ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] - 0.005, summary[schedule][1]-0.01))
-        elif schedule =='v2i-adapt':
-            ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] - 0.005, summary[schedule][1]+ 0.001))
-        elif schedule =='v2v':
-            ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] + 0.04, summary[schedule][1]+0.003))
-        else:
-            ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] - 0.005, summary[schedule][1] + 0.001))
+        if schedule != 'combined-adapt':
+            summary[schedule] = (np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
+            ax.scatter(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
+                label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],\
+                color=sched_to_color[schedule])
+            ax.errorbar(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]), \
+                xerr=np.std(sched_to_latency[schedule]), yerr=np.std(sched_to_acc[schedule]), capsize=2,
+                color=sched_to_color[schedule])
+            
+            if schedule =='v2i':
+                ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] + 0.04, summary[schedule][1]-0.01), color=sched_to_color[schedule])
+            elif schedule =='v2v-adapt':
+                ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] - 0.005, summary[schedule][1]-0.01), color=sched_to_color[schedule])
+            elif schedule =='v2i-adapt':
+                ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] - 0.005, summary[schedule][1]+ 0.001), color=sched_to_color[schedule])
+            elif schedule =='v2v':
+                ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] + 0.04, summary[schedule][1]+0.003), color=sched_to_color[schedule])
+            else:
+                ax.annotate(shced_to_displayed_name[schedule], (summary[schedule][0] - 0.005, summary[schedule][1] + 0.001), color=sched_to_color[schedule])
         # print("errorbar", np.mean(sched_to_latency_std[schedule]))
         # print(schedule, np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
     # ax.annotate("Better", fontsize=20, horizontalalignment="center", xy=(0.35, 0.70), xycoords='data',
@@ -283,15 +352,18 @@ def plot_one_category_ax(data, schedules, key, metric, ax):
     ax.set_xlabel("Detection Latency (s)")
     ax.set_ylabel("Detection Accuracy")
     ax.grid(linestyle='--')
-    # get_comparison_in_summary(summary)
+    get_comparison_in_summary(summary, fig_num)
 
 
-def get_comparison_in_summary(summary):
+def get_comparison_in_summary(summary, fig_num=0):
+    summary_file = open('stats_summary.txt', 'a')
+    summary_file.write('figure ' + str(fig_num) + '\n')
     for sched, rst in summary.items():
-        print(sched)
+        summary_file.write(sched + '\tlatency_improvement\tacc_improvement' + '\n')
         for comp_sched, comp_rst in summary.items():
             if comp_sched != sched:
-                print(sched+'/'+comp_sched + '\t' + str((rst[0]-comp_rst[0])/comp_rst[0]) + '\t' +str(rst[1]-comp_rst[1]))
+                summary_str = sched+'/'+comp_sched + '\t' + str((rst[0]-comp_rst[0])/comp_rst[0]) + '\t' +str(rst[1]-comp_rst[1]) + '\n'
+                summary_file.write(summary_str)
 
 
 def plot_one_category(data, schedules, key, metric):

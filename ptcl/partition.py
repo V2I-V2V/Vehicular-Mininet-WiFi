@@ -1,5 +1,5 @@
 import numpy as np
-import sys, os
+import sys
 import time
 
 def simple_partition(pcd, range, sample_rate=16):

@@ -7,16 +7,18 @@ import getpass
 import numpy as np
 import multiprocessing
 import time
+import math
 
 DATASET_DIR = '/home/mininet-wifi/Carla/lidar/'
 DATASET_DIR = '/home/mininet-wifi/dense_120_town05/lidar/'
-# DATASET_DIR = '/home/mininet-wifi/dense_160_town05_far/lidar/'
-DATASET_DIR = '/home/mininet-wifi/dense_120_town03_1/lidar/'
+DATASET_DIR = '/home/mininet-wifi/dense_160_town05_far/lidar/'
+# DATASET_DIR = '/home/mininet-wifi/dense_120_town03_1/lidar/'
 vehicle_deadline = 0.5
 
 vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 130, 174, 185]
 vehicle_id_to_dir = [209, 221, 233, 269, 270, 295, 152, 163, 185, 97]
-vehicle_id_to_dir = [971, 1026, 1027, 1033, 1070, 1083, 310, 327, 347, 356]
+vehicle_id_to_dir = [202, 249, 255, 259, 289, 298, 310, 327, 347, 356]
+# vehicle_id_to_dir = [971, 1026, 1027, 1033, 1070, 1083, 310, 327, 347, 356]
 
 
 def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred = None):
@@ -37,75 +39,140 @@ def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, 
 
 def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_list, acc_list, scheme, num_nodes, nodes_latency, dataset_dir='/home/mininet-wifi/dense_120_town05/lidar/'):
     # print(v_ids, frame_id, qb_dict, nodes_latency, scheme)
-    ptcls, vehicle_pos, grid_truth = [], {}, {}
-    local_pred, local_points = {}, {}
-    for v_id in v_ids:
-        ptcl_name = DATASET_DIR + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)]) \
-                    + '/' + str(752+frame_id) 
-        gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-             + '-' + str(752+frame_id) + '.txt'
-        local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-             + '-' + str(752+frame_id) + '.txt'
-        grid_truth[int(v_id)] = np.loadtxt(gt_file)
-        pointcloud = ptcl.ptcl_utils.read_ptcl_data(ptcl_name + '.npy')
-        local_points[int(v_id)] = pointcloud
-        local_pred[int(v_id)] = np.loadtxt(local_file)
-        trans = np.load(ptcl_name + '.trans.npy')
-        encoded, _ = dracoEncode(pointcloud, 10, qb_dict[v_id])
-        decoded = dracoDecode(encoded)
-        pointcloud = np.concatenate([decoded, np.ones((decoded.shape[0], 1))], axis=1)
-        pointcloud = np.dot(trans, pointcloud[:, :4].T).T
-        ptcls.append(pointcloud)
-        dummy = np.zeros((4, 1))
-        dummy[3] = 1
-        new_pos = np.dot(trans, dummy).T
-        vehicle_pos[int(v_id)]= (new_pos[0,0], new_pos[0,1])
-    for v_id in range(num_nodes):    
-        # load every gt and local
-        gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
-             + '-' + str(752+frame_id) + '.txt'
-        local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
-             + '-' + str(752+frame_id) + '.txt'
-        grid_truth[v_id] = np.loadtxt(gt_file)
-        local_pred[v_id] = np.loadtxt(local_file)
-    if len(ptcls) > 0:
-        merged = np.vstack(ptcls)
-        merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.08)
-    detected_spaces = []
-    detection_accuracy = []
-    # start = time.time()
-    for v_id in range(num_nodes):        
-        if str(v_id) in v_ids and nodes_latency[v_id] < vehicle_deadline:
-            if 'combined' in scheme:
-                # print('combined')
-                get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
-                    vehicle_pos[int(v_id)], local_pred=local_pred[int(v_id)])
+    # print(qb_dict)
+
+    accuracy = []
+    for g in range(math.ceil(num_nodes/10)):
+        ptcls, vehicle_pos, grid_truth = [], {}, {}
+        local_pred, local_points = {}, {}
+        if g == math.ceil(num_nodes/10) - 1:
+            if num_nodes % 10 != 0:
+                selected_vids = np.arange(g*10,g*10+ num_nodes % 10)
+                print(selected_vids)
             else:
-                get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
-                    vehicle_pos[int(v_id)], local_pred=None)
+                selected_vids = np.arange(g*10, (g+1)*10)
         else:
-            # use local detection instead
-            detection_accuracy.append(ptcl.ptcl_utils.calculate_precision(local_pred[int(v_id)], grid_truth[int(v_id)])[0])
+            selected_vids = np.arange(g*10, (g+1)*10)
+        # for v_id in selected_vids:
+            # if str(v_id) in v_ids:
+        for v_id in v_ids:
+            if int(v_id) in selected_vids:
+                ptcl_name = DATASET_DIR + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)]) \
+                            + '/' + str(800+frame_id) 
+                gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
+                    + '-' + str(800+frame_id) + '.txt'
+                local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
+                    + '-' + str(800+frame_id) + '.txt'
+                grid_truth[int(v_id)] = np.loadtxt(gt_file)
+                pointcloud = ptcl.ptcl_utils.read_ptcl_data(ptcl_name + '.npy')
+                local_points[int(v_id)] = pointcloud
+                local_pred[int(v_id)] = np.loadtxt(local_file)
+                trans = np.load(ptcl_name + '.trans.npy')
+                encoded, _ = dracoEncode(pointcloud, 10, qb_dict[str(v_id)])
+                decoded = dracoDecode(encoded)
+                pointcloud = np.concatenate([decoded, np.ones((decoded.shape[0], 1))], axis=1)
+                pointcloud = np.dot(trans, pointcloud[:, :4].T).T
+                ptcls.append(pointcloud)
+                dummy = np.zeros((4, 1))
+                dummy[3] = 1
+                new_pos = np.dot(trans, dummy).T
+                vehicle_pos[int(v_id)]= (new_pos[0,0], new_pos[0,1])
+        for v_id in selected_vids:    
+            # load every gt and local
+            gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
+                + '-' + str(800+frame_id) + '.txt'
+            local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
+                + '-' + str(800+frame_id) + '.txt'
+            grid_truth[v_id] = np.loadtxt(gt_file)
+            local_pred[v_id] = np.loadtxt(local_file)
+        if len(ptcls) > 0:
+            merged = np.vstack(ptcls)
+            merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.08)
+        detected_spaces = []
+        detection_accuracy = []
+        for v_id in selected_vids:        
+            if str(v_id) in v_ids and nodes_latency[v_id] < vehicle_deadline:
+                if 'combined' in scheme:
+                    get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
+                        vehicle_pos[int(v_id)], local_pred=local_pred[int(v_id)])
+                else:
+                    get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
+                        vehicle_pos[int(v_id)], local_pred=None)
+            else:
+                # use local detection instead
+                detection_accuracy.append(ptcl.ptcl_utils.calculate_precision(local_pred[int(v_id)], grid_truth[int(v_id)])[0])
+
+        if len(detected_spaces) > 0:
+            detected_spaces_list += detected_spaces
+        if len(detection_accuracy) == 0:
+            print("error detection acc empty")
+        accuracy.extend(detection_accuracy)
+    
+    acc_list.extend(accuracy)
+    # for v_id in v_ids:
+    #     ptcl_name = DATASET_DIR + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)]) \
+    #                 + '/' + str(800+frame_id) 
+    #     gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
+    #          + '-' + str(800+frame_id) + '.txt'
+    #     local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
+    #          + '-' + str(800+frame_id) + '.txt'
+    #     grid_truth[int(v_id)] = np.loadtxt(gt_file)
+    #     pointcloud = ptcl.ptcl_utils.read_ptcl_data(ptcl_name + '.npy')
+    #     local_points[int(v_id)] = pointcloud
+    #     local_pred[int(v_id)] = np.loadtxt(local_file)
+    #     trans = np.load(ptcl_name + '.trans.npy')
+    #     encoded, _ = dracoEncode(pointcloud, 10, qb_dict[v_id])
+    #     decoded = dracoDecode(encoded)
+    #     pointcloud = np.concatenate([decoded, np.ones((decoded.shape[0], 1))], axis=1)
+    #     pointcloud = np.dot(trans, pointcloud[:, :4].T).T
+    #     ptcls.append(pointcloud)
+    #     dummy = np.zeros((4, 1))
+    #     dummy[3] = 1
+    #     new_pos = np.dot(trans, dummy).T
+    #     vehicle_pos[int(v_id)]= (new_pos[0,0], new_pos[0,1])
+    # for v_id in range(num_nodes):    
+    #     # load every gt and local
+    #     gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
+    #          + '-' + str(800+frame_id) + '.txt'
+    #     local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
+    #          + '-' + str(800+frame_id) + '.txt'
+    #     grid_truth[v_id] = np.loadtxt(gt_file)
+    #     local_pred[v_id] = np.loadtxt(local_file)
+    # if len(ptcls) > 0:
+    #     merged = np.vstack(ptcls)
+    #     merged_pred = ptcl.ptcl_utils.ransac_predict(merged, threshold=0.08)
+    # detected_spaces = []
+    # detection_accuracy = []
+    # for v_id in range(num_nodes):        
+    #     if str(v_id) in v_ids and nodes_latency[v_id] < vehicle_deadline:
+    #         if 'combined' in scheme:
+    #             get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
+    #                 vehicle_pos[int(v_id)], local_pred=local_pred[int(v_id)])
+    #         else:
+    #             get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
+    #                 vehicle_pos[int(v_id)], local_pred=None)
+    #     else:
+    #         # use local detection instead
+    #         detection_accuracy.append(ptcl.ptcl_utils.calculate_precision(local_pred[int(v_id)], grid_truth[int(v_id)])[0])
             
-    # print('space detection takes:', time.time() - start)
-        # merged_pred_grid = \
-        #     ptcl.ptcl_utils.calculate_grid_label_ransac_new(1, merged_pred, center=vehicle_pos[int(v_id)])
-        # detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
-    # print(detected_spaces)
-    if len(detected_spaces) > 0:
-        detected_spaces_list += detected_spaces
-    if len(detection_accuracy) == 0:
-        print("error detection acc empty")
-    # print(detection_accuracy)
-    acc_list.extend(detection_accuracy)
+    # # print('space detection takes:', time.time() - start)
+    #     # merged_pred_grid = \
+    #     #     ptcl.ptcl_utils.calculate_grid_label_ransac_new(1, merged_pred, center=vehicle_pos[int(v_id)])
+    #     # detected_spaces.append(len(merged_pred_grid[merged_pred_grid != 0]))
+    # if len(detected_spaces) > 0:
+    #     detected_spaces_list += detected_spaces
+    # if len(detection_accuracy) == 0:
+    #     print("error detection acc empty")
+    # # print(detection_accuracy)
+    # acc_list.extend(detection_accuracy)
     return detected_spaces, detection_accuracy
 
 
 def calculate_local_detection_spaces(v_id, frame_id):
     gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-             + '-' + str(752+frame_id) + '.txt'
+             + '-' + str(800+frame_id) + '.txt'
     local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-             + '-' + str(752+frame_id) + '.txt'
+             + '-' + str(800+frame_id) + '.txt'
     grid_truth = np.loadtxt(gt_file)
     local_pred = np.loadtxt(local_file)
     return ptcl.ptcl_utils.calculate_precision(local_pred, grid_truth)[0]
