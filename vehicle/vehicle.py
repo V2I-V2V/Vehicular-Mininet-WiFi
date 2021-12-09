@@ -303,8 +303,7 @@ def map_thrpt_to_encoding_level(thrpt):
 
 def send(socket, data, id, type, num_chunks=1, chunks=None):
     msg_len = len(data)
-    # frame_ready_timestamp = start_timestamp + id * 1.0 / FRAMERATE
-    frame_ready_timestamp = time.time()
+    frame_ready_timestamp = start_timestamp + id * 1.0 / FRAMERATE
     header = network.message.construct_data_msg_header(data, type, id, vehicle_id, frame_ready_timestamp, num_chunks,
                                                        chunks)
     print("[send header] vehicle %d, frame %d, data len: %d" % (vehicle_id, id, msg_len))
