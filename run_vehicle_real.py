@@ -29,8 +29,8 @@ cmd = 'python3 vehicle/vehicle.py -i %d -t %f -d %s -l input/locations/0.txt --a
 # start the vehicle application
 proc = subprocess.Popen(cmd,stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
 
-# sleep for 2 min
-time.sleep(120)
+# sleep for 1.33 min
+time.sleep(80)
 
 # kill the process
 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
