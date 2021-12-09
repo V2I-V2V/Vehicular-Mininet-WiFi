@@ -268,6 +268,10 @@ def get_encoding_qb(e2e_frame_latency):
     thrpts = []
     for id, latency in recent_latencies:
         if id in encoding_sizes:
+            if latency < 0:
+                print('err!!! latency < 0')
+            else:
+                latency = 0.05
             thrpt = encoding_sizes[id] / latency
             print('thrpt:', thrpt)
             thrpts.append(thrpt)
@@ -469,7 +473,7 @@ def notify_helpee_node(helpee_id):
     msg = vehicle_id.to_bytes(2, 'big')
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_ASSIGNMENT)
     helpee_addr = "10.0.0." + str(helpee_id + 2)
-    helpee_addr = "10.42.0.163"
+    # helpee_addr = "10.42.0.163"
     network.message.send_msg(send_note_sock, header, msg, is_udp=True,
                              remote_addr=(helpee_addr, helper_control_recv_port))
 
@@ -509,7 +513,7 @@ class ServerControlThread(threading.Thread):
                     payload = pickle.dumps(data)
                     header = network.message.construct_control_msg_header(payload, network.message.TYPE_GROUP)
                     helpee_addr = "10.0.0." + str(current_helpee_id + 2)
-                    helpee_addr = "10.42.0.163"
+                    # helpee_addr = "10.42.0.163"
                     network.message.send_msg(send_note_sock, header, payload, is_udp=True, \
                                              remote_addr=(helpee_addr, helper_control_recv_port))
             elif msg_type == network.message.TYPE_FALLBACK:
@@ -802,7 +806,7 @@ class VehicleDataRecvThread(threading.Thread):
 
         # self.client_socket.close()
 
-    def stop():
+    def stop(self):
         pass
 
 
@@ -826,7 +830,6 @@ class VehicleDataSendThread(threading.Thread):
 
     def run(self):
         global curr_frame_id, last_frame_sent_ts, curr_frame_rate
-        # self.ack_recv_thread.start()
         while (self.is_helper_alive) and (connection_state == "Disconnected"):
             t_start = time.time()
             frame_lock.acquire()
@@ -877,7 +880,7 @@ class VehicleDataSendThread(threading.Thread):
                     frame_latency = time.time() - frame_sent_time[frame_id]
                     print("[Recv ack from server] frame %d, latency %f" % (frame_id, frame_latency))
                     e2e_frame_latency_lock.acquire()
-                    e2e_frame_latency[frame_id] = frame_latency
+                    e2e_frame_latency[frame_id] = frame_latency - downlink_latency
                     e2e_frame_latency_lock.release()
                 elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
                     print("[Recv rst from server] frame %d, DL latency %f" % (frame_id, downlink_latency))

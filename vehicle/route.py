@@ -30,9 +30,10 @@ def get_routes(vehicle_id):
         dst_ip = dst.split('.')
         if dst_ip[0:3] == ['10', '0', '0'] and int(dst_ip[3]) >= 2 and int(dst_ip[3]) != vehicle_id + 2:
             # vehicle_id = IP - 2
+            if nexthop != "":
             # print('dst_ip %s, nexthop: %s'%(dst_ip, nexthop))
             # if nexthop != "":
-            routing_table[int(dst_ip[-1]) - 2] = int(nexthop.split('.')[-1]) - 2
+                routing_table[int(dst_ip[-1]) - 2] = int(nexthop.split('.')[-1]) - 2
         else:
             # print(dst_ip[0:3])
             pass
@@ -53,7 +54,7 @@ def broadcast_route(vehicle_id, routing_table, source_socket, seq_num, group_id)
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_ROUTE)
     print("[route msg] ", len(msg)+len(header), time.time())
     network.message.send_msg(source_socket, header, msg, is_udp=True,\
-                        remote_addr=("10.255.255.255", 8888))
+                        remote_addr=("10.0.0.255", 8888))
 
 
 def get_routing_path(helpee, helper, routing_tables):

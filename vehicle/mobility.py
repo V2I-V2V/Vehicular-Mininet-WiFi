@@ -41,7 +41,7 @@ def update_location(node, locations):
 
 
 
-def broadcast_location(vehicle_id, self_loc, source_socket, seq_num, group_id, add_noise=True):
+def broadcast_location(vehicle_id, self_loc, source_socket, seq_num, group_id, add_noise=False):
     if add_noise:
         x,y = mobility_noise.add_random_noise_on_loc(self_loc[0], self_loc[1], std_deviation=30.0)
     else:
@@ -52,7 +52,7 @@ def broadcast_location(vehicle_id, self_loc, source_socket, seq_num, group_id, a
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)
     print("[Loc msg size] %d %f"%(len(msg)+len(header), time.time()))
     network.message.send_msg(source_socket, header, msg, is_udp=True,\
-                        remote_addr=("10.255.255.255", 8888))
+                        remote_addr=("10.0.0.255", 8888))
     # source_socket.sendto(msg, ("10.255.255.255", 8888))
 
         
