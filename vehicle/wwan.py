@@ -9,6 +9,7 @@ import network.message
 import config
 import mobility_noise
 import pickle
+import struct
 
 
 def setup_p2p_links(vehicle_id, ip, port, recv_sched_scheme=False):
@@ -29,15 +30,17 @@ def setup_p2p_links(vehicle_id, ip, port, recv_sched_scheme=False):
         return client_socket
 
 
-def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num, add_noise=True):
+def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num, add_noise=False):
     v_type = vehicle_type.to_bytes(2, 'big')
     v_id = vehicle_id.to_bytes(2, 'big')
     if add_noise:
         loc_x, loc_y = mobility_noise.add_random_noise_on_loc(position[0], position[1], std_deviation=30.0)
     else:
         loc_x, loc_y = position[0], position[1]
-    x = int(loc_x).to_bytes(2, 'big')
-    y = int(loc_y).to_bytes(2, 'big')
+    # x = int(loc_x).to_bytes(2, 'big')
+    x = struct.pack('!d', loc_x)
+    # y = int(loc_y).to_bytes(2, 'big')
+    y = struct.pack('!d', loc_y)
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + x + y + seq
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)

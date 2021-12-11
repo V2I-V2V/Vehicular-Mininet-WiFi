@@ -4,6 +4,7 @@ import network.message
 import time
 import mobility_noise
 import pickle
+import struct
 
 def read_locations(location_filename):
     # TODO
@@ -46,8 +47,8 @@ def broadcast_location(vehicle_id, self_loc, source_socket, seq_num, group_id, a
         x,y = mobility_noise.add_random_noise_on_loc(self_loc[0], self_loc[1], std_deviation=30.0)
     else:
         x, y = self_loc[0], self_loc[1]
-    msg = vehicle_id.to_bytes(2, 'big') + int(x).to_bytes(2, 'big') \
-        + int(y).to_bytes(2, 'big') + seq_num.to_bytes(4, 'big')
+    msg = vehicle_id.to_bytes(2, 'big') +  struct.pack('!d', x) \
+        + struct.pack('!d', y) + seq_num.to_bytes(4, 'big')
     msg += pickle.dumps(group_id)
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)
     print("[Loc msg size] %d %f"%(len(msg)+len(header), time.time()))

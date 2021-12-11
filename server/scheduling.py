@@ -7,6 +7,7 @@ import math
 import random
 import statistics
 import time
+import mpu
 
 def find_all_one_to_one(num_of_helpees, num_of_helpers):
     '''
@@ -36,7 +37,8 @@ def find_all(num_of_helpees, num_of_helpers):
 
 
 def get_distance(p1, p2):
-    return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
+    return 1000 * mpu.haversine_distance((p1[0], p1[1]), (p2[0], p2[1])) # (latitude, longitude)
+    # return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
 
 def get_counts(assignment):
@@ -336,7 +338,7 @@ def get_interference_scores(assignment, interference_counts, routing_tables, pos
         # check if every node in path is in range
         reachable = True
         for node_idx in range(len(routing_path)-1):
-            if not is_in_range(positions[routing_path[node_idx]], positions[routing_path[node_idx+1]], 130):
+            if not is_in_range(positions[routing_path[node_idx]], positions[routing_path[node_idx+1]], 65):
                 reachable = False
                 print("Non reachiable pair in path ", routing_path)
                 break

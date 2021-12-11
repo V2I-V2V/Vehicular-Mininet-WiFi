@@ -116,12 +116,12 @@ def self_loc_update_thread():
         # print(line)
         split = line.split(',')
         if line.startswith('$GPGGA'):
-            longitude, latitude = float(split[2]) * 100000, float(split[4]) * 100000
+            longitude, latitude = float(split[4])/100, float(split[2])/100
             # print(longitude, latitude, time.time())
-            self_loc = (longitude%100, latitude%100)
+            self_loc = (latitude, longitude)
         elif line.startswith('$GPRMC') and split[2] == 'A':
-            longitude, latitude = float(split[3]) * 1000000, float(split[5]) * 1000000
-            self_loc = (longitude%100, latitude%100)
+            longitude, latitude = float(split[5])/100, float(split[3])/100
+            self_loc = (latitude, longitude)
             # print(longitude, latitude, time.time())
 
 

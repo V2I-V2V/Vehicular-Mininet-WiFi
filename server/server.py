@@ -55,7 +55,7 @@ parser.add_argument('-d', '--data_save', default=0, type=int,
                     help='whether to save undecoded pcds')
 parser.add_argument('-m', '--multi', default=1, type=int, 
                     help='whether to use one-to-many assignment')
-parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
+parser.add_argument('--data_type', default="Carla", choices=["GTA", "Carla"])
 parser.add_argument('--combine_method', default="op_sum", choices=["op_sum", "op_min"])
 parser.add_argument('--score_method', default="harmonic", choices=["harmonic", "min"])
 parser.add_argument('--deadline_enable', default=1, type=int, help='enable-deadline')
@@ -123,10 +123,6 @@ def get_mapped_bw(mapped_node_ids):
     return mapped_bw
 
 
-def check_if_loc_map_complete(vids):
-    return set(vids).issubset(set(location_map.keys()))
-
-
 class SchedThread(threading.Thread):
 
     def __init__(self):
@@ -138,20 +134,25 @@ class SchedThread(threading.Thread):
         self.last_assignment_scores = {}
         self.fallback = False
 
+    def check_if_loc_map_complete(self, vids):
+        return set(vids).issubset(set(location_map.keys()))
+    
     def check_if_route_map_conplete(self, vids):
         return set(vids).issubset(set(route_map.keys()))
 
     def ready_to_schedule(self, scheduler_mode):
         global current_connected_vids
         current_connected_vids = check_current_connected_vehicles()
-        print("Current connected vehicles " + str(current_connected_vids))
+        
         helpee_count, helper_count = 0, 0
         for i in current_connected_vids:
             if vehicle_types[i] == HELPEE:
                 helpee_count += 1
             else:
                 helper_count += 1
-        print("Helpers: %d helpees: %d %f"%(helper_count, helpee_count, time.time()))
+        if len(current_connected_vids) > 0:
+            print("Current connected vehicles" + str(current_connected_vids))
+            print("Helpers: %d helpees: %d %f"%(helper_count, helpee_count, time.time()))
         if len(current_connected_vids) < 2:
             return False
         elif scheduler_mode == "minDist" or scheduler_mode == "bwAware" or scheduler_mode == 'random' \
@@ -436,6 +437,8 @@ def server_recv_data(client_socket, client_addr):
                 first_frame_arrival_ts[frame_id] = ts
             print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
                         (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
+            if throughput < 80:
+                bws[v_id] = throughput
             # send back a ACK back
             conn_lock.acquire()
             try:

@@ -223,10 +223,12 @@ def vehicle_parse_location_packet_data(data):
     """
     # return helpee id, location
     helpee_id = int.from_bytes(data[0:2], "big")
-    x = int.from_bytes(data[2:4], "big")
-    y = int.from_bytes(data[4:6], "big")
-    seq_num = int.from_bytes(data[6:10], "big")
-    group_id = pickle.loads(data[12:])
+    # x = int.from_bytes(data[2:4], "big")
+    x = struct.unpack('!d', data[2:10])[0]
+    # y = int.from_bytes(data[4:6], "big")
+    y = struct.unpack('!d', data[10:18])[0]
+    seq_num = int.from_bytes(data[18:22], "big")
+    group_id = pickle.loads(data[22:])
     return helpee_id, [x, y], seq_num, group_id
 
 
@@ -257,9 +259,11 @@ def vehicle_parse_sos_packet_data(data):
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")
     v_id = int.from_bytes(msg_payload[2:4], "big")
-    x = int.from_bytes(msg_payload[4:6], "big")
-    y = int.from_bytes(msg_payload[6:8], "big")
-    seq_num = int.from_bytes(msg_payload[8:12], "big")
+    # x = int.from_bytes(msg_payload[4:6], "big")
+    x = struct.unpack('!d', msg_payload[4:12])[0]
+    # y = int.from_bytes(msg_payload[6:8], "big")
+    y = struct.unpack('!d', msg_payload[12:20])[0]
+    seq_num = int.from_bytes(msg_payload[20:24], "big")
     return v_type, v_id, x, y, seq_num
 
 
