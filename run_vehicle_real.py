@@ -47,8 +47,12 @@ cmd = 'python3 -u vehicle/vehicle.py -i %d --v2v_mode %d -t %f -d %s -l input/lo
 # start the vehicle application
 proc = subprocess.Popen(cmd,stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
 
-# sleep for 1.33 min
-time.sleep(80)
+while time.time() < time_to_next_min:
+    time.sleep(0.005)
+
+print("Start driving the vehicle now ...")
+# sleep for 1 min
+time.sleep(60)
 
 # kill the process
 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
@@ -56,4 +60,4 @@ os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
 if 'v2v' in scheme:
     os.killpg(os.getpgid(server_proc.pid), signal.SIGTERM)
 
-
+print("Experiment finished.")
