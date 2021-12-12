@@ -63,7 +63,8 @@ os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
 
 if 'v2v' in scheme:
     os.killpg(os.getpgid(server_proc.pid), signal.SIGTERM)
-    os.system('scp %s-server.log ryanzhu@dili.eecs.umich.edu:/z/ryanzhu/Vehicular-Mininet-WiFi/real_exp_logs/data-%s/logs/servevr.log'%(time_str, time_str))
+    if vehicle_id == 0:
+        os.system('scp %s-server.log ryanzhu@dili.eecs.umich.edu:/z/ryanzhu/Vehicular-Mininet-WiFi/real_exp_logs/data-%s/logs/server.log'%(time_str, time_str))
 
 os.system('scp %s-node%d-%s.txt ryanzhu@dili.eecs.umich.edu:/z/ryanzhu/Vehicular-Mininet-WiFi/real_exp_logs/data-%s/logs/node%d.log'%(time_str, vehicle_id, helpee_confs[helpee_number], time_str, vehicle_id))
 
