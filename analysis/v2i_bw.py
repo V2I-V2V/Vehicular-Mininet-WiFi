@@ -51,7 +51,7 @@ def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
         axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i%len(colors)], label='node%d'%i)
         axes[-1].legend()
         axes[-1].set_xlim([0, int(time)])
-        axes[-1].set_ylim([0, 50])
+        # axes[-1].set_ylim([0, 50])
         
     fig.add_subplot(111, frameon=False)
     plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)

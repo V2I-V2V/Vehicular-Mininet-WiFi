@@ -25,6 +25,10 @@ def plot_trajectory(loc_file, save_dir='./'):
     for i in range(int(traj.shape[1]/2)):
     # for i in range(2):
         ax.scatter([traj[:,2*i][0]], [traj[:,2*i+1][0]], s=34)
+        # x_end, y_end = traj[:,2*i][-1], traj[:,2*i+1][-1]
+        # x_start, y_start = traj[:,2*i][0], traj[:,2*i+1][0]
+        # distance_traveled = np.sqrt((y_end-y_start) * (y_end-y_start) + (x_end-x_start) * (x_end-x_start))
+        # print(distance_traveled/(len(traj[:,2*i])/10) * 3.6)
 
     plt.xlabel('x (m)')
     plt.ylabel('y (m)')
