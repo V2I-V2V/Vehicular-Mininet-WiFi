@@ -17,12 +17,13 @@ import matplotlib.legend as mlegend
 from util import *
 from analyze_single_exp import construct_ts_assignment_array, construct_ts_scores_array
 
-font = {'family' : 'DejaVu Sans',
-        'size'   : 15}
-matplotlib.rc('font', **font)
+# font = {'family' : 'DejaVu Sans',
+#         'size'   : 15}
+# matplotlib.rc('font', **font)
 
-# plt.rc('font', family='sans-serif', serif='cm10')
-# plt.rc('text', usetex=True)
+plt.rc('font', family='sans-serif', serif='cm10')
+plt.rc('text', usetex=True)
+plt.rcParams.update({'font.size': 20})
 
 setting_to_folder = {}
 result_each_run = {}
@@ -895,8 +896,9 @@ def plot_bars_compare_schedules(schedules):
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim-acc.png')
 
-    fig = plt.figure(figsize=(8,6))
+    fig = plt.figure(figsize=(6,5))
     ax = fig.add_subplot(111)
+    e2e_summary_dict = {}
     for schedule in schedule_data.keys():
         # if schedule is not 'ccombined-adapt':
         latency, accuracy = np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule])
@@ -908,9 +910,12 @@ def plot_bars_compare_schedules(schedules):
         ax.errorbar(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
                     xerr=np.std(sched_to_latency[schedule]), yerr=np.std(sched_to_acc[schedule]), capsize=2, 
                     color=sched_to_color[schedule])
+        e2e_summary_dict[schedule] = (np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
+                    np.std(sched_to_latency[schedule]), np.std(sched_to_acc[schedule]))
         # annotate
+        print(schedule, np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
         if shced_to_displayed_name[schedule] == 'Harbor':
-            ax.annotate(shced_to_displayed_name[schedule], (latency - 0.005, accuracy+0.001), color=sched_to_color[schedule])
+            ax.annotate(shced_to_displayed_name[schedule], (latency + 0.05, accuracy+0.001), color=sched_to_color[schedule])
         elif shced_to_displayed_name[schedule] == 'no-deadline-aware':
             ax.annotate(shced_to_displayed_name[schedule], (latency + 0.065, accuracy+0.001), color=sched_to_color[schedule])
         elif shced_to_displayed_name[schedule] == 'no-prioritization':
@@ -918,20 +923,22 @@ def plot_bars_compare_schedules(schedules):
         elif shced_to_displayed_name[schedule] == 'no-ddl-aware+no-prio':
             ax.annotate(shced_to_displayed_name[schedule], (latency + 0.075, accuracy-0.003), color=sched_to_color[schedule])  
         else:
-            ax.annotate(shced_to_displayed_name[schedule], (latency + 0.01, accuracy-0.003), color=sched_to_color[schedule])
-    ax.annotate("Better", fontsize=20, horizontalalignment="center", xy=(0.2, 0.7), xycoords='data',
-            xytext=(0.3, 0.65), textcoords='data',
+            ax.annotate(shced_to_displayed_name[schedule], (latency - 0.01, accuracy+0.005), color=sched_to_color[schedule])
+    ax.annotate("Better", fontsize=20, horizontalalignment="center", xy=(0.375, 0.675), xycoords='data',
+            xytext=(0.4, 0.65), textcoords='data',
             arrowprops=dict(arrowstyle="->, head_width=0.3", connectionstyle="arc3", lw=3)
             )
     ax.grid(linestyle='--')
-    # plt.ylim([0.7, 0.8])
-    # plt.xlim([0.2, 0.4])
     plt.xlabel("Detection Latency (s)")
     plt.ylabel("Detection Accuracy")
     plt.gca().invert_xaxis()
-    
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim-acc-latency.pdf')
+    # import json
+    # e2e_dict = json.dumps(e2e_summary_dict)
+    # f = open('live.json', 'w')
+    # f.write(e2e_dict)
+    # f.close()
     
     # latency bar
     fig = plt.figure(figsize=(6,4))
@@ -954,8 +961,9 @@ def plot_bars_compare_schedules(schedules):
     
     
     # latency cdf
-    fig = plt.figure(figsize=(6,4))
+    fig = plt.figure(figsize=(6.5,5))
     ax = fig.add_subplot(111)
+    e2e_summary_dict = {}
     for schedule in sorted(schedule_data.keys()):
         ticks.append(shced_to_displayed_name[schedule])
         latency, err = np.mean(sched_to_latency[schedule]), np.std(sched_to_latency[schedule])
@@ -965,17 +973,20 @@ def plot_bars_compare_schedules(schedules):
             ls = sched_to_line_style[schedule]
         else:
             ls = '-'
+        e2e_summary_dict[schedule] = schedule_data[schedule].tolist()
         sns.ecdfplot(schedule_data[schedule], ls=ls, color=sched_to_color[schedule], label=shced_to_displayed_name[schedule])
         print(schedule, np.percentile(schedule_data[schedule], 90), np.percentile(schedule_data[schedule], 95), np.percentile(schedule_data[schedule], 99))
-        # sns.distplot(sched_to_latency[schedule], color=sched_to_color[schedule], label=shced_to_displayed_name[schedule],
-        #              kde_kws={'cumulative': True})
-        # if schedule == 'routeAware-adapt':
-        print(schedule, '<100ms', len(schedule_data[schedule][schedule_data[schedule]<0.1]))
     plt.legend()
+    plt.grid(linestyle='--')
     plt.xlabel("Detection Latency (s)")   
     plt.ylabel("CDF") 
     plt.tight_layout()
-    plt.savefig('analysis-results/latency-cdf.pdf')        
+    plt.savefig('analysis-results/latency-cdf.pdf')    
+    import json
+    e2e_dict = json.dumps(e2e_summary_dict)
+    f = open('assignment.json', 'w')
+    f.write(e2e_dict)
+    f.close()    
     
 
 
