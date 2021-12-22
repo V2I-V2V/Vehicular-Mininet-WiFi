@@ -1,4 +1,4 @@
-# Plot script for the figures in the paper
+# Plot scripts for the figures in the paper
 
 * In each folder, there will be python scripts for plotting each figure (filename is self explanatory).  
 
