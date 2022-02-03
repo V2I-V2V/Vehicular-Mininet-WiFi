@@ -25,11 +25,11 @@ TYPE_PCD = 0
 TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
-NODE_LEFT_TIMEOUT = 0.8
+NODE_LEFT_TIMEOUT = 0.5
 SCHED_PERIOD = 0.2
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEADLINE = 0.20
-DIVIDE_THRESHOLD = 7
+DIVIDE_THRESHOLD = 20
 
 sys.stderr = sys.stdout
 
@@ -170,7 +170,6 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
-            # check_current_connected_vehicles()
             sched_start_t = time.time()
             skip_sending_assignment = False
             print("loc:" + str(location_map), flush=True)
@@ -194,18 +193,17 @@ class SchedThread(threading.Thread):
                     header = network.message.construct_control_msg_header(fallback_payload, network.message.TYPE_RECONNECT)
                     network.message.send_msg(soc, header, reconnect_payload)
                 self.fallback = False
-            if scheduler_mode == 'fixed':
+            if scheduler_mode == 'fixed' and len(current_connected_vids) > 1:
                 assignment = fixed_assignment
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 for cnt, node in enumerate(assignment):
                     real_helpee, real_helper = cnt, node
                     current_assignment[real_helpee] = real_helper
                     print("send %d to node %d" % (real_helpee, real_helper))
-                    # control_sock_lock.acquire()
-                    msg = int(real_helpee).to_bytes(2, 'big')
+                    assignment_payload = int(real_helpee).to_bytes(2, 'big')
+                    header = network.message.construct_control_msg_header(assignment_payload, network.message.TYPE_ASSIGNMENT)
                     if real_helper in client_sockets.keys():
-                        client_sockets[real_helper].send(msg)
-                    # control_sock_lock.release()         
+                        network.message.send_msg(client_sockets[real_helper], header, assignment_payload)      
             elif self.ready_to_schedule(scheduler_mode):
                 for group_id, v_ids in group_map.items():
                     # group_loc_map = group.find_vehicle_location_in_group(group_id, group_map, location_map)
@@ -259,7 +257,7 @@ class SchedThread(threading.Thread):
                         if score < last_score + self.assignment_change_threshold \
                             and self.last_assignment is not None and len(current_assignment) == len(self.last_assignment):
                             print("Skip assignment ", score, self.last_assignment_score, current_assignment)
-                            # skip_sending_assignment = True
+                            skip_sending_assignment = True
                         else:
                             self.last_assignment_score = score
                     elif scheduler_mode == 'minDist':
@@ -422,7 +420,7 @@ def server_recv_data(client_socket, client_addr):
         msg_size, frame_id, v_id, data_type, ts, num_chunks, chunk_sizes = network.message.parse_data_msg_header(header)
         
         # if client_vid_determined is False: #or client_socket != client_data_sockets[v_id]
-            # need a map from v_id to data sockets to broadcast inference results
+        # need a map from v_id to data sockets to send back inference results
         conn_lock.acquire()
         client_data_sockets[v_id] = client_socket
         conn_lock.release()
@@ -459,7 +457,7 @@ def server_recv_data(client_socket, client_addr):
                 saving_thread.daemon = True
                 saving_thread.start()
         elif data_type == TYPE_OXTS:
-            print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
+            # print("[Oxts recved] from %d, frame id %d" %  (v_id, frame_id))
             if pcd_data_type == 'GTA':
                 oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
             elif pcd_data_type == 'Carla':
@@ -534,8 +532,7 @@ def send_rst_on_deadline():
         conn_lock.acquire()
         if curr_processed_frame in first_frame_arrival_ts and curr_processed_frame not in finished_frames:
             if time.time() - first_frame_arrival_ts[curr_processed_frame] >= DEADLINE:
-                # deadline to send
-                
+                # deadline to send    
                 print('[Deadline passed, Send rst back to node]', data_ready_matrix[:num_vehicles, curr_processed_frame%MAX_FRAMES],
                 curr_processed_frame)
                 finished_frames.add(curr_processed_frame)

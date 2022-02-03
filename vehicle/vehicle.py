@@ -474,6 +474,7 @@ class ServerControlThread(threading.Thread):
             # Note: sending location information is done in VehicleConnThread.run()
             # triggered by receiving location info from helpees
             global current_helpee_id, self_group, current_mode
+            print("v2i_control_socket", v2i_control_socket)
             data, msg_type = wwan.recv_control_msg(v2i_control_socket)
             
             if is_helper_recv() and msg_type == network.message.TYPE_ASSIGNMENT:
