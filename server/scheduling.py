@@ -309,9 +309,9 @@ def get_bw_scores(assignment, v2i_bws):
         counts = get_counts(assignment)
         average_bw = v2i_bws[helpee] / (counts[helper] + 1)
         # print(average_bw)
-        if 5 < average_bw < 10:
-            score = (average_bw - 5) / 10
-        elif average_bw <= 5:
+        if 0.64 < average_bw < 10:
+            score = (average_bw - 0.64) / 10
+        elif average_bw <= 0.64:
             score = 0.001
         scores.append(score)
     return scores
