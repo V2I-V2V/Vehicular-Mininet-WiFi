@@ -54,23 +54,22 @@ def send_route(vehicle_type, vehicle_id, route_bytes, client_socket, seq_num):
 
 
 def recv_control_msg(client_socket):
-    try:
-        header, payload = network.message.recv_msg(client_socket, network.message.TYPE_CONTROL_MSG)
-        _, msg_type = network.message.parse_control_msg_header(header)
-        if msg_type == network.message.TYPE_ASSIGNMENT:
-            # msg = client_socket.recv(2)
-            helpee_id = int.from_bytes(payload, "big")
-            return helpee_id, msg_type
-        elif msg_type == network.message.TYPE_GROUP:
-            group_id = pickle.loads(payload)
-            return group_id, msg_type
-        elif msg_type == network.message.TYPE_FALLBACK:
-            return 0, msg_type
-        elif msg_type == network.message.TYPE_RECONNECT:
-            return 0, msg_type
-    except socket.timeout:
-        # print("got error during recv")
-        return 65534
+    # try:
+    header, payload = network.message.recv_msg(client_socket, network.message.TYPE_CONTROL_MSG)
+    _, msg_type = network.message.parse_control_msg_header(header)
+    if msg_type == network.message.TYPE_ASSIGNMENT:
+        # msg = client_socket.recv(2)
+        helpee_id = int.from_bytes(payload, "big")
+        return helpee_id, msg_type
+    elif msg_type == network.message.TYPE_GROUP:
+        group_id = pickle.loads(payload)
+        return group_id, msg_type
+    elif msg_type == network.message.TYPE_FALLBACK:
+        return 0, msg_type
+    elif msg_type == network.message.TYPE_RECONNECT:
+        return 0, msg_type
+    # except Exception as e:
+    #     print("recv control msg error!!!", e)
 
 
 class ClientThread(threading.Thread):
