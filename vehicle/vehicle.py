@@ -52,7 +52,7 @@ parser.add_argument('--adapt_skip_frames', default=False, action="store_true", \
     help="enable adaptive frame skipping when sending takes too long")
 parser.add_argument('--add_loc_noise', default=False, action='store_true', \
     help="enable noise to location")
-parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1])
+parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1, 2])
 parser.add_argument('--start_timestamp', default=time.time(), type=float)
 args = parser.parse_args()
 
@@ -77,6 +77,8 @@ ADAPTIVE_ENCODE_TYPE = args.adaptive
 SERVER_IP = config.server_ip
 if args.v2v_mode == 1:
     SERVER_IP = "10.0.0.2"
+    if vehicle_id >= 10:
+        SERVER_IP = "10.0.0.12"
 print('fps ' + str(FRAMERATE))
 curr_frame_rate = FRAMERATE
 connection_state = "Connected"
@@ -474,7 +476,7 @@ class ServerControlThread(threading.Thread):
             # Note: sending location information is done in VehicleConnThread.run()
             # triggered by receiving location info from helpees
             global current_helpee_id, self_group, current_mode
-            print("v2i_control_socket", v2i_control_socket)
+            # print("v2i_control_socket", v2i_control_socket)
             data, msg_type = wwan.recv_control_msg(v2i_control_socket)
             
             if is_helper_recv() and msg_type == network.message.TYPE_ASSIGNMENT:

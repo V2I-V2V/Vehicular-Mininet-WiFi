@@ -169,6 +169,10 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
     if is_v2v_mode:
         # rand_vehicle_server = random.randint(0, len(stations)-1)
         stations[0].cmd(server_cmd)
+        if len(stations) > 10:
+            v2v_server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s --combine_method %s --score_method %s --v2v_mode %d --enable_grouping %d > %s/logs/V2V_server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, int(is_v2v_mode), enable_grouping, CODE_DIR)
+            stations[10].cmd(v2v_server_cmd)            
     else:
         server.cmd(server_cmd)
         # Use a backup V2V server
@@ -236,10 +240,17 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
         if not grouping:
             create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
         else:
-            if sta_idx in [0, 1, 4, 8, 10, 11, 14, 18]:
-                create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+            if not v2v_mode:
+                if sta_idx in [0, 1, 4, 8, 10, 11, 14, 18]:
+                    create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+                else:
+                    create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx, channel_num=11, ssid='v2v-group2')
             else:
-                create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx, channel_num=11, ssid='v2v-group2')
+                if sta_idx < 10:
+                    create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+                else:
+                    create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx, channel_num=11, ssid='v2v-group2')
+                    
         create_wired_links(net, stations[sta_idx], s1, bw=v2i_bw[sta_idx%len(v2i_bw)])
 
     ### plot if enabled ###
