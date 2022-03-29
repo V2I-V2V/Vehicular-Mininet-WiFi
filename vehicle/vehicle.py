@@ -319,10 +319,6 @@ def get_curr_tranmist_frame_id():
     return int((time.time() - start_timestamp)*FRAMERATE)
 
 
-def get_time_to_next_ready_frame():
-    offset = time.time() - start_timestamp
-
-
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
     """
