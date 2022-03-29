@@ -68,8 +68,6 @@ def recv_control_msg(client_socket):
         return 0, msg_type
     elif msg_type == network.message.TYPE_RECONNECT:
         return 0, msg_type
-    # except Exception as e:
-    #     print("recv control msg error!!!", e)
 
 
 class ClientThread(threading.Thread):
