@@ -35,12 +35,19 @@ args = parser.parse_args()
 vehicle_id = args.id
 pcd_data_type = args.data_type
 NODE_LEFT_TIMEOUT = 0.5
+start_idx = 1000
 if args.data_type == "GTA":
     PCD_DATA_PATH = args.data_path + '/velodyne_2/'
     OXTS_DATA_PATH = args.data_path + '/oxts/'
 else:
     PCD_DATA_PATH = args.data_path
     OXTS_DATA_PATH = args.data_path
+    if 'dense_160_town05_far' in PCD_DATA_PATH:
+        start_idx = 800
+    elif 'dense_120_town03_1' in PCD_DATA_PATH:
+        start_idx = 752
+    elif 'dense_120_town05' in PCD_DATA_PATH:
+        start_idx = 1000
     
 LOCATION_FILE = args.location_file
 FRAMERATE = args.fps
@@ -56,9 +63,9 @@ self_ip = "10.0.0." + str(vehicle_id+2)
 curr_frame_id = 0
 last_frame_sent_ts = 0.0
 host_ip = ''
-host_port = 8888
+host_port = 9888
 v2v_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-v2v_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 145537)  
+# v2v_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 212992)
 v2v_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 v2v_socket.bind((host_ip, host_port))
 current_connected_vehicles, fully_finished_frame = {}, {}
@@ -98,11 +105,12 @@ def broadcast_sensor_data():
             next_ready_frame_time = (time.time() - start_timestamp) % (1.0/FRAMERATE)
             time.sleep(1/FRAMERATE - next_ready_frame_time)
             continue
-        # elif expected_trasmit_frame > curr_f_id:
-        #     curr_f_id = expected_trasmit_frame
-        #     curr_frame_id = expected_trasmit_frame
-        # else:
-        curr_frame_id += 1
+        elif expected_trasmit_frame > curr_f_id + 1:
+            # application layer frame catch up
+            curr_f_id = expected_trasmit_frame
+            curr_frame_id = expected_trasmit_frame
+        else:
+            curr_frame_id += 1
             
         last_frame_sent_ts = get_frame_ready_timestamp(curr_f_id, FRAMERATE)
         print("[V2I send pcd frame] " + str(curr_f_id) + ' ' + str(last_frame_sent_ts) + ' ' + str(time.time()), flush=True)
@@ -120,9 +128,13 @@ def broadcast_sensor_data():
 
 
 def broadcast_packets(packets, soc, frame_id):
+    chunk_idx = 0
     for packet in packets:
-        soc.sendto(packet, ("10.255.255.255", 8888))
-    soc.sendto(int.to_bytes(frame_id, 2, 'big'), ("10.255.255.255", 8888))
+        header = network.message.construct_carspeak_msg_header(frame_id, chunk_idx, self_loc)
+        payload = header + packet
+        soc.sendto(payload, ("10.255.255.255", 9888))
+        chunk_idx += 1
+    soc.sendto(int.to_bytes(frame_id, 2, 'big'), ("10.255.255.255", 9888))
 
 
 def parse_v_id_from_addr(ip_addr):
@@ -148,8 +160,9 @@ def sensor_data_recv(soc):
                 if len(fully_finished_frame[frame_id]) == len(current_connected_vehicles.keys()):
                     print("[All possible frame recved] {} {}".format(frame_id, current_timestamp))
             else:
-                # print("[chunk recved from peer] {} {}".format(v_id, time.time()))
-                OcTree.decode_partial(packet)
+                frame_id, chunk_idx, _, _, _ = network.message.parse_carspeak_header(packet)
+                print("[chunk recved from peer] {} {} {} {}".format(frame_id, chunk_idx, v_id, time.time()))
+                OcTree.decode_partial(packet[16:])
             connected_vehicle_lock.release()
 
 
@@ -181,8 +194,8 @@ def carspeak_sensor_data_capture(pcd_data_path, oxts_data_path, fps):
             pcd_f_name = pcd_data_path + "%06d.bin"%i
             oxts_f_name = oxts_data_path + "%06d.txt"%i
         elif pcd_data_type == "Carla":
-            pcd_f_name = pcd_data_path + str(800+i) + ".npy"
-            oxts_f_name = oxts_data_path + str(800+i) + ".trans.npy"
+            pcd_f_name = pcd_data_path + str(start_idx+i) + ".npy"
+            oxts_f_name = oxts_data_path + str(start_idx+i) + ".trans.npy"
         oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
         pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
         encoded_data = OcTree.loss_resillient_encode(pcd_np)

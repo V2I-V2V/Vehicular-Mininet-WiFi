@@ -157,6 +157,18 @@ def kill_application():
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
                     save=0, is_one_to_many=1, is_v2v_mode=False):
     num_nodes = len(stations)
+    if scheduler == 'carspeak':
+        vehicle_app_commands = []
+        for node_num in range(len(stations)):
+            vehicle_app_cmd = 'python3 -u %s/vehicle/carspeak.py -i %d -d %s -l %s -f %d --start_timestamp %f'\
+                % (CODE_DIR, node_num, vehicle_data_dir[node_num%len(vehicle_data_dir)], loc_file, fps, time.time()+5)
+            vehicle_app_cmd += ' --data_type %s > %s/logs/node%d.log 2>&1 &'%(pcd_data_type, CODE_DIR, node_num)
+            print(vehicle_app_cmd)
+            vehicle_app_commands.append(vehicle_app_cmd)
+        for node_num in range(len(stations)):
+            # cmd_start = time.time()
+            stations[node_num].cmd(vehicle_app_commands[node_num])
+        return   
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
         server_cmd = "python3 -u %s/server/server.py -f %s -n %d -t %s -d %d -m %d --data_type %s --v2v_mode %d > %s/logs/server.log 2>&1 &"\
