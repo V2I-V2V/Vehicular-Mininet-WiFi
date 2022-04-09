@@ -6,7 +6,13 @@ import subprocess
 import signal
 from datetime import datetime
 
+vehicle_id = int(sys.argv[1])
+helpee_number = int(sys.argv[2])
+scheme = sys.argv[3]
 
+# sync time
+if 'v2v' not in scheme:
+    os.system('sudo ntpdate NTP-server-dili')
 
 start_time = time.time()
 
@@ -19,12 +25,7 @@ helpee_confs = ['no-helpee', 'single-helpee-1', 'two-helpees']
 dataset_dir = '/home/' + getpass.getuser() + '/Carla/lidar/'
 
 
-vehicle_id = int(sys.argv[1])
-helpee_number = int(sys.argv[2])
-scheme = sys.argv[3]
 
-# sync time
-os.system('sudo ntpdate NTP-server-dili')
 
 adaptive_encode = 0
 if 'adapt' or 'harbor' in scheme:
