@@ -6,8 +6,7 @@ import subprocess
 import signal
 from datetime import datetime
 
-# sync time
-os.system('sudo ntpdate NTP-server-dili')
+
 
 start_time = time.time()
 
@@ -23,6 +22,9 @@ dataset_dir = '/home/' + getpass.getuser() + '/Carla/lidar/'
 vehicle_id = int(sys.argv[1])
 helpee_number = int(sys.argv[2])
 scheme = sys.argv[3]
+
+# sync time
+os.system('sudo ntpdate NTP-server-dili')
 
 adaptive_encode = 0
 if 'adapt' or 'harbor' in scheme:
@@ -45,8 +47,8 @@ if 'v2v' in scheme:
         server_proc = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
         print("server started", time.time())
     #     time.sleep(1)
-    # else:
-    time.sleep(15)
+    else:
+        time.sleep(3)
 
 cmd = 'python3 -u vehicle/vehicle.py -i %d --v2v_mode %d -t %f -d %s -l input/locations/0.txt --adaptive %d -c input/helpee_conf/%s > %s-node%d-%s.txt' % \
     (vehicle_id, v2v_mode, time_to_next_min, data_dir, adaptive_encode, helpee_conf, time_str, vehicle_id, helpee_confs[helpee_number])
