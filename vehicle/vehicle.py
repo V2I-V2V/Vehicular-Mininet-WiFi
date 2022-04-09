@@ -414,7 +414,10 @@ def v2i_ack_recv_thread(soc):
             s_print("[Recv ack from server] frame %d, latency %f, dl latency %f" %
                   (frame_id, frame_latency, downlink_latency), time.time())
             e2e_frame_latency_lock.acquire()
-            e2e_frame_latency[frame_id] = frame_latency - downlink_latency
+            if frame_latency - downlink_latency < 0
+                e2e_frame_latency[frame_id] = frame_latency
+            else:
+                e2e_frame_latency[frame_id] = frame_latency - downlink_latency
             e2e_frame_latency_lock.release()
         elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
             s_print("[Recv rst from server] frame %d, DL latency %f" % (frame_id, downlink_latency),
