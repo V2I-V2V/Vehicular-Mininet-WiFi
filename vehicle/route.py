@@ -52,7 +52,7 @@ def broadcast_route(vehicle_id, routing_table, source_socket, seq_num, group_id)
     msg = vehicle_id.to_bytes(2, 'big') + table_to_bytes(routing_table) + seq_num.to_bytes(4, 'big') + \
             group_id[0].to_bytes(2, 'big') + group_id[1].to_bytes(2, 'big')
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_ROUTE)
-    print("[route msg] ", len(msg)+len(header), time.time())
+    # print("[route msg] ", len(msg)+len(header), time.time())
     network.message.send_msg(source_socket, header, msg, is_udp=True,\
                         remote_addr=("10.0.0.255", 8888))
 
