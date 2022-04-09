@@ -44,7 +44,7 @@ def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num, ad
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + x + y + seq
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)
-    print('[Loc msg size] ', len(header)+len(msg), time.time())
+    # print('[Loc msg size] ', len(header)+len(msg), time.time())
     network.message.send_msg(client_socket, header, msg)
 
 
@@ -54,7 +54,7 @@ def send_route(vehicle_type, vehicle_id, route_bytes, client_socket, seq_num):
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + route_bytes + seq
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_ROUTE)
-    print('[route msg] %d %f'%(len(header)+len(msg), time.time()))
+    # print('[route msg] %d %f'%(len(header)+len(msg), time.time()))
     network.message.send_msg(client_socket, header, msg)
 
 
