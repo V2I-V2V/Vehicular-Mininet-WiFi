@@ -56,6 +56,7 @@ cmd = 'python3 -u vehicle/vehicle.py -i %d --v2v_mode %d -t %f -d %s -l input/lo
 
 # start the vehicle application
 proc = subprocess.Popen(cmd,stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
+print('vehicle start', time.time())
 
 while time.time() < time_to_next_min:
     time.sleep(0.005)
