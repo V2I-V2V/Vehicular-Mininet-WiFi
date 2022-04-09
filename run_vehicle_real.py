@@ -44,7 +44,7 @@ os.system('adb forward tcp:20175 tcp:50000')
 if 'v2v' in scheme:
     # start v2v server
     if vehicle_id == 0:
-        server_cmd = "python3 -u server/server.py -s v2v -n 2 --v2v_mode 1 --data_type Carla -t ./input/traces/constant.txt > %s-server.log"%time_str
+        server_cmd = "python3 -u server/server.py -s v2v -n 6 --v2v_mode 1 --data_type Carla -t ./input/traces/constant.txt > %s-server.log"%time_str
         server_proc = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
         print("server started", time.time())
     #     time.sleep(1)
