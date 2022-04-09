@@ -44,9 +44,9 @@ if 'v2v' in scheme:
         server_cmd = "python3 -u server/server.py -s v2v -n 2 --v2v_mode 1 --data_type Carla -t ./input/traces/constant.txt > %s-server.log"%time_str
         server_proc = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
         print("server started", time.time())
-        time.sleep(1)
-    else:
-        time.sleep(8)
+    #     time.sleep(1)
+    # else:
+    time.sleep(8)
 
 cmd = 'python3 -u vehicle/vehicle.py -i %d --v2v_mode %d -t %f -d %s -l input/locations/0.txt --adaptive %d -c input/helpee_conf/%s > %s-node%d-%s.txt' % \
     (vehicle_id, v2v_mode, time_to_next_min, data_dir, adaptive_encode, helpee_conf, time_str, vehicle_id, helpee_confs[helpee_number])
@@ -66,8 +66,8 @@ time.sleep(60)
 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
 
 if 'v2v' in scheme:
-    os.killpg(os.getpgid(server_proc.pid), signal.SIGTERM)
     if vehicle_id == 0:
+        os.killpg(os.getpgid(server_proc.pid), signal.SIGTERM)
         os.system('scp %s-server.log ryanzhu@dili.eecs.umich.edu:/z/ryanzhu/Vehicular-Mininet-WiFi/real_exp_logs/data-%s/logs/server.log'%(time_str, time_str))
 
 os.system('scp %s-node%d-%s.txt ryanzhu@dili.eecs.umich.edu:/z/ryanzhu/Vehicular-Mininet-WiFi/real_exp_logs/data-%s/logs/node%d.log'%(time_str, vehicle_id, helpee_confs[helpee_number], time_str, vehicle_id))
