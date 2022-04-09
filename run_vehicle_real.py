@@ -46,7 +46,7 @@ if 'v2v' in scheme:
         print("server started", time.time())
     #     time.sleep(1)
     # else:
-    time.sleep(8)
+    time.sleep(15)
 
 cmd = 'python3 -u vehicle/vehicle.py -i %d --v2v_mode %d -t %f -d %s -l input/locations/0.txt --adaptive %d -c input/helpee_conf/%s > %s-node%d-%s.txt' % \
     (vehicle_id, v2v_mode, time_to_next_min, data_dir, adaptive_encode, helpee_conf, time_str, vehicle_id, helpee_confs[helpee_number])
