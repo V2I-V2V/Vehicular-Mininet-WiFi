@@ -20,7 +20,7 @@ now = datetime.now() # current date and time
 time_str = now.strftime("%m%d%H%M")
 
 id_to_data_dir = ['86', '97', '108', '119', '130', '141', '152', '163', '174', '185']
-helpee_confs = ['no-helpee', 'single-helpee-1', 'two-helpees']
+helpee_confs = ['3-helpees', 'single-helpee-1', 'two-helpees']
 
 dataset_dir = '/home/' + getpass.getuser() + '/Carla/lidar/'
 
