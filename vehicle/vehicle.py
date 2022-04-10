@@ -755,8 +755,9 @@ class VehicleDataRecvThread(threading.Thread):
         self.client_socket = helpee_socket
         self.client_address = helpee_addr
         self._is_closed = False
-        self.helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, SERVER_IP,
-                                                             config.server_data_port)
+        with s_print_lock:
+            self.helper_relay_server_sock = wwan.setup_p2p_links(vehicle_id, SERVER_IP,
+                                                                config.server_data_port)
         self.client_ack_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_ack_socket.connect((helpee_addr[0], 8000))
 
