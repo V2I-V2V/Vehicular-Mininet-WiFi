@@ -162,7 +162,7 @@ def sensor_data_recv(soc):
             else:
                 frame_id, chunk_idx, _, _, _ = network.message.parse_carspeak_header(packet)
                 print("[chunk recved from peer] {} {} {} {}".format(frame_id, chunk_idx, v_id, time.time()))
-                OcTree.decode_partial(packet[16:])
+                # OcTree.decode_partial(packet[16:])
             connected_vehicle_lock.release()
 
 
