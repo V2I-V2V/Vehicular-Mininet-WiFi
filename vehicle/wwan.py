@@ -75,7 +75,7 @@ def recv_control_msg(client_socket):
             return 0, msg_type
     except socket.timeout:
         # print("got error during recv")
-        return 65534
+        return 65534, 0
 
 
 class ClientThread(threading.Thread):
