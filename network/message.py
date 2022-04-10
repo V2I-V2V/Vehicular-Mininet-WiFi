@@ -255,6 +255,26 @@ def vehicle_parse_sos_packet_data(data):
     vehicle_id = int.from_bytes(data[0:2], 'big')
     return vehicle_id
 
+def construct_carspeak_msg_header(frame_id, chunk_idx, loc):
+    """Construct CarSpeak Header
+    |---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 8 bytes ----|
+    |    frame id     |   chunk index   |   location x    |    location y   |    timestamp    |
+    
+    """
+    encoded_ts = struct.pack('!d', time.time())
+    header = frame_id.to_bytes(2, 'big') + chunk_idx.to_bytes(2, 'big') \
+                + int(loc[0]).to_bytes(2, 'big', signed=True) \
+                + int(loc[1]).to_bytes(2, 'big', signed=True) + encoded_ts
+    return header
+
+
+def parse_carspeak_header(data):
+    frame_id = int.from_bytes(data[:2], "big")
+    chunk_idx = int.from_bytes(data[2:4], 'big')
+    x, y = int.from_bytes(data[4:6], 'big', signed=True), int.from_bytes(data[6:8], 'big', signed=True)
+    ts = struct.unpack('!d', data[8:16])[0]
+    return frame_id, chunk_idx, x, y, ts
+    
 
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")
