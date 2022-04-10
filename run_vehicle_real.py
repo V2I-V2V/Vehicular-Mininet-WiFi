@@ -51,8 +51,12 @@ if 'v2v' in scheme:
     else:
         time.sleep(3)
 
-cmd = 'python3 -u vehicle/vehicle.py -i %d --v2v_mode %d -t %f -d %s -l input/locations/0.txt --adaptive %d -c input/helpee_conf/%s > %s-node%d-%s.txt' % \
-    (vehicle_id, v2v_mode, time_to_next_min, data_dir, adaptive_encode, helpee_conf, time_str, vehicle_id, helpee_confs[helpee_number])
+if 'carspeak' in scheme:
+    cmd = 'python3 -u vehicle/carspeak.py -i %d -d %s -l input/locations/0.txt --start_timestamp %f >%s-node%d-carspeak.txt' % \
+            (vehicle_id, data_dir, time_to_next_min, time_str, vehicle_id)
+else:
+    cmd = 'python3 -u vehicle/vehicle.py -i %d --v2v_mode %d -t %f -d %s -l input/locations/0.txt --adaptive %d -c input/helpee_conf/%s > %s-node%d-%s.txt' % \
+        (vehicle_id, v2v_mode, time_to_next_min, data_dir, adaptive_encode, helpee_conf, time_str, vehicle_id, helpee_confs[helpee_number])
 
 # start the vehicle application
 proc = subprocess.Popen(cmd,stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
@@ -74,6 +78,7 @@ if 'v2v' in scheme:
         os.killpg(os.getpgid(server_proc.pid), signal.SIGTERM)
         os.system('scp %s-server.log ryanzhu@dili.eecs.umich.edu:/z/ryanzhu/Vehicular-Mininet-WiFi/real_exp_logs/data-%s/logs/server.log'%(time_str, time_str))
 
-os.system('scp %s-node%d-%s.txt ryanzhu@dili.eecs.umich.edu:/z/ryanzhu/Vehicular-Mininet-WiFi/real_exp_logs/data-%s/logs/node%d.log'%(time_str, vehicle_id, helpee_confs[helpee_number], time_str, vehicle_id))
+if 'carspeak' not in scheme:
+    os.system('scp %s-node%d-%s.txt ryanzhu@dili.eecs.umich.edu:/z/ryanzhu/Vehicular-Mininet-WiFi/real_exp_logs/data-%s/logs/node%d.log'%(time_str, vehicle_id, helpee_confs[helpee_number], time_str, vehicle_id))
 
 print("Experiment finished.")
