@@ -47,9 +47,9 @@ if 'v2v' in scheme:
         server_cmd = "python3 -u server/server.py -s v2v -n 6 --v2v_mode 1 --data_type Carla -t ./input/traces/constant.txt > %s-server.log"%time_str
         server_proc = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
         print("server started", time.time())
-        time.sleep(1)
-    else:
         time.sleep(3)
+    else:
+        time.sleep(6)
 
 if 'carspeak' in scheme:
     cmd = 'python3 -u vehicle/carspeak.py -i %d -d %s -l input/locations/0.txt --start_timestamp %f >%s-node%d-carspeak.txt' % \
