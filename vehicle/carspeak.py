@@ -132,9 +132,9 @@ def broadcast_packets(packets, soc, frame_id):
     for packet in packets:
         header = network.message.construct_carspeak_msg_header(frame_id, chunk_idx, self_loc)
         payload = header + packet
-        soc.sendto(payload, ("10.255.255.255", 9888))
+        soc.sendto(payload, ("10.0.0.255", 9888))
         chunk_idx += 1
-    soc.sendto(int.to_bytes(frame_id, 2, 'big'), ("10.255.255.255", 9888))
+    soc.sendto(int.to_bytes(frame_id, 2, 'big'), ("10.0.0.255", 9888))
 
 
 def parse_v_id_from_addr(ip_addr):
