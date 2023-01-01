@@ -22,8 +22,8 @@ from analyze_single_exp import construct_ts_assignment_array, construct_ts_score
 # matplotlib.rc('font', **font)
 
 plt.rc('font', family='sans-serif', serif='cm10')
-plt.rc('text', usetex=True)
-plt.rcParams.update({'font.size': 20})
+plt.rc('text', usetex=False)
+plt.rcParams.update({'font.size': 18})
 
 setting_to_folder = {}
 result_each_run = {}
@@ -133,6 +133,8 @@ def tablelegend(ax, col_labels=None, row_labels=None, title_label="", *args, **k
 def get_key_from_config(config, dir=''):
     global num_nodes
     scheduler = config["scheduler"]
+    if 'fixed' in scheduler:
+        scheduler = 'fixed ' + '-'.join(scheduler.split()[2:])
     network = config["network_trace"].split('/')[-1][:-4]
     mobility = config["location_file"].split('/')[-1][:-4]
     helpee = config["helpee_conf"].split('/')[-1][:-4]
@@ -855,18 +857,21 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
     ims, plot_schedules = [], []
     for schedule in schedule_data.keys():
-        plot_schedules.append(shced_to_displayed_name[schedule])
+        display_schedule = schedule
+        if 'fixed' in schedule:
+            display_schedule = 'fixed-adapt'
+        plot_schedules.append(shced_to_displayed_name[display_schedule])
         im = ax.scatter(sched_to_different_latency_mean[schedule][0], np.mean(sched_to_acc[schedule]),
-            marker=sched_to_marker[schedule], color=sched_to_color[schedule])
+            marker=sched_to_marker[display_schedule], color=sched_to_color[display_schedule])
         ims.append(im)
         im = ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]),
-            marker=sched_to_marker[schedule], color=sched_to_color[schedule], alpha=0.5)
+            marker=sched_to_marker[display_schedule], color=sched_to_color[display_schedule], alpha=0.5)
         ims.append(im)
         im = ax.scatter(sched_to_different_latency_mean[schedule][4], np.mean(sched_to_acc[schedule]),
-            marker=sched_to_marker[schedule], edgecolor=sched_to_color[schedule], facecolors='none')
+            marker=sched_to_marker[display_schedule], edgecolor=sched_to_color[display_schedule], facecolors='none')
         ims.append(im)
         ax.plot([sched_to_different_latency_mean[schedule][0], sched_to_different_latency_mean[schedule][4]],
-            [np.mean(sched_to_acc[schedule]), np.mean(sched_to_acc[schedule])], '--', color=sched_to_color[schedule], linewidth=1)
+            [np.mean(sched_to_acc[schedule]), np.mean(sched_to_acc[schedule])], '--', color=sched_to_color[display_schedule], linewidth=1)
 
     # create blank rectangle
     extra = Rectangle((0, 0), 0.5, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
@@ -896,49 +901,60 @@ def plot_bars_compare_schedules(schedules):
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim-acc.png')
 
-    fig = plt.figure(figsize=(6,5))
+    fig = plt.figure(figsize=(10,5))
     ax = fig.add_subplot(111)
     e2e_summary_dict = {}
     for schedule in schedule_data.keys():
-        # if schedule is not 'ccombined-adapt':
+        display_schedule = schedule
+        if 'fixed' in schedule:
+            display_schedule = 'fixed-adapt'
         latency, accuracy = np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule])
         ax.scatter(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
-            label=shced_to_displayed_name[schedule], marker=sched_to_marker[schedule],\
-            color=sched_to_color[schedule])
+            label=shced_to_displayed_name[display_schedule], marker=sched_to_marker[display_schedule],\
+            color=sched_to_color[display_schedule])
         # ax.plot([np.mean(sched_to_latency[schedule]), np.percentile(sched_to_latency[schedule], 90)], [np.mean(sched_to_acc[schedule]), np.mean(sched_to_acc[schedule])],
         #         '--.', marker=sched_to_marker[schedule], color=sched_to_color[schedule], alpha=0.5, lw=1)
         ax.errorbar(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
                     xerr=np.std(sched_to_latency[schedule]), yerr=np.std(sched_to_acc[schedule]), capsize=2, 
-                    color=sched_to_color[schedule])
+                    color=sched_to_color[display_schedule])
         e2e_summary_dict[schedule] = (np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
                     np.std(sched_to_latency[schedule]), np.std(sched_to_acc[schedule]))
         # annotate
         print(schedule, np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
-        if shced_to_displayed_name[schedule] == 'Harbor':
-            ax.annotate(shced_to_displayed_name[schedule], (latency + 0.05, accuracy+0.001), color=sched_to_color[schedule])
-        elif shced_to_displayed_name[schedule] == 'no-deadline-aware':
-            ax.annotate(shced_to_displayed_name[schedule], (latency + 0.065, accuracy+0.001), color=sched_to_color[schedule])
-        elif shced_to_displayed_name[schedule] == 'no-prioritization':
-            ax.annotate(shced_to_displayed_name[schedule], (latency -0.003, accuracy-0.003), color=sched_to_color[schedule])
-        elif shced_to_displayed_name[schedule] == 'no-ddl-aware+no-prio':
-            ax.annotate(shced_to_displayed_name[schedule], (latency + 0.075, accuracy-0.003), color=sched_to_color[schedule])  
+        
+        if shced_to_displayed_name[display_schedule] == 'Harbor':
+            ax.annotate(shced_to_displayed_name[display_schedule], (latency, accuracy), color=sched_to_color[schedule])
+        elif shced_to_displayed_name[display_schedule] == 'no-deadline-aware':
+            ax.annotate(shced_to_displayed_name[display_schedule], (latency + 0.065, accuracy+0.001), color=sched_to_color[schedule])
+        elif shced_to_displayed_name[display_schedule] == 'no-prioritization':
+            ax.annotate(shced_to_displayed_name[display_schedule], (latency -0.003, accuracy-0.003), color=sched_to_color[schedule])
+        elif shced_to_displayed_name[display_schedule] == 'no-ddl-aware+no-prio':
+            ax.annotate(shced_to_displayed_name[display_schedule], (latency + 0.075, accuracy-0.003), color=sched_to_color[schedule])  
+        # elif 'fixed' in shced_to_displayed_name[display_schedule]:
+        #     pass
         else:
-            ax.annotate(shced_to_displayed_name[schedule], (latency - 0.01, accuracy+0.005), color=sched_to_color[schedule])
+            ax.annotate(schedule[:-6], (latency, accuracy), color=sched_to_color[display_schedule])
     ax.annotate("Better", fontsize=20, horizontalalignment="center", xy=(0.375, 0.675), xycoords='data',
             xytext=(0.4, 0.65), textcoords='data',
             arrowprops=dict(arrowstyle="->, head_width=0.3", connectionstyle="arc3", lw=3)
             )
     ax.grid(linestyle='--')
+    with open('analysis-results/latency.pickle', 'wb') as s:
+            pickle.dump(sched_to_latency, s)
+    with open('analysis-results//acc.pickle', 'wb') as s:
+        pickle.dump(sched_to_acc, s)
     plt.xlabel("Detection Latency (s)")
     plt.ylabel("Detection Accuracy")
+    # plt.xlim(0.1, 0.2)
+    # plt.ylim(0.7, 0.8)
     plt.gca().invert_xaxis()
     plt.tight_layout()
-    plt.savefig('analysis-results/aggregated-two-dim-acc-latency.pdf')
-    # import json
-    # e2e_dict = json.dumps(e2e_summary_dict)
-    # f = open('live.json', 'w')
-    # f.write(e2e_dict)
-    # f.close()
+    plt.savefig('analysis-results/aggregated-two-dim-acc-latency.png')
+    import json
+    e2e_dict = json.dumps(e2e_summary_dict)
+    f = open('live_new.json', 'w')
+    f.write(e2e_dict)
+    f.close()
     
     # latency bar
     fig = plt.figure(figsize=(6,4))
@@ -946,12 +962,15 @@ def plot_bars_compare_schedules(schedules):
     cnt = 0
     ticks = []
     for schedule in sorted(schedule_data.keys()):
+        display_schedule = schedule
+        if 'fixed' in schedule:
+            display_schedule = 'fixed-adapt'
     # for schedule in reversed(['combined-unoptimized-delivery-adapt', 'combined-deadline-unaware-adapt', 'combined-no-prioritization-adapt', 'combined-adapt']):
-        ticks.append(shced_to_displayed_name[schedule])
+        ticks.append(shced_to_displayed_name[display_schedule])
         latency, err = np.mean(sched_to_latency[schedule]), np.std(sched_to_latency[schedule])
-        ax.barh(cnt, latency, yerr=err, color=sched_to_color[schedule], alpha=0.7)
+        ax.barh(cnt, latency, yerr=err, color=sched_to_color[display_schedule], alpha=0.7)
         print(schedule, latency)
-        ax.errorbar(latency, cnt, xerr=err, capsize=4, color=sched_to_color[schedule])
+        ax.errorbar(latency, cnt, xerr=err, capsize=4, color=sched_to_color[display_schedule])
         cnt += 1
     ax.set_yticks(np.arange(cnt))
     ax.set_yticklabels(ticks)
@@ -965,7 +984,10 @@ def plot_bars_compare_schedules(schedules):
     ax = fig.add_subplot(111)
     e2e_summary_dict = {}
     for schedule in sorted(schedule_data.keys()):
-        ticks.append(shced_to_displayed_name[schedule])
+        display_schedule = schedule
+        if 'fixed' in schedule:
+            display_schedule = 'fixed-adapt'
+        ticks.append(shced_to_displayed_name[display_schedule])
         latency, err = np.mean(sched_to_latency[schedule]), np.std(sched_to_latency[schedule])
         if schedule == 'distributed-adapt' or schedule == 'routeAware-adapt':
             ls = linestyles[schedule]  
@@ -974,7 +996,7 @@ def plot_bars_compare_schedules(schedules):
         else:
             ls = '-'
         e2e_summary_dict[schedule] = schedule_data[schedule].tolist()
-        sns.ecdfplot(schedule_data[schedule], ls=ls, color=sched_to_color[schedule], label=shced_to_displayed_name[schedule])
+        sns.ecdfplot(schedule_data[schedule], ls=ls, color=sched_to_color[display_schedule], label=shced_to_displayed_name[display_schedule])
         print(schedule, np.percentile(schedule_data[schedule], 90), np.percentile(schedule_data[schedule], 95), np.percentile(schedule_data[schedule], 99))
     plt.legend()
     plt.grid(linestyle='--')
@@ -1249,7 +1271,7 @@ def main():
 
     # plot_compare_schedule_by_setting()
     # name of figure 'compare-schedule-by-[set]'
-    plot_based_on_setting(num_nodes)
+    # plot_based_on_setting(num_nodes)
     
     
     # 111 lte-28 helpee-start-middle

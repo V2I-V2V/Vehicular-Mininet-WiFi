@@ -1,6 +1,4 @@
 import sys, os
-from numpy.core.fromnumeric import mean
-
 from numpy.lib.function_base import sort_complex
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
@@ -14,7 +12,7 @@ import analysis.v2i_bw as v2i_bw, analysis.trajectory as trajectory, analysis.di
 import run_experiment
 
 plt.rc('font', family='sans-serif', serif='cm10')
-plt.rc('text', usetex=True)
+plt.rc('text', usetex=False)
 plt.rcParams.update({'font.size': 20})
 
 MAX_FRAMES = 80
@@ -90,8 +88,10 @@ def plot_all_delay(dir, delay_all):
     fig = plt.figure(figsize=(5, 4))
     ax = fig.add_subplot(111)
     ax.set_axisbelow(True)
+    ax.grid(linestyle='--')
     sns.ecdfplot(delay_all, label='Aggregated latency for all nodes')
-    plt.legend()
+    # plt.legend()
+    
     plt.tight_layout()
     plt.xlabel("Latency (s)")
     plt.ylabel("CDF")
@@ -147,45 +147,45 @@ def single_exp_analysis(dir, num_nodes, bw_file, loc_file, helpee_conf, exp_time
     
     print('e2e latency', np.mean(latencies))
     # Plot variation    
-    fig = plt.figure(figsize=(5,5))
-    ax = fig.add_subplot(111)
-    # ax.set_axisbelow(True)
-    latency_arr = np.empty((1, len(each_node_delay[0])))
-    for i in range(num_nodes):
-        print(np.array(each_node_delay[i]).reshape(1, -1).shape)
-        print(each_node_delay[i])
-        latency_arr = np.vstack([latency_arr[:, :200], each_node_delay[i].reshape(1, -1)[:, :200]])
-        # sns.ecdfplot(np.fromiter(delay_dict[i].values(), dtype=float), label='node%d'%i)
-        # np.savetxt(dir+'node%d_latency.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
-    # plt.xlim([0, 0.5])
-    latency_arr = latency_arr[1:, :]
-    mean_latency = np.std(latency_arr, axis=0)[:40]
-    print("mean", mean_latency)
-    var_latency = np.std(latency_arr, axis=0)[:40]
-    min_latency = np.min(latency_arr, axis=0)[:40] + 0.02
-    max_latency = np.max(latency_arr, axis=0)[:40] + 0.02
-    np.save('min_lat.npy', min_latency)
-    np.save('max_lat.npy', max_latency)
-    # ax.errorbar(np.arange(len(mean_latency)), mean_latency, yerr=var_latency, capsize=2)
-    # ax.scatter(np.arange(len(mean_latency)), mean_latency, marker='^')
-    ax.plot(np.arange(len(min_latency)), min_latency, '-o', label='min latency')
-    ax.plot(np.arange(len(max_latency)), max_latency, '-x', label='max latency')
-    ax.fill_between(np.arange(len(max_latency)), min_latency, max_latency, color='lime', alpha=0.3)
-    plt.xlabel("Frame Number")
-    plt.ylabel("Upload Latency (s)")
-    plt.tight_layout()
-    plt.legend()
-    plt.grid(linestyle='--', axis='y')
+    # fig = plt.figure(figsize=(5,5))
+    # ax = fig.add_subplot(111)
+    # # ax.set_axisbelow(True)
+    # latency_arr = np.empty((1, len(each_node_delay[0])))
+    # for i in range(num_nodes):
+    #     print(np.array(each_node_delay[i]).reshape(1, -1).shape)
+    #     print(each_node_delay[i])
+    #     latency_arr = np.vstack([latency_arr[:, :200], each_node_delay[i].reshape(1, -1)[:, :200]])
+    #     # sns.ecdfplot(np.fromiter(delay_dict[i].values(), dtype=float), label='node%d'%i)
+    #     # np.savetxt(dir+'node%d_latency.txt'%i, np.fromiter(delay_dict[i].values(), dtype=float))
+    # # plt.xlim([0, 0.5])
+    # latency_arr = latency_arr[1:, :]
+    # mean_latency = np.std(latency_arr, axis=0)[:40]
+    # print("mean", mean_latency)
+    # var_latency = np.std(latency_arr, axis=0)[:40]
+    # min_latency = np.min(latency_arr, axis=0)[:40] + 0.02
+    # max_latency = np.max(latency_arr, axis=0)[:40] + 0.02
+    # np.save('min_lat.npy', min_latency)
+    # np.save('max_lat.npy', max_latency)
+    # # ax.errorbar(np.arange(len(mean_latency)), mean_latency, yerr=var_latency, capsize=2)
+    # # ax.scatter(np.arange(len(mean_latency)), mean_latency, marker='^')
+    # ax.plot(np.arange(len(min_latency)), min_latency, '-o', label='min latency')
+    # ax.plot(np.arange(len(max_latency)), max_latency, '-x', label='max latency')
+    # ax.fill_between(np.arange(len(max_latency)), min_latency, max_latency, color='lime', alpha=0.3)
+    # plt.xlabel("Frame Number")
+    # plt.ylabel("Upload Latency (s)")
+    # plt.tight_layout()
     # plt.legend()
-    plt.savefig(dir+'latency-var-each-node.pdf')
+    # plt.grid(linestyle='--', axis='y')
+    # # plt.legend()
+    # plt.savefig(dir+'latency-var-each-node.pdf')
     
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    sns.ecdfplot(np.std(latency_arr, axis=0))
-    plt.xlabel("Variance of upload latency (s)")
-    plt.ylabel("CDF")
-    plt.tight_layout()
-    plt.savefig(dir+'latency-var.pdf')
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111)
+    # sns.ecdfplot(np.std(latency_arr, axis=0))
+    # plt.xlabel("Variance of upload latency (s)")
+    # plt.ylabel("CDF")
+    # plt.tight_layout()
+    # plt.savefig(dir+'latency-var.pdf')
 
     fig, axes = plt.subplots(num_nodes, 1, sharex=True, figsize=(6, 3*num_nodes))
     for i in range(num_nodes):

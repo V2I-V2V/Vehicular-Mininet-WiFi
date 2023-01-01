@@ -1,6 +1,6 @@
 import numpy as np
 
-MAX_FRAMES = 80
+MAX_FRAMES = 40
 
 simulation_time = 10.0
 server_ip = "192.168.0.1"

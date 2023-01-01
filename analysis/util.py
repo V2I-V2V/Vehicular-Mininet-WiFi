@@ -16,8 +16,8 @@ import multiprocessing
 import pickle
 from multiprocessing import Process
 
-computation_overhead = 0.050
-computation_overhead_v2v = 0.140
+computation_overhead = 0 # 0.050
+computation_overhead_v2v = 0.050 # 0.140
 # vehicle_deadline = 0.5
 
 
@@ -32,8 +32,10 @@ shced_to_displayed_name = {
     'distributed-adapt': 'Distributed',
     'minDist-adapt': 'minDist',
     'bwAware-adapt': 'V2I-BW',
-    'routeAware-adapt': 'V2V-intf'
-    
+    'routeAware-adapt': 'V2V-intf',
+    'fixed-adapt': 'fixed',
+    'carspeak-adapt': 'carspeak',
+    'combined-cam-adapt': 'Harbor-Multi'
 }
 sched_to_color = {'minDist-adapt': 'r', 'random-adapt': 'limegreen', 'distributed-adapt': 'purple', 'combined': 'g',\
     'combined-adapt': 'midnightblue', 'bwAware-adapt': 'chocolate', 'combined-op_min-min': 'blueviolet',
@@ -43,7 +45,10 @@ sched_to_color = {'minDist-adapt': 'r', 'random-adapt': 'limegreen', 'distribute
     'combined-no-fallback-adapt': 'maroon', 'combined-deadline-unaware-adapt': 'g',
     'combined-no-prioritization-adapt': 'brown',
     'combined-unoptimized-delivery-adapt': 'r',
-    'combined-no-group-adapt': 'blueviolet'}
+    'combined-no-group-adapt': 'blueviolet',
+    'fixed-adapt': 'blueviolet',
+    'carspeak-adapt': 'indigo',
+    'combined-cam-adapt': 'purple'}
 sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 
                    'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o',
                     'combined-no-fallback-adapt': '^', 
@@ -55,12 +60,16 @@ sched_to_marker = {'combined-adapt': 's', 'v2v' : '^',
                     'minDist-adapt': 'X',
                     'bwAware-adapt': 'o',
                     'routeAware-adapt': '^',
-                    'combined-no-group-adapt': '^'}
+                    'combined-no-group-adapt': '^',
+                    'fixed-adapt': 'o',
+                    'carspeak-adapt': 'X',
+                    'combined-cam-adapt': '^'}
 sched_to_line_style = {'minDist-adapt': '--', 
                        'random-adapt': '-.', 
                        'distributed-adapt': '--', 
                        'bwAware-adapt': ':',
-                       'combined-adapt': '-'}
+                       'combined-adapt': '-',
+                       'fixed-adapt': ':'}
 
 
 linestyles = OrderedDict(
@@ -68,6 +77,7 @@ linestyles = OrderedDict(
      ('minDist-adapt',      (0, (1, 10))),
      ('combined-op_min-min',              (0, (1, 5))),
      ('combined',      (0, (1, 1))),
+     ('combined-cam-adapt',  (0, (1, 2))),
 
      ('combined-op_sum-min',      (0, (5, 10))),
      ('routeAware-adapt',              (0, (5, 5))),
@@ -82,6 +92,8 @@ linestyles = OrderedDict(
      ('distributed-adapt',          (0, (3, 1, 1, 1, 1, 1))),
      ('v2v',  (0, (3, 1, 1, 1))),
      ('v2v-adapt',  (0, (3, 1, 1, 1))),
+     ('fixed-adapt',  (0, (3, 1, 1, 1))),
+     ('carspeak-adapt',  (0, (3, 1, 1, 1))),
 
      ('combined-no-group-adapt', (0, (3, 10, 1, 10, 1, 10))),
      ('combined-no-fallback-adapt',         (0, (3, 5, 1, 5, 1, 5))),
@@ -207,7 +219,7 @@ def get_sender_ts(filename, scheme):
                     e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
                     summary_dict['e2e-raw'].append(e2e_latency)
                     if 'v2v' in scheme:
-                        print("V2V scheme use V2V computation latency")
+                        # print("V2V scheme use V2V computation latency")
                         e2e_latency += computation_overhead_v2v
                     else:
                         e2e_latency += computation_overhead  
@@ -282,14 +294,14 @@ def get_receiver_ts(filename):
                 node_ids = [str(idx) for idx, ele in enumerate(recved_node_arr) if ele == 1]
                 senders = '-'.join(node_ids)
                 frame_id_to_senders[frame] = senders
-            elif line.startswith('(1,'):
-                parse = line.split()
-                dist_score, bw_score, intf_score = float(parse[1]), float(parse[2]), float(parse[3])
-                score_first_ass = dist_score + bw_score + intf_score
-                parse_next = lines[idx+1].split()
-                dist_score, bw_score, intf_score = float(parse_next[1]), float(parse_next[2]), float(parse_next[3])
-                score_second_ass = dist_score + bw_score + intf_score
-                server_node_dict['score'].append([last_timestamp, score_first_ass, score_second_ass])
+            # elif line.startswith('(1,'):
+            #     parse = line.split()
+            #     dist_score, bw_score, intf_score = float(parse[1]), float(parse[2]), float(parse[3])
+            #     score_first_ass = dist_score + bw_score + intf_score
+            #     parse_next = lines[idx+1].split()
+            #     dist_score, bw_score, intf_score = float(parse_next[1]), float(parse_next[2]), float(parse_next[3])
+            #     score_second_ass = dist_score + bw_score + intf_score
+            #     server_node_dict['score'].append([last_timestamp, score_first_ass, score_second_ass])
             idx += 1
         f.close()
     return receiver_ts_dict, receiver_throughput, server_node_dict, sched_latencies, frame_id_to_senders
@@ -335,7 +347,7 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_
     for frame_id, v_num in sorted(frame_id_to_senders.items()):
         v_ids = v_num.split('-')
         # print(frame_id,v_ids)
-        wrapped_frame_id = frame_id % 300
+        wrapped_frame_id = frame_id % 40
         qb_dict, latency_dict = {}, {}
         real_vids = []
         for v_id in v_ids:
@@ -355,6 +367,9 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_
                 latency_dict[node_id] = node_to_e2e_latency[node_id][frame_id]
         p = Process(target=calculate_merged_detection_spaces, args=(real_vids, wrapped_frame_id, 
                     qb_dict, detected_spaces, detection_acc, config["scheduler"], num_nodes, latency_dict))
+        while len(processes) > 50:
+            processes[0].join()
+            processes = processes[1:]
         processes.append(p)
         p.start()
         # p.join()
@@ -363,7 +378,7 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_
         start_frame_id = max(frame_id_to_senders.keys())
         while start_frame_id < expected_num_frames:
             for v_id in range(num_nodes):
-                detection_acc.append(calculate_local_detection_spaces(v_id, start_frame_id%80))
+                detection_acc.append(calculate_local_detection_spaces(v_id, start_frame_id%50))
             start_frame_id += 1                    
     for p in processes:
         p.join()
@@ -508,8 +523,8 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
 
         receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies, frame_id_to_senders = get_receiver_ts(dir + '/logs/server.log')
         
-        # detected_areas, detection_acc = calculate_are_carla(frame_id_to_senders, node_to_encode_qb, config, e2e_latency_each_node, max(node_sent_frames))
-        detected_areas, detection_acc = [], []
+        detected_areas, detection_acc = calculate_are_carla(frame_id_to_senders, node_to_encode_qb, config, e2e_latency_each_node, max(node_sent_frames))
+        # detected_areas, detection_acc = [], []
         # detected_areas = None
         # print("Total frames sent in exp", sent_frames)
         # calculate delay

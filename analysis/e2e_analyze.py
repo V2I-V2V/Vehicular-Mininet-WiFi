@@ -10,13 +10,14 @@ matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
-from matplotlib.patches import Rectangle
-import matplotlib.legend as mlegend
 from util import *
 from analyze import generate_keys, check_keys_matched
+import warnings
+# warnings.filterwarnings("error")
+
 
 plt.rc('font', family='sans-serif', serif='cm10')
-plt.rc('text', usetex=True)
+plt.rc('text', usetex=False)
 plt.rcParams.update({'font.size': 20})
 
 setting_to_folder = {}
@@ -133,6 +134,27 @@ def get_all_runs_results(data_dir, key, with_ssim=False, parse_exp_stats=True):
         json.dump(setting_to_folder, f)
 
 
+def get_carspeak_results(data_dir, key):
+    dirs = os.listdir(data_dir)
+    for dir in dirs:
+        if key in dir:
+            config = run_experiment.parse_config_from_file(data_dir+dir+'/config.txt')
+            conf_key = get_key_from_config(config, dir)
+            # insert (sched, network, mobility, helpee) in to config_set
+            config_set.add((num_nodes, config["network_trace"], config["location_file"], \
+                config["helpee_conf"], config["t"]))
+            final_dict = {}
+            with open(data_dir+'/'+dir+'/summary.pickle', 'rb') as s:
+                result_dict = pickle.load(s)
+                overall_latency, overall_acc = [], []
+                for node_latency in result_dict['latency']:
+                    overall_latency.extend(list(node_latency.values()))
+                for node_acc in result_dict['acc']:
+                    overall_acc.extend(list(node_acc.values()))
+                final_dict['e2e-latency'] = overall_latency
+                final_dict['detection_acc'] = overall_acc
+            result_each_run[conf_key] = final_dict
+
 def get_result_based_on_metric(metric, key_idx):
     result = collections.defaultdict(list)
     result_metric = collections.defaultdict(list)
@@ -243,6 +265,7 @@ def plot_compare_scheds():
     
     # node_nums = [12, 14, 16, 18, 20]
     # fig, axes = plt.subplots(1, 2, sharex=True, figsize=(8,3))
+    # scalability_dict = {}
     # latency, acc = collections.defaultdict(list), collections.defaultdict(list)
     # latency_err, acc_err = collections.defaultdict(list), collections.defaultdict(list)
     # for num in node_nums:
@@ -254,6 +277,8 @@ def plot_compare_scheds():
     #             if schedule in k:
     #                 print(schedule, k)
     #                 for v in v_list:
+    #                     if len(v['detection_acc']) > 90 * num:
+    #                         v['detection_acc'] = np.array(v['detection_acc']).reshape(-1, num)[:90].reshape(-1).tolist()
     #                     if schedule not in schedule_data.keys():
     #                         schedule_data[schedule] = v['e2e-latency']
     #                         sched_to_acc[schedule]  = v['detection_acc']
@@ -269,7 +294,7 @@ def plot_compare_scheds():
     # for schedule in SCHEDULERS:  
         
     #     axes[0].errorbar(node_nums, latency[schedule], yerr=latency_err[schedule], capsize=3)
-        
+    #     scalability_dict[schedule] = (node_nums, latency[schedule], latency_err[schedule], acc[schedule], acc_err[schedule])
     #     if 'no-group' in schedule:
     #         # axes[0].errorbar(node_nums, latency[schedule], yerr=latency_err[schedule], capsize=3)
     #         axes[0].scatter(node_nums, latency[schedule], marker='^',s=20)
@@ -292,8 +317,11 @@ def plot_compare_scheds():
     # axes[0].set_xlabel('Number of Vehicles')
     # axes[1].set_xlabel('Number of Vehicles')
     # axes[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # axes[1].set_ylim(0.6, 0.8)
     # plt.tight_layout()
     # plt.savefig('fig14.pdf')
+    # with open('scalability.json', 'w') as f:
+    #     json.dump(scalability_dict, f)
     
     
 def plot_one_category_ax(data, schedules, key, metric, ax, name, fig_num=1):
@@ -307,29 +335,35 @@ def plot_one_category_ax(data, schedules, key, metric, ax, name, fig_num=1):
         for k, v_list in data.items():
             if schedule in k:
                 for v in v_list:
-                    if schedule not in schedule_data.keys():
-                        schedule_overhead[schedule] = v['overhead']
-                        server_compute_time[schedule] = v['sched_latency']
-                        schedule_data[schedule] = v['all']
-                        schedule_helpee_data[schedule] = v['helpee']
-                        schedule_helper_data[schedule] = v['helper']
-                        schedule_to_detected_spaces[schedule] = [np.mean(v['detected_areas'])]
-                        sched_to_acc[schedule] = [np.mean(v['detection_acc'])]
-                        sched_to_latency[schedule] = [np.mean(v['e2e-latency'])]
-                        sched_to_latency_std[schedule] = [np.std(v['e2e-latency'])]
-                    else:
-                        schedule_overhead[schedule] = np.hstack((schedule_overhead[schedule], v['overhead']))
-                        schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
-                        schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
-                        schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
-                        server_compute_time[schedule] = np.hstack((server_compute_time[schedule], v['sched_latency']))
-                        schedule_to_detected_spaces[schedule].append(np.mean(v['detected_areas']))
-                        sched_to_acc[schedule].append(np.mean(v['detection_acc']))
-                        sched_to_latency[schedule].append(np.mean(v['e2e-latency']))
-                        sched_to_latency_std[schedule].append(np.std(v['e2e-latency']))
+                    if fig_num == 2:
+                        print(schedule, k,np.mean(v['detection_acc']), np.mean(v['e2e-latency']), np.std(v['e2e-latency']))
+                        # print(v['detection_acc'][0])
+                    if len(v['detection_acc']) > 0:
+                        if schedule not in schedule_data.keys():
+                            # schedule_overhead[schedule] = v['overhead']
+                            # server_compute_time[schedule] = v['sched_latency']
+                            schedule_data[schedule] = ''
+                            # schedule_helpee_data[schedule] = v['helpee']
+                            # schedule_helper_data[schedule] = v['helper']
+                            # schedule_to_detected_spaces[schedule] = [np.mean(v['detected_areas'])]
+                            sched_to_acc[schedule] = [np.mean(v['detection_acc'])]
+                            sched_to_latency[schedule] = [np.mean(v['e2e-latency'])]
+                            sched_to_latency_std[schedule] = [np.std(v['e2e-latency'])]
+                        else:
+                            # schedule_overhead[schedule] = np.hstack((schedule_overhead[schedule], v['overhead']))
+                            schedule_data[schedule] = ''
+                            # schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
+                            # schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
+                            # server_compute_time[schedule] = np.hstack((server_compute_time[schedule], v['sched_latency']))
+                            # schedule_to_detected_spaces[schedule].append(np.mean(v['detected_areas']))
+                            sched_to_acc[schedule].append(np.mean(v['detection_acc']))
+                            sched_to_latency[schedule].append(np.mean(v['e2e-latency']))
+                            sched_to_latency_std[schedule].append(np.std(v['e2e-latency']))
     e2e_summary_dict = {}
+    e2e_summary_dict_detail = {}
     for schedule in schedule_data.keys():
         e2e_summary_dict[schedule] = (np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]), np.std(sched_to_latency[schedule]), np.std(sched_to_acc[schedule]))
+        e2e_summary_dict_detail[schedule] = (sched_to_latency[schedule], sched_to_acc[schedule])
         summary[schedule] = (np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
         ax.scatter(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
             label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],\
@@ -356,10 +390,13 @@ def plot_one_category_ax(data, schedules, key, metric, ax, name, fig_num=1):
     #         )
     # ax.set_ylim([0.5, 0.85])
     # plt.xlim([0, 0.5])
-    import json
     e2e_dict = json.dumps(e2e_summary_dict)
+    e2e_dict_detail = json.dumps(e2e_summary_dict_detail)
     f = open('%s.json'%name, 'w')
     f.write(e2e_dict)
+    f.close()
+    f = open('%s-detail.json'%name, 'w')
+    f.write(e2e_dict_detail)
     f.close()
     ax.set_xlabel("Detection Latency (s)")
     ax.set_ylabel("Detection Accuracy")
@@ -389,22 +426,10 @@ def plot_one_category(data, schedules, key, metric):
             if schedule in k:
                 for v in v_list:
                     if schedule not in schedule_data.keys():
-                        schedule_overhead[schedule] = v['overhead']
-                        server_compute_time[schedule] = v['sched_latency']
-                        schedule_data[schedule] = v['all']
-                        schedule_helpee_data[schedule] = v['helpee']
-                        schedule_helper_data[schedule] = v['helper']
-                        schedule_to_detected_spaces[schedule] = [np.mean(v['detected_areas'])]
                         sched_to_acc[schedule] = [np.mean(v['detection_acc'])]
                         sched_to_latency[schedule] = [np.mean(v['e2e-latency'])]
                         sched_to_latency_std[schedule] = [np.std(v['e2e-latency'])]
                     else:
-                        schedule_overhead[schedule] = np.hstack((schedule_overhead[schedule], v['overhead']))
-                        schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
-                        schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
-                        schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
-                        server_compute_time[schedule] = np.hstack((server_compute_time[schedule], v['sched_latency']))
-                        schedule_to_detected_spaces[schedule].append(np.mean(v['detected_areas']))
                         sched_to_acc[schedule].append(np.mean(v['detection_acc']))
                         sched_to_latency[schedule].append(np.mean(v['e2e-latency']))
                         sched_to_latency_std[schedule].append(np.std(v['e2e-latency']))
@@ -472,6 +497,7 @@ def main():
     key = args.prefix
     os.system('mkdir %s/analysis-results/'%data_dir)
     get_all_runs_results(data_dir, key)
+    # get_carspeak_results(data_dir, key)
     plot_compare_scheds()
     # print(result_each_run)
     

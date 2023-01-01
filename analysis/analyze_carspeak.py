@@ -21,32 +21,35 @@ def get_carspeak_sender_stats(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
-            parse = line.split()
-            if line.startswith('[V2I '):
-                frame_id = int(parse[-3])
-                timestamp = float(parse[-2])
-                if frame_id not in sender_stats:
-                    sender_stats[frame_id] = {'send_time': timestamp}
-                else:
-                    sender_stats[frame_id]['send_time'] = timestamp
-            elif line.startswith('[start timestamp]'):
-                start_timestamp = float(parse[-1])        
-                sender_stats['start'] = start_timestamp
-            elif line.startswith('[chunk '):
-                frame_id, chunk_idx, v_id, timestamp = \
-                        int(parse[-4]), int(parse[-3]), int(parse[-2]), float(parse[-1])
-                if frame_id not in sender_stats:
-                    sender_stats[frame_id] = {'recv_chunks': [(chunk_idx, v_id, timestamp)]}
-                else:
-                    if 'recv_chunks' not in sender_stats[frame_id]:
-                        sender_stats[frame_id]['recv_chunks'] = [(chunk_idx, v_id, timestamp)]
+            try:
+                parse = line.split()
+                if line.startswith('[V2I '):
+                    frame_id = int(parse[-3])
+                    timestamp = float(parse[-2])
+                    if frame_id not in sender_stats:
+                        sender_stats[frame_id] = {'send_time': timestamp}
                     else:
-                        sender_stats[frame_id]['recv_chunks'].append((chunk_idx, v_id, timestamp))
-            elif line.startswith('[All possible frame recved]'):
-                frame_id, timestamp = int(parse[-2]), float(parse[-1])
-                if frame_id not in sender_stats:
-                    sender_stats[frame_id] = {'finish-latency': timestamp - (start_timestamp + 0.1 * frame_id)}
-                sender_stats[frame_id]['finish-latency'] = timestamp - (start_timestamp + 0.1 * frame_id)
+                        sender_stats[frame_id]['send_time'] = timestamp
+                elif line.startswith('[start timestamp]'):
+                    start_timestamp = float(parse[-1])        
+                    sender_stats['start'] = start_timestamp
+                elif line.startswith('[chunk '):
+                    frame_id, chunk_idx, v_id, timestamp = \
+                            int(parse[-4]), int(parse[-3]), int(parse[-2]), float(parse[-1])
+                    if frame_id not in sender_stats:
+                        sender_stats[frame_id] = {'recv_chunks': [(chunk_idx, v_id, timestamp)]}
+                    else:
+                        if 'recv_chunks' not in sender_stats[frame_id]:
+                            sender_stats[frame_id]['recv_chunks'] = [(chunk_idx, v_id, timestamp)]
+                        else:
+                            sender_stats[frame_id]['recv_chunks'].append((chunk_idx, v_id, timestamp))
+                elif line.startswith('[All possible frame recved]'):
+                    frame_id, timestamp = int(parse[-2]), float(parse[-1])
+                    if frame_id not in sender_stats:
+                        sender_stats[frame_id] = {'finish-latency': timestamp - (start_timestamp + 0.1 * frame_id)}
+                    sender_stats[frame_id]['finish-latency'] = timestamp - (start_timestamp + 0.1 * frame_id)
+            except:
+                pass
 
     return sender_stats
 
@@ -163,13 +166,13 @@ def get_metrics(sender_stats, sender_id, num_nodes, latency_threshold=0.5):
 
 
 def get_single_run_stats(dir, num_nodes):
-    print(dir)
+    print(dir, num_nodes)
     sender_stats_summary = {}
     result_summary = {}
     for i in range(num_nodes):
-        if os.path.exists(dir + '/logs/node%d.log'%i):
-            sender_stats_summary[i] = get_carspeak_sender_stats(dir + '/logs/node%d.log'%i)
-            latency, ptcls_acc = get_metrics(sender_stats_summary[i], i, num_nodes, latency_threshold=0.3)
+        if os.path.exists(dir + '/logs/node%d.txt'%i):
+            sender_stats_summary[i] = get_carspeak_sender_stats(dir + '/logs/node%d.txt'%i)
+            latency, ptcls_acc = get_metrics(sender_stats_summary[i], i, num_nodes, latency_threshold=0.45)
             print(ptcls_acc.values())
             if 'latency' not in result_summary:
                 result_summary['latency'] = [latency]
@@ -179,15 +182,15 @@ def get_single_run_stats(dir, num_nodes):
                 result_summary['acc'] = [ptcls_acc]
             else:
                  result_summary['acc'].append(ptcls_acc)
-    with open(dir+'/summary_0.3.pickle', 'wb') as s:
+    with open(dir+'/summary.pickle', 'wb') as s:
         pickle.dump(result_summary, s)
 
 
 if __name__ == '__main__':
-    exp_rst_folder = '/home/mininet-wifi/v2x_exp_comprehensive/carspeak_new/'
+    exp_rst_folder = '/home/mininet-wifi/v2x_exp_comprehensive/real_added_exp/carspeak/3nodes/'
     data_folders = os.listdir(exp_rst_folder)
     for fold in data_folders:
-        if 'data' in fold:
+        if 'carspeak' in fold:
             print(fold)
             config = parse_config_from_file(exp_rst_folder + fold + '/config.txt')
         # config = parse_config_from_file('/home/mininet-wifi/v2x_exp_comprehensive/carspeak/data-03301835/config.txt')

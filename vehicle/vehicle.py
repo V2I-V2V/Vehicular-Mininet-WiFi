@@ -22,6 +22,8 @@ import wlan
 import wwan
 import collections
 import statistics as stats
+import cv2
+import imageio
 
 # Define some constants
 HELPEE = 0
@@ -34,6 +36,7 @@ PCD_QB = 11 # point cloud quantization bits
 NO_ADAPTIVE_ENCODE = 0
 ADAPTIVE_ENCODE = 1
 ADAPTIVE_ENCODE_FULL_CHUNK = 2
+start_frame_number = 63
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
@@ -60,13 +63,16 @@ control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
 is_adaptive_frame_skipped = args.adapt_skip_frames
 add_noise_to_loc = args.add_loc_noise
-print("Noise enabled?", add_noise_to_loc, time.time())
+data_type = "pcd"
+# print("Noise enabled?", add_noise_to_loc, time.time())
 
 pcd_data_type = args.data_type
 if args.data_type == "GTA":
     PCD_DATA_PATH = args.data_path + '/velodyne_2/'
     OXTS_DATA_PATH = args.data_path + '/oxts/'
 else:
+    if 'camera' in args.data_path:
+        data_type = "img"
     PCD_DATA_PATH = args.data_path
     OXTS_DATA_PATH = args.data_path
 
@@ -164,30 +170,36 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     """
     global capture_finished
     for i in range(config.MAX_FRAMES):
-        if pcd_data_type == "GTA":
-            pcd_f_name = pcd_data_path + "%06d.bin"%i
-            oxts_f_name = oxts_data_path + "%06d.txt"%i
-        elif pcd_data_type == "Carla":
-            pcd_f_name = pcd_data_path + str(800+i) + ".npy"
-            oxts_f_name = oxts_data_path + str(800+i) + ".trans.npy"
-        oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
-        pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
-
-        if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
-            partitioned = ptcl.partition.simple_partition(pcd_np, 50)
-            # partitioned = pcd_np
-            pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
-            pcd_data_buffer.append(pcd)
-        else:            
-            partitioned = ptcl.partition.simple_partition(pcd_np, 50)
-            for qb in range(7, PCD_QB+1):
-                encoded, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, qb)
-                pcd_data_buffer_adaptive[qb].append(encoded)
-            # pcd_data_buffer.append(pcd_np)
-        # t_elapsed = time.time() - t_s
-        # print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
-        # if (1.0/fps-t_elapsed) > 0:
-        #     time.sleep(1.0/fps-t_elapsed)
+        if data_type == "pcd":
+            if pcd_data_type == "GTA":
+                pcd_f_name = pcd_data_path + "%06d.bin"%i
+                oxts_f_name = oxts_data_path + "%06d.txt"%i
+            elif pcd_data_type == "Carla":
+                pcd_f_name = pcd_data_path + str(start_frame_number+i) + ".npy"
+                oxts_f_name = oxts_data_path + str(start_frame_number+i) + ".trans.npy"
+            oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
+            pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
+            if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
+                partitioned = ptcl.partition.simple_partition(pcd_np, 50)
+                # partitioned = pcd_np
+                pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
+                pcd_data_buffer.append(pcd)
+            else:            
+                partitioned = ptcl.partition.simple_partition(pcd_np, 50)
+                for qb in range(7, PCD_QB+1):
+                    encoded, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, qb)
+                    pcd_data_buffer_adaptive[qb].append(encoded)
+        elif data_type == "img":
+            img_f_name = pcd_data_path + str(start_frame_number+i) + "-raw.png"
+            oxts_f_name = oxts_data_path + str(start_frame_number+i) + ".intrinsic.npy"
+            oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
+            # img_np = cv2.imread(img_f_name, cv2.IMREAD_GRAYSCALE)
+            img_np = imageio.imread(img_f_name)
+            is_success, im_buf_arr = cv2.imencode(".jpg", img_np)
+            print("img len", len(im_buf_arr.tobytes()))
+            for qb in range(8, PCD_QB+1):
+                pcd_data_buffer_adaptive[qb].append(im_buf_arr.tobytes())
+            
     capture_finished = True
 
 
@@ -257,7 +269,7 @@ def get_encoding_qb(e2e_frame_latency):
     for id, latency in recent_latencies:
         if id in encoding_sizes:
             thrpt = encoding_sizes[id] / latency
-            print('thrpt:', thrpt)
+            # print('thrpt:', thrpt)
             thrpts.append(thrpt)
             cnt += 1
             if cnt == 5:
@@ -283,7 +295,7 @@ def map_thrpt_to_encoding_level(thrpt):
     elif thrpt >= 0.64:
         return 8
     else:
-        return 7
+        return 8
 
 
 def send(socket, data, id, type, num_chunks=1, chunks=None):

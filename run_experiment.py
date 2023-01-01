@@ -6,6 +6,34 @@ import subprocess
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from analysis.analyze_single_exp import single_exp_analysis
 
+def parse_config_setting_all_fixed(filename, sched=['v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt'], 
+                                    assignment_dir='/home/mininet-wifi/Vehicular-Mininet-WiFi/input/assignments/', 
+                                    helpee_conf_dir='/home/mininet-wifi/Vehicular-Mininet-WiFi/input/helpee_conf/'):
+    settings = []
+    config_file = open(filename, 'r')
+    i = 0
+    for line in config_file.readlines():
+        parse = line.split()
+        num_node = parse[0].split('=')[1]
+        loc = parse[1].split('=')[1]
+        bw = parse[2].split('=')[1]
+        helpee_conf = parse[3].split('=')[1]
+        # check helpee number, num_node
+        for s in sched:
+            # parse helpee_config
+            f = open(os.path.join(helpee_conf_dir, helpee_conf), 'r')
+            content = f.readlines()
+            f.close()
+            n_helpees = len(content[0].split(' '))
+            assignment_file = os.path.join(assignment_dir, 'assignments-%03d.txt' % (n_helpees))
+            n_helpers = int(num_node) - n_helpees
+            possible_assign = n_helpers ** n_helpees
+            for assign in range(0, possible_assign):
+                setting = (num_node, '%s %s %d' % (s, assignment_file, assign), loc, bw, helpee_conf)
+                # print(setting)
+                i += 1
+                settings.append(setting)
+    return settings
 
 def parse_config_setting(filename, sched=['v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt']):
     settings = []
@@ -17,6 +45,7 @@ def parse_config_setting(filename, sched=['v2v', 'v2i', 'v2v-adapt', 'v2i-adapt'
         loc = parse[1].split('=')[1]
         bw = parse[2].split('=')[1]
         helpee_conf = parse[3].split('=')[1]
+        # check helpee number, num_node
         for s in sched:
             setting = (num_node, s, loc, bw, helpee_conf)
             i += 1

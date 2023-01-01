@@ -461,7 +461,7 @@ def server_recv_data(client_socket, client_addr):
             if pcd_data_type == 'GTA':
                 oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
             elif pcd_data_type == 'Carla':
-                oxts[v_id][frame_id%MAX_FRAMES] = np.frombuffer(msg).reshape(4,4)
+                oxts[v_id][frame_id%MAX_FRAMES] = np.frombuffer(msg)
         
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
             # check if ready to merge and send back results

@@ -9,16 +9,19 @@ import multiprocessing
 import time
 import math
 
-DATASET_DIR = '/home/mininet-wifi/Carla/lidar/'
-DATASET_DIR = '/home/mininet-wifi/dense_120_town05/lidar/'
+# DATASET_DIR = '/home/mininet-wifi/Carla/lidar/'
+# DATASET_DIR = '/home/mininet-wifi/dense_120_town05/lidar/'
 DATASET_DIR = '/home/mininet-wifi/dense_160_town05_far/lidar/'
+DATASET_DIR = '/home/mininet-wifi/6-cav-22-non/lidar/'
 # DATASET_DIR = '/home/mininet-wifi/dense_120_town03_1/lidar/'
 vehicle_deadline = 0.5
+start_f_id = 64
 
 vehicle_id_to_dir = [86, 97, 108, 119, 163, 141, 152, 130, 174, 185]
 vehicle_id_to_dir = [209, 221, 233, 269, 270, 295, 152, 163, 185, 97]
 vehicle_id_to_dir = [202, 249, 255, 259, 289, 298, 310, 327, 347, 356]
 # vehicle_id_to_dir = [971, 1026, 1027, 1033, 1070, 1083, 310, 327, 347, 356]
+vehicle_id_to_dir = [256, 257, 258, 259, 260, 261]
 
 
 def get_detected_space(points, detected_spaces, detection_accuracy, grid_truth, center=(0, 0), local_pred = None):
@@ -58,11 +61,11 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         for v_id in v_ids:
             if int(v_id) in selected_vids:
                 ptcl_name = DATASET_DIR + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)]) \
-                            + '/' + str(800+frame_id) 
+                            + '/' + str(start_f_id+frame_id) 
                 gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-                    + '-' + str(800+frame_id) + '.txt'
+                    + '-' + str(start_f_id+frame_id) + '.txt'
                 local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-                    + '-' + str(800+frame_id) + '.txt'
+                    + '-' + str(start_f_id+frame_id) + '-local.txt'
                 grid_truth[int(v_id)] = np.loadtxt(gt_file)
                 pointcloud = ptcl.ptcl_utils.read_ptcl_data(ptcl_name + '.npy')
                 local_points[int(v_id)] = pointcloud
@@ -80,9 +83,9 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         for v_id in selected_vids:    
             # load every gt and local
             gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
-                + '-' + str(800+frame_id) + '.txt'
+                + '-' + str(start_f_id+frame_id) + '.txt'
             local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
-                + '-' + str(800+frame_id) + '.txt'
+                + '-' + str(start_f_id+frame_id) + '-local.txt'
             grid_truth[v_id] = np.loadtxt(gt_file)
             local_pred[v_id] = np.loadtxt(local_file)
         if len(ptcls) > 0:
@@ -92,7 +95,7 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
         detection_accuracy = []
         for v_id in selected_vids:        
             if str(v_id) in v_ids and nodes_latency[v_id] < vehicle_deadline:
-                if 'combined' in scheme:
+                if '-combined' in scheme:
                     get_detected_space(merged_pred, detected_spaces, detection_accuracy, grid_truth[int(v_id)], \
                         vehicle_pos[int(v_id)], local_pred=local_pred[int(v_id)])
                 else:
@@ -111,11 +114,11 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
     acc_list.extend(accuracy)
     # for v_id in v_ids:
     #     ptcl_name = DATASET_DIR + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)]) \
-    #                 + '/' + str(800+frame_id) 
+    #                 + '/' + str(start_f_id+frame_id) 
     #     gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-    #          + '-' + str(800+frame_id) + '.txt'
+    #          + '-' + str(start_f_id+frame_id) + '.txt'
     #     local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-    #          + '-' + str(800+frame_id) + '.txt'
+    #          + '-' + str(start_f_id+frame_id) + '.txt'
     #     grid_truth[int(v_id)] = np.loadtxt(gt_file)
     #     pointcloud = ptcl.ptcl_utils.read_ptcl_data(ptcl_name + '.npy')
     #     local_points[int(v_id)] = pointcloud
@@ -133,9 +136,9 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
     # for v_id in range(num_nodes):    
     #     # load every gt and local
     #     gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
-    #          + '-' + str(800+frame_id) + '.txt'
+    #          + '-' + str(start_f_id+frame_id) + '.txt'
     #     local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[v_id%len(vehicle_id_to_dir)])\
-    #          + '-' + str(800+frame_id) + '.txt'
+    #          + '-' + str(start_f_id+frame_id) + '.txt'
     #     grid_truth[v_id] = np.loadtxt(gt_file)
     #     local_pred[v_id] = np.loadtxt(local_file)
     # if len(ptcls) > 0:
@@ -170,9 +173,9 @@ def calculate_merged_detection_spaces(v_ids, frame_id, qb_dict, detected_spaces_
 
 def calculate_local_detection_spaces(v_id, frame_id):
     gt_file = DATASET_DIR + 'ground-truth-grid/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-             + '-' + str(800+frame_id) + '.txt'
+             + '-' + str(start_f_id+frame_id) + '.txt'
     local_file = DATASET_DIR + 'local-prediction/' + str(vehicle_id_to_dir[int(v_id)%len(vehicle_id_to_dir)])\
-             + '-' + str(800+frame_id) + '.txt'
+             + '-' + str(start_f_id+frame_id) + '-local.txt'
     grid_truth = np.loadtxt(gt_file)
     local_pred = np.loadtxt(local_file)
     return ptcl.ptcl_utils.calculate_precision(local_pred, grid_truth)[0]
