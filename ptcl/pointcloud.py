@@ -1,9 +1,8 @@
 # Read and process point cloud
-import os, sys
+import os
 import numpy as np
 import config
 import TrakoDracoPy
-import struct
 
 def read_all_pointclouds(pointcloud_dir):
     all_frames = []

@@ -41,15 +41,15 @@ def test_combined_specific():
     routing_tables = {0: {1: 1, 2: 1, 3: 3, 4: 4, 5: 5, 6: 1, 7: 1}, 
                       1: {0: 0, 2: 2, 3: 3, 4: 0, 5: 5, 6: 2, 7: 2}, 
                       2: {0: 1, 1: 1, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7}, 
-                      3: {0: 0, 1: 1, 2: 2, 4: 4, 5: 5, 6: 2, 7: 2}, 
-                      4: {0: 0, 1: 0, 2: 2, 3: 3, 5: 5, 6: 2, 7: 2}, 
-                      5: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 6: 2, 7: 2}, 
+                      3: {0: 0, 1: 1, 2: 2, 4: 4, 5: 5, 6: 2, 7: 7}, 
+                      4: {0: 0, 1: 0, 2: 2, 3: 3, 5: 5, 6: 6, 7: 7}, 
+                      5: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 6: 6, 7: 2}, 
                       6: {0: 2, 1: 2, 2: 2, 3: 2, 4: 4, 5: 2, 7: 7}, 
-                      7: {0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 6}}
+                      7: {0: 2, 1: 2, 2: 2, 3: 3, 4: 4, 5: 2, 6: 6}}
     bws = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0] 
     assignment = server.scheduling.combined_sched(3, 5, positions, bws, routing_tables)[0]
     print("Choose assignment:", assignment)
-    assert assignment == (5,3,7), "Wrong assignment for combined"
+    assert assignment == (4,4,7), "Wrong assignment for combined"
 
 
 def test_random():

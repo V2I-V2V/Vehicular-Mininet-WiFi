@@ -1,17 +1,14 @@
 import os, sys
-from tokenize import group
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import network.message
 import pyroute2
-import socket
 import time
-import pickle
 
 def get_routes(vehicle_id):
     routing_table = {}
     routes = pyroute2.IPRoute().get_routes()
     for route in routes:
-        # print(route)
+        print(route)
         # print(route['attrs'])
         dst = ""
         nexthop = ""
@@ -33,9 +30,9 @@ def get_routes(vehicle_id):
             # print('dst_ip %s, nexthop: %s'%(dst_ip, nexthop))
             # if nexthop != "":
             routing_table[int(dst_ip[-1]) - 2] = int(nexthop.split('.')[-1]) - 2
-        else:
-            # print(dst_ip[0:3])
-            pass
+        # else:
+        #     # print(dst_ip[0:3])
+        #     pass
     # print(routing_table)
     return routing_table
 
@@ -69,6 +66,14 @@ def get_routing_path(helpee, helper, routing_tables):
     return routing_path
 
 
+def construct_routing_paths(routing_tables):
+    routing_paths = {}
+    for helpee in routing_tables.keys():
+        for helper in routing_tables[helpee].keys():
+            routing_paths[(helpee, helper)] = get_routing_path(helpee, helper, routing_tables)
+    return routing_paths
+
+
 def get_num_hops(helpee, helper, routing_tables):
     # find the number of hops from a helpee to a helper
     if len(get_routing_path(helpee, helper, routing_tables)) == 0:
@@ -84,6 +89,15 @@ def get_neighbors(node, routing_tables):
             if k == v:
                 neighbors.append(k)
     return neighbors
+
+
+def get_all_neighbors(routing_tables):
+    all_neighbors = {}
+    for node in routing_tables.keys():
+        neighbors = get_neighbors(node, routing_tables)
+        all_neighbors[node] = neighbors
+    return all_neighbors
+
 
 
 if __name__ == "__main__":

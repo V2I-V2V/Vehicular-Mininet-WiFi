@@ -17,6 +17,7 @@ import network.message
 import config
 import pickle
 import group
+import collections
 
 MAX_VEHICLES = 100
 MAX_FRAMES = 800
@@ -24,11 +25,11 @@ TYPE_PCD = 0
 TYPE_OXTS = 1
 HELPEE = 0
 HELPER = 1
-NODE_LEFT_TIMEOUT = 0.8
+NODE_LEFT_TIMEOUT = 0.5
 SCHED_PERIOD = 0.2
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEADLINE = 0.20
-DIVIDE_THRESHOLD = 10
+DIVIDE_THRESHOLD = 20
 
 sys.stderr = sys.stdout
 
@@ -112,7 +113,7 @@ def get_bws():
     else:
         bw_idx = int(curr_time - init_time - 58)
     for i in range(num_vehicles):
-        bws[i] = all_bandwidth[bw_idx][i]
+        bws[i] = all_bandwidth[bw_idx][i%all_bandwidth.shape[1]]
 
 
 def get_mapped_bw(mapped_node_ids):
@@ -130,7 +131,7 @@ class SchedThread(threading.Thread):
         self.flip_cnt = 0
         self.last_assignment_score = 0 # used for combined sched
         self.last_assignment = None
-        self.assignment_change_threshold = 0.8
+        self.assignment_change_threshold = 0.3
         self.last_assignment_scores = {}
         self.fallback = False
 
@@ -143,7 +144,7 @@ class SchedThread(threading.Thread):
     def ready_to_schedule(self, scheduler_mode):
         global current_connected_vids
         current_connected_vids = check_current_connected_vehicles()
-        print("Current connected vehicles " + str(current_connected_vids))
+        # print("Current connected vehicles " + str(current_connected_vids))
         helpee_count, helper_count = 0, 0
         for i in current_connected_vids:
             if vehicle_types[i] == HELPEE:
@@ -169,7 +170,6 @@ class SchedThread(threading.Thread):
     def run(self):
         global current_assignment
         while True:
-            # check_current_connected_vehicles()
             sched_start_t = time.time()
             skip_sending_assignment = False
             print("loc:" + str(location_map), flush=True)
@@ -193,18 +193,17 @@ class SchedThread(threading.Thread):
                     header = network.message.construct_control_msg_header(fallback_payload, network.message.TYPE_RECONNECT)
                     network.message.send_msg(soc, header, reconnect_payload)
                 self.fallback = False
-            if scheduler_mode == 'fixed':
+            if scheduler_mode == 'fixed' and len(current_connected_vids) > 1:
                 assignment = fixed_assignment
                 print("Assignment: " + str(assignment) + ' ' + str(time.time()))
                 for cnt, node in enumerate(assignment):
                     real_helpee, real_helper = cnt, node
                     current_assignment[real_helpee] = real_helper
                     print("send %d to node %d" % (real_helpee, real_helper))
-                    # control_sock_lock.acquire()
-                    msg = int(real_helpee).to_bytes(2, 'big')
+                    assignment_payload = int(real_helpee).to_bytes(2, 'big')
+                    header = network.message.construct_control_msg_header(assignment_payload, network.message.TYPE_ASSIGNMENT)
                     if real_helper in client_sockets.keys():
-                        client_sockets[real_helper].send(msg)
-                    # control_sock_lock.release()         
+                        network.message.send_msg(client_sockets[real_helper], header, assignment_payload)      
             elif self.ready_to_schedule(scheduler_mode):
                 for group_id, v_ids in group_map.items():
                     # group_loc_map = group.find_vehicle_location_in_group(group_id, group_map, location_map)
@@ -258,7 +257,7 @@ class SchedThread(threading.Thread):
                         if score < last_score + self.assignment_change_threshold \
                             and self.last_assignment is not None and len(current_assignment) == len(self.last_assignment):
                             print("Skip assignment ", score, self.last_assignment_score, current_assignment)
-                            # skip_sending_assignment = True
+                            skip_sending_assignment = True
                         else:
                             self.last_assignment_score = score
                     elif scheduler_mode == 'minDist':
@@ -270,6 +269,7 @@ class SchedThread(threading.Thread):
                         # print("unmapped:", route_map)
                         # print("routing tables", routing_tables)
                         assignment = scheduling.route_sched(helpee_count, helper_count, routing_tables, is_one_to_one)
+                        # print('route aware assignment', assignment)
                     elif scheduler_mode == 'random':
                         random_seed = (time.time() - init_time) // 5
                         assignment = scheduling.random_sched(helpee_count, helper_count, random_seed, is_one_to_one)
@@ -333,15 +333,15 @@ class ControlConnectionThread(threading.Thread):
                 if v_id not in node_seq_nums.keys() or \
                 node_seq_nums[v_id] < seq_num:
                     # only update location when seq num is larger
-                    print("Recv loc msg with seq num %d from vehicle %d" % (seq_num, v_id))
-                    print("[T2] recv loc msg from ", v_id, time.time())
+                    # print("Recv loc msg with seq num %d from vehicle %d" % (seq_num, v_id))
+                    # print("[T2] recv loc msg from ", v_id, time.time())
                     location_map[v_id] = (x, y)
                     vehicle_types[v_id] = v_type
                     node_seq_nums[v_id] = seq_num
             elif msg_type == network.message.TYPE_ROUTE:
                 v_type, v_id, routing_table, seq_num = network.message.server_parse_route_msg(payload)
                 route_map[v_id] = routing_table
-                print(route_map)
+                # print("[Route]", v_id, route_map)
                 vehicle_types[v_id] = v_type
                 node_seq_nums[v_id] = seq_num
             node_last_rx_time_lock.acquire()
@@ -418,25 +418,29 @@ def server_recv_data(client_socket, client_addr):
             return
         # v_id is the actual pcd captured vehicle, which might be different from sender vehicle id
         msg_size, frame_id, v_id, data_type, ts, num_chunks, chunk_sizes = network.message.parse_data_msg_header(header)
-        if client_vid_determined is False: #or client_socket != client_data_sockets[v_id]
-            # need a map from v_id to data sockets to broadcast inference results
-            client_data_sockets[v_id] = client_socket
+        
+        # if client_vid_determined is False: #or client_socket != client_data_sockets[v_id]
+        # need a map from v_id to data sockets to send back inference results
+        conn_lock.acquire()
+        client_data_sockets[v_id] = client_socket
+        conn_lock.release()
             # client_vid_determined = True
         # received_bytes[vehicle_id] += msg_size
         # print("[receive header] frame %d, vehicle id: %d, data size: %d, type: %s" % \
         #         (frame_id, v_id, msg_size, 'pcd' if data_type == 0 else 'oxts')) 
         latency = time.time() - ts
-        print("[receive header] node %d latency %f" % (v_id, latency))
+        # print("[receive header] node %d latency %f" % (v_id, latency))
         node_last_rx_time_lock.acquire()
         node_last_recv_timestamp[v_id] = time.time()
         node_last_rx_time_lock.release()
         if data_type == TYPE_PCD:
             if frame_id not in first_frame_arrival_ts:
+                # group_id = group.get_group_id_based_on_location(location_map[v_id])
                 first_frame_arrival_ts[frame_id] = ts
-            print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
-                        (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
             # send back a ACK back
             conn_lock.acquire()
+            print("[Full frame recved] from %d, id %d throughput: %f Mbps %f %d time: %f" % 
+                        (v_id, frame_id, throughput, elapsed_t, msg_size, time.time()), flush=True)
             try:
                 reply_header = network.message.construct_reply_msg_header(frame_id.to_bytes(2, 'big'), \
                     network.message.TYPE_SEVER_ACK_MSG, frame_id)
@@ -457,12 +461,12 @@ def server_recv_data(client_socket, client_addr):
             if pcd_data_type == 'GTA':
                 oxts[v_id][frame_id%MAX_FRAMES] = [float(x) for x in msg.split()]
             elif pcd_data_type == 'Carla':
-                oxts[v_id][frame_id%MAX_FRAMES] = np.frombuffer(msg).reshape(4,4)
+                oxts[v_id][frame_id%MAX_FRAMES] = np.frombuffer(msg)
         
         if len(pcds[v_id][frame_id%MAX_FRAMES]) > 0 and len(oxts[v_id][frame_id%MAX_FRAMES]) > 0:
             # check if ready to merge and send back results
             conn_lock.acquire()
-            print("[mark data ready]", v_id, frame_id%MAX_FRAMES, group_map)
+            # print("[mark data ready]", v_id, frame_id%MAX_FRAMES, group_map)
             data_ready_matrix[v_id][frame_id%MAX_FRAMES] = 1
             data_ready, v_ids = group.group_data_ready(data_ready_matrix, group_map, v_id, frame_id%MAX_FRAMES)
             # if data_ready:
@@ -494,7 +498,7 @@ def server_recv_data(client_socket, client_addr):
                 header = network.message.construct_reply_msg_header(encoded_payload, 
                     network.message.TYPE_SERVER_REPLY_MSG, frame_id)
                 # send back results to all clients
-                for vehicle_id in v_ids:
+                for vehicle_id in client_data_sockets:
                     try:
                         network.message.send_msg(client_data_sockets[vehicle_id], header, encoded_payload)
                         print('send result to ', vehicle_id)
@@ -528,8 +532,7 @@ def send_rst_on_deadline():
         conn_lock.acquire()
         if curr_processed_frame in first_frame_arrival_ts and curr_processed_frame not in finished_frames:
             if time.time() - first_frame_arrival_ts[curr_processed_frame] >= DEADLINE:
-                # deadline to send
-                
+                # deadline to send    
                 print('[Deadline passed, Send rst back to node]', data_ready_matrix[:num_vehicles, curr_processed_frame%MAX_FRAMES],
                 curr_processed_frame)
                 finished_frames.add(curr_processed_frame)
@@ -641,9 +644,6 @@ def main():
         newthread = ControlConnectionThread(client_address, client_socket)
         newthread.daemon = True
         newthread.start()
-    # data_process_thread = threading.Thread(target=merge_data_when_ready)
-    # data_process_thread.deamon = True
-    # data_process_thread.start()
     # thrpt_calc_thread = threading.Thread(target=throughput_calc)
     # thrpt_calc_thread.start()
 

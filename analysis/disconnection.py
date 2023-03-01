@@ -94,7 +94,7 @@ def plot_disconnect(disconnect_trace, run_time, num_nodes, save_dir):
             disconnect_ts = disconnect[1, idx]
             connect[int(disconnect_ts)+1:] = 0
             # cnt += 1
-        axes[-1].plot(np.arange(0, len(connect)), connect, c=colors[i], label='node%d'%i)
+        axes[-1].plot(np.arange(0, len(connect)), connect, c=colors[i%len(colors)], label='node%d'%i)
         axes[-1].legend()
         axes[-1].set_ylim([-0.1,1.1])
         

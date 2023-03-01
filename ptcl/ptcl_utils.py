@@ -221,11 +221,7 @@ def calculate_grid_label_ransac_new(grid_size, points, space_width=100, center=(
 	# print(filtered.shape)
 	for point in filtered:
 		x_idx, y_idx = int((point[0] + space_width/2) / grid_size), int((point[1] + space_width/2) / grid_size)
-		if x_idx < 100 and y_idx < 100:
-			# if point[3] == 0:
-			# 	# obj
-			# 	grid[x_idx][y_idx] -= 1
-			# el
+		if 0 <= x_idx < 100 and 0 <= y_idx < 100:
 			if point[3] == 1:
 				# ground
 				grid[x_idx][y_idx] += 1
@@ -292,10 +288,10 @@ def calculate_precision(grid_pred, grid_truth):
 
     for x_idx in range(grid_truth.shape[0]):
         for y_idx in range(grid_truth.shape[1]):
+            if grid_pred[x_idx][y_idx] == grid_truth[x_idx][y_idx]:
+                correct += 1
+            total += 1
             if grid_truth[x_idx][y_idx] != 0:
-                if grid_pred[x_idx][y_idx] == grid_truth[x_idx][y_idx]:
-                    correct += 1
-                total += 1
                 if grid_truth[x_idx][y_idx] == 1 and grid_pred[x_idx][y_idx] != 1:
                     FN += 1
                     result_grid[x_idx][y_idx] = 3  # FN

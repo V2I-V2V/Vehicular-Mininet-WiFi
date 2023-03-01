@@ -1,5 +1,4 @@
 import sys, os
-from typing import Tuple
 from numpy.lib import utils
 from mininet.log import setLogLevel, info
 from mininet.link import TCLink
@@ -39,6 +38,8 @@ adaptive_encode = 0
 adaptive_frame_skip = False
 add_noise_to_loc = False
 v2v_mode = False
+grouping = False
+enable_grouping = 0
 combine_method = "op_sum"
 score_method = "harmonic"
 CODE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +48,7 @@ CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
     time.sleep(59)
-    print("start update bw:", time.time())
+    print("start update bw:", time.time(), "total length", min(len(trace), time_to_run-20))
     for throughput_idx in range(min(len(trace), time_to_run-20)):
         start_t = time.time()
         if trace[throughput_idx] == 0:
@@ -76,12 +77,12 @@ def create_nodes(net, num_nodes, locations):
     return server, stations
 
 
-def create_adhoc_links(net, node, ifname):
+def create_adhoc_links(net, node, ifname, channel_num=5, ssid='adhocNet'):
     kwargs = dict()
     if routing == 'olsrd':
         kwargs['proto'] = 'olsrd'
-    channel_num = 5
-    net.addLink(node, cls=adhoc, intf=ifname, ssid='adhocNet', \
+    # channel_num = 5
+    net.addLink(node, cls=adhoc, intf=ifname, ssid=ssid, \
                 mode='g', channel=channel_num, **kwargs)
     node.setTxPower(tx_power)
 
@@ -117,11 +118,11 @@ def config_mobility(net, stations, loc_file, plot=False):
     # for station_idx in range(len(stations)):
     #     log = open('%d.txt'%station_idx, 'w+')
     #     loc_update_logs.append(log)
-    for time_i in range(min(loc_trace.shape[0], 450)):
+    for time_i in range(min(loc_trace.shape[0], time_to_run*10)):
         t_s = time.time()
         for station_idx in range(len(stations)):
-            stations[station_idx].setPosition('%f,%f,0'%(loc_trace[time_i][2*station_idx], \
-                                                     loc_trace[time_i][2*station_idx+1]))
+            stations[station_idx].setPosition('%f,%f,0'%(loc_trace[time_i][(2*station_idx)%loc_trace.shape[1]], \
+                                                     loc_trace[time_i][(2*station_idx+1)%loc_trace.shape[1]]))
             # loc_update_logs[station_idx].write(str(time.time())+' '+str(loc_trace[time_i][2*station_idx])\
             #     + ' ' + str(loc_trace[time_i][2*station_idx+1]) + '\n')
             if enable_plot:
@@ -156,18 +157,34 @@ def kill_application():
 def run_application(server, stations, scheduler, assignment_str, helpee_conf=None, fps=1,\
                     save=0, is_one_to_many=1, is_v2v_mode=False):
     num_nodes = len(stations)
+    if scheduler == 'carspeak':
+        vehicle_app_commands = []
+        for node_num in range(len(stations)):
+            vehicle_app_cmd = 'python3 -u %s/vehicle/carspeak.py -i %d -d %s -l %s -f %d --start_timestamp %f'\
+                % (CODE_DIR, node_num, vehicle_data_dir[node_num%len(vehicle_data_dir)], loc_file, fps, time.time()+5)
+            vehicle_app_cmd += ' --data_type %s > %s/logs/node%d.log 2>&1 &'%(pcd_data_type, CODE_DIR, node_num)
+            print(vehicle_app_cmd)
+            vehicle_app_commands.append(vehicle_app_cmd)
+        for node_num in range(len(stations)):
+            # cmd_start = time.time()
+            stations[node_num].cmd(vehicle_app_commands[node_num])
+        return   
     if scheduler == 'fixed':
         # run server in fix assignemnt mode
         server_cmd = "python3 -u %s/server/server.py -f %s -n %d -t %s -d %d -m %d --data_type %s --v2v_mode %d > %s/logs/server.log 2>&1 &"\
              % (CODE_DIR, assignment_str, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, int(is_v2v_mode), CODE_DIR)
     else:
         # run server in other scheduler mode (minDist, fixed)
-        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s --combine_method %s --score_method %s --v2v_mode %d > %s/logs/server.log 2>&1 &"\
-             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, int(is_v2v_mode), CODE_DIR)
+        server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s --combine_method %s --score_method %s --v2v_mode %d --enable_grouping %d > %s/logs/server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, int(is_v2v_mode), enable_grouping, CODE_DIR)
         print(server_cmd)
     if is_v2v_mode:
         # rand_vehicle_server = random.randint(0, len(stations)-1)
         stations[0].cmd(server_cmd)
+        if len(stations) > 10:
+            v2v_server_cmd = "python3 -u %s/server/server.py -s %s -n %d -t %s -d %d -m %d --data_type %s --combine_method %s --score_method %s --v2v_mode %d --enable_grouping %d > %s/logs/V2V_server.log 2>&1 &"\
+             % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, int(is_v2v_mode), enable_grouping, CODE_DIR)
+            stations[10].cmd(v2v_server_cmd)            
     else:
         server.cmd(server_cmd)
         # Use a backup V2V server
@@ -175,10 +192,11 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
                 % (CODE_DIR, scheduler, num_nodes, trace_filename, save, is_one_to_many, pcd_data_type, combine_method, score_method, 1, CODE_DIR)    
         stations[0].cmd(v2v_server_cmd)    
 
+    time.sleep(4)
     vehicle_app_commands = []
     for node_num in range(len(stations)):
-        vehicle_app_cmd = 'sleep 4 && python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d --v2v_mode %d'\
-            % (CODE_DIR, node_num, vehicle_data_dir[node_num%len(vehicle_data_dir)], loc_file, helpee_conf, fps, no_control, adaptive_encode, int(is_v2v_mode))
+        vehicle_app_cmd = 'python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d --v2v_mode %d --start_timestamp %f'\
+            % (CODE_DIR, node_num, vehicle_data_dir[node_num%len(vehicle_data_dir)], loc_file, helpee_conf, fps, no_control, adaptive_encode, int(is_v2v_mode), time.time()+5)
         if adaptive_frame_skip:
             vehicle_app_cmd += ' --adapt_skip_frames '
         if add_noise_to_loc:
@@ -189,7 +207,9 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
 
     # execute application commands
     for node_num in range(len(stations)):
-        stations[node_num].cmd(vehicle_app_commands[node_num])
+        # cmd_start = time.time()
+        stations[node_num].sendCmd(vehicle_app_commands[node_num])
+        # print('cmd taking', time.time() - cmd_start)
 
 
 def collect_tcpdump(nodes):
@@ -229,8 +249,21 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     info("*** Creating links\n")
     net.addLink(server, s1, cls=TCLink)
     for sta_idx in range(len(stations)):
-        create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
-        create_wired_links(net, stations[sta_idx], s1, bw=v2i_bw[sta_idx])
+        if not grouping:
+            create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+        else:
+            if not v2v_mode:
+                if sta_idx in [0, 1, 4, 8, 10, 11, 14, 18]:
+                    create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+                else:
+                    create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx, channel_num=11, ssid='v2v-group2')
+            else:
+                if sta_idx < 10:
+                    create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+                else:
+                    create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx, channel_num=11, ssid='v2v-group2')
+                    
+        create_wired_links(net, stations[sta_idx], s1, bw=v2i_bw[sta_idx%len(v2i_bw)])
 
     ### plot if enabled ###
     if enable_plot:
@@ -361,8 +394,10 @@ if __name__ == '__main__':
         trace_filename = sys.argv[sys.argv.index('--trace')+1]
         all_bandwidth = np.loadtxt(trace_filename)
         start_bandwidth = all_bandwidth[0]
-        for i in range(all_bandwidth.shape[1]):
-            v2i_bw_traces[i] = all_bandwidth[:, i]
+        for i in range(num_nodes):
+            v2i_bw_traces[i] = all_bandwidth[:, i%all_bandwidth.shape[1]]
+        # for i in range(all_bandwidth.shape[1]):
+        #     v2i_bw_traces[i] = all_bandwidth[:, i]
 
     if '--plot' in sys.argv:
         enable_plot = True
@@ -377,7 +412,6 @@ if __name__ == '__main__':
 
     if '--helpee_conf' in sys.argv:
         helpee_conf_file = sys.argv[sys.argv.index('--helpee_conf')+1]
-        # print(config.num_helpee)
     
     if '--save_data' in sys.argv:
         data_save = 1
@@ -414,6 +448,10 @@ if __name__ == '__main__':
     
     if '--v2v_mode' in sys.argv:
         v2v_mode = True
+    
+    if '--group' in sys.argv:
+        grouping = True
+        enable_grouping = 1
 
     setup_topology(num_nodes, locations=sta_locs, loc_file=loc_file, \
             assignment_str=assignment_str, v2i_bw=start_bandwidth, enable_plot=enable_plot,\

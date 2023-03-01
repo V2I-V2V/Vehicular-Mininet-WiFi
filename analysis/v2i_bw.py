@@ -7,7 +7,7 @@ import random
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from analysis.disconnection import get_connection_status
 font = {'family' : 'DejaVu Sans',
-        'size'   : 18}
+        'size'   : 15}
 matplotlib.rc('font', **font)
 colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey', 'cyan', 'brown', 'coral', 'lightgreen', 
           'orchid', 'navy', 'forestgreen', 'salmon', 'gold', 'lime']
@@ -23,7 +23,7 @@ def get_nodes_v2i_bw(bw_file, time, num_nodes, helpee_conf):
     for i in range(num_nodes):
         if conn_status is not None:
             if i in conn_status.keys():
-                used_thrpts[:time,i] *= conn_status[i]
+                used_thrpts[:time,i%used_thrpts.shape[1]] *= conn_status[i]
     return used_thrpts
 
 def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
@@ -37,7 +37,7 @@ def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
     axes = []
     for i in range(num_nodes):
         axes.append(fig.add_subplot(num_nodes, 1, i+1))
-        thrpt_i = v2i_thrpts[:, i]
+        thrpt_i = v2i_thrpts[:, i%(v2i_thrpts.shape[1])]
         if len(thrpt_i) < time:
             thrpt = np.ones((time,))
             thrpt[:len(thrpt_i)] = thrpt_i
@@ -48,10 +48,10 @@ def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
         if conn_status is not None:
             if i in conn_status.keys():
                 thrpt_i *= conn_status[i]
-        axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i], label='node%d'%i)
+        axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i%len(colors)], label='node%d'%i)
         axes[-1].legend()
         axes[-1].set_xlim([0, int(time)])
-        axes[-1].set_ylim([0, 50])
+        # axes[-1].set_ylim([0, 50])
         
     fig.add_subplot(111, frameon=False)
     plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
@@ -59,24 +59,42 @@ def plot_v2i_bw(bw_file, time, num_nodes, save_dir, helpee_conf=None):
     plt.ylabel("Throughput (Mbps)")
     # plt.legend()
     plt.savefig(save_dir+'v2i-bw.png')
+    
+def get_disconnect_trace(thrpt, node_id):
+    start = False
+    rst = [node_id]
+    i = 0
+    for t in thrpt:
+        if t == 0 and start == False:
+            start = True
+            rst.append(i)
+        elif t != 0 and start == True:
+            start = False
+            rst.append(i)
+        i += 1
+    print(rst)
 
 
 if __name__ == '__main__':
     v2i_thrpts = np.loadtxt(sys.argv[1])
-    fig = plt.figure(figsize=(12,9))
-    axes = []
+    fig = plt.figure()
+    fig, axes = plt.subplots(v2i_thrpts.shape[1], 1, sharex=True, sharey=True)
+    bw_data = []
     for i in range(v2i_thrpts.shape[1]):
-        axes.append(fig.add_subplot(v2i_thrpts.shape[1], 1, i+1))
+        # axes.append(fig.add_subplot(v2i_thrpts.shape[1], 1, i+1))
         thrpt_i = v2i_thrpts[:, i]
-        axes[-1].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i], label='node%d'%i)
-        axes[-1].legend()
-        axes[-1].set_xlim([0, 70])
-        axes[-1].set_ylim([0, 50])
-        
+        thrpt_i[thrpt_i < 3] = 0
+        bw_data += thrpt_i[:40].tolist()
+        get_disconnect_trace(thrpt_i, i)
+        axes[i].plot(np.arange(0, len(thrpt_i)), thrpt_i, c=colors[i%len(colors)], label='node%d'%i)
+        # axes[i].legend()
+        axes[i].set_xlim([0, 70])
+        # axes[i].set_ylim([0, 30])
+    print(np.mean(bw_data), np.std(bw_data))    
     fig.add_subplot(111, frameon=False)
     plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
     plt.xlabel("Time (s)")
     plt.ylabel("Throughput (Mbps)")
-    plt.tight_layout()
+    # plt.tight_layout()
     # plt.legend()
     plt.savefig('v2i-bw.png')

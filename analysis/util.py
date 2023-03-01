@@ -16,54 +16,89 @@ import multiprocessing
 import pickle
 from multiprocessing import Process
 
-computation_overhead = 0.035
+computation_overhead = 0 # 0.050
+computation_overhead_v2v = 0.050 # 0.140
 # vehicle_deadline = 0.5
 
-colors = ['r', 'b', 'maroon', 'darkblue', 'g', 'grey']
 
 shced_to_displayed_name = {
     'combined-adapt': 'Harbor', 'v2v' : 'V2V', 'v2i-adapt': 'V2I-adapt', 'v2v-adapt': 'V2V-adapt', 'v2i': 'V2I',
-    'combined-no-fallback-adapt': 'Harbor (w/o fallback)'
+    'combined-no-fallback-adapt': 'Harbor (w/o fallback)', 
+    'combined-no-group-adapt': 'Harbor (w/o grouping)',
+    'combined-deadline-unaware-adapt': 'Prioritization',
+    'combined-no-prioritization-adapt': 'DDL-aware',
+    'combined-unoptimized-delivery-adapt': 'Baseline',
+    'random-adapt': 'Random',
+    'distributed-adapt': 'Distributed',
+    'minDist-adapt': 'minDist',
+    'bwAware-adapt': 'V2I-BW',
+    'routeAware-adapt': 'V2V-intf',
+    'fixed-adapt': 'fixed',
+    'carspeak-adapt': 'carspeak',
+    'combined-cam-adapt': 'Harbor-Multi'
 }
-sched_to_color = {'minDist': 'r', 'random': 'b', 'distributed': 'maroon', 'combined': 'g',\
-    'combined-adapt': 'midnightblue', 'bwAware': 'darkblue', 'combined-op_min-min': 'blueviolet',
-    'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',
+sched_to_color = {'minDist-adapt': 'r', 'random-adapt': 'limegreen', 'distributed-adapt': 'purple', 'combined': 'g',\
+    'combined-adapt': 'midnightblue', 'bwAware-adapt': 'chocolate', 'combined-op_min-min': 'blueviolet',
+    'combined-loc': 'brown', 'combined-op_sum-min': 'darkorange',  'routeAware-adapt': 'fuchsia',
     'combined-op_sum-harmonic': 'cyan', 'v2i': 'orange', 'combined-deadline': 'olive',
     'v2v' : 'crimson', 'v2i-adapt': 'forestgreen', 'v2v-adapt': 'darkviolet',
-    'combined-no-fallback-adapt': 'maroon'}
-sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o',
-                    'combined-no-fallback-adapt': '^'}
-sched_to_line_style = {'minDist': '', 'random': ' ', 'distributed': '--', 'combined': ':',\
-    'combined-adapt': '-'}
+    'combined-no-fallback-adapt': 'maroon', 'combined-deadline-unaware-adapt': 'g',
+    'combined-no-prioritization-adapt': 'brown',
+    'combined-unoptimized-delivery-adapt': 'r',
+    'combined-no-group-adapt': 'blueviolet',
+    'fixed-adapt': 'blueviolet',
+    'carspeak-adapt': 'indigo',
+    'combined-cam-adapt': 'purple'}
+sched_to_marker = {'combined-adapt': 's', 'v2v' : '^', 
+                   'v2i-adapt': 'h', 'v2v-adapt': 'X', 'v2i': 'o',
+                    'combined-no-fallback-adapt': '^', 
+                    'combined-deadline-unaware-adapt': '^',
+                    'combined-no-prioritization-adapt': 'h',
+                    'combined-unoptimized-delivery-adapt': 'X',
+                    'random-adapt': '^',
+                    'distributed-adapt': 'h',
+                    'minDist-adapt': 'X',
+                    'bwAware-adapt': 'o',
+                    'routeAware-adapt': '^',
+                    'combined-no-group-adapt': '^',
+                    'fixed-adapt': 'o',
+                    'carspeak-adapt': 'X',
+                    'combined-cam-adapt': '^'}
+sched_to_line_style = {'minDist-adapt': '--', 
+                       'random-adapt': '-.', 
+                       'distributed-adapt': '--', 
+                       'bwAware-adapt': ':',
+                       'combined-adapt': '-',
+                       'fixed-adapt': ':'}
+
 
 linestyles = OrderedDict(
     [('combined-adapt',               (0, ())),
-     ('minDist',      (0, (1, 10))),
+     ('minDist-adapt',      (0, (1, 10))),
      ('combined-op_min-min',              (0, (1, 5))),
      ('combined',      (0, (1, 1))),
+     ('combined-cam-adapt',  (0, (1, 2))),
 
      ('combined-op_sum-min',      (0, (5, 10))),
-     ('dashed',              (0, (5, 5))),
-     ('random',      (0, (5, 1))),
+     ('routeAware-adapt',              (0, (5, 5))),
+     ('combined-deadline-unaware-adapt',      (0, (5, 1))),
+     ('combined-no-prioritization-adapt',      (0, (5, 1))),
+     ('combined-unoptimized-delivery-adapt',      (0, (5, 1))),
      ('v2i',      (0, (5, 1))),
      ('v2i-adapt',      (0, (5, 1))),
+     ('random-adapt',      (0, (5, 1))),
 
      ('combined-deadline',  (0, (3, 10, 1, 10))),
-     ('distributed',          (0, (3, 5, 1, 5))),
+     ('distributed-adapt',          (0, (3, 1, 1, 1, 1, 1))),
      ('v2v',  (0, (3, 1, 1, 1))),
      ('v2v-adapt',  (0, (3, 1, 1, 1))),
+     ('fixed-adapt',  (0, (3, 1, 1, 1))),
+     ('carspeak-adapt',  (0, (3, 1, 1, 1))),
 
-     ('combined-op_sum-harmonic', (0, (3, 10, 1, 10, 1, 10))),
+     ('combined-no-group-adapt', (0, (3, 10, 1, 10, 1, 10))),
      ('combined-no-fallback-adapt',         (0, (3, 5, 1, 5, 1, 5))),
-     ('bwAware', (0, (3, 1, 1, 1, 1, 1)))])
+     ('bwAware-adapt', (0, (3, 1, 1, 1, 1, 1)))])
 
-
-detected_spaces_label = [[[] for _ in range(80)] for _ in range(6)]
-detected_space_label = collections.defaultdict(list)
-
-import json
-f = open("/home/mininet-wifi/all-grid-label.json", 'r')
-detected_space_label = json.load(f)
 
 
 def get_server_assignments(filename):
@@ -88,7 +123,6 @@ def get_server_assignments(filename):
                     assignment = ()
                 node_mapping_str = line.split('[')[1].split(']')[0]
                 node_mapping_str = node_mapping_str.replace(' ', ', ')
-                # node_mapping = eval(node_mapping_str)
                 if len(node_mapping_str) != 0:
                     node_mapping = eval(node_mapping_str)
                 try:
@@ -143,11 +177,11 @@ def get_computation_overhead(filename):
     return computation_latency
 
 
-def get_sender_ts(filename):
+def get_sender_ts(filename, scheme):
     sender_ts = {}
     encode_choice = {}
     summary_dict = {'dl-latency': [], 'e2e-latency': [], 'frames-with-result': [],
-                     'qb': {}, 'latency-e2e-all' : {}} # sumamry of related metrics
+                     'qb': {}, 'latency-e2e-all' : {}, 'e2e-raw': []} # sumamry of related metrics
     encode_t, last_t = 30, 0
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -183,13 +217,15 @@ def get_sender_ts(filename):
                 frame = int(parse[-5][:-1])
                 if frame not in summary_dict['frames-with-result']:
                     e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
-                    e2e_latency += computation_overhead # 10 ms decode 25 ms detect 
-                    if e2e_latency < 0:
-                        print('E2E latency < 0!!!!', frame)
-                    elif e2e_latency > vehicle_deadline:
+                    summary_dict['e2e-raw'].append(e2e_latency)
+                    if 'v2v' in scheme:
+                        # print("V2V scheme use V2V computation latency")
+                        e2e_latency += computation_overhead_v2v
+                    else:
+                        e2e_latency += computation_overhead  
+                    if e2e_latency > vehicle_deadline:
                         e2e_latency = vehicle_deadline
-                    # if frame in sender_ts:
-                    #     e2e_latency = timestamp - sender_ts[frame]
+
                     summary_dict['latency-e2e-all'][frame] = e2e_latency
                     summary_dict['e2e-latency'].append(e2e_latency)
                     summary_dict['frames-with-result'].append(frame)
@@ -207,11 +243,13 @@ def get_sender_ts(filename):
 def get_receiver_ts(filename):
     receiver_throughput = {}
     receiver_ts_dict = collections.defaultdict(dict)
-    server_node_dict = {'time':[], 'helper_num': [], 'helpee_num': []}
+    server_node_dict = {'time':[], 'helper_num': [], 'helpee_num': [], 'score': []}
     sched_latencies = []
     frame_id_to_senders = defaultdict(str)
     with open(filename, 'r') as f:
         lines = f.readlines()
+        idx = 0
+        last_timestamp = 0
         for line in lines:
             if line.startswith("[Full frame recved]"):
                 parse = line.split()
@@ -231,6 +269,7 @@ def get_receiver_ts(filename):
                 server_node_dict['time'].append(ts)
                 server_node_dict['helper_num'].append(helper_cnt)
                 server_node_dict['helpee_num'].append(helpee_cnt)
+                last_timestamp = float(parse[-1])
             elif line.startswith("One round sched takes"):
                 sched_latency = float(line.split()[-1])
                 sched_latencies.append(sched_latency)
@@ -248,12 +287,22 @@ def get_receiver_ts(filename):
                 frame_id_to_senders[frame] = senders
             elif line.startswith("[Deadline passed, Send rst back to node]"):
                 # get node id
+                parse = line.split()
                 frame = int(parse[-1])
                 recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
                 recved_node_arr = eval(recved_node_str)
                 node_ids = [str(idx) for idx, ele in enumerate(recved_node_arr) if ele == 1]
                 senders = '-'.join(node_ids)
                 frame_id_to_senders[frame] = senders
+            # elif line.startswith('(1,'):
+            #     parse = line.split()
+            #     dist_score, bw_score, intf_score = float(parse[1]), float(parse[2]), float(parse[3])
+            #     score_first_ass = dist_score + bw_score + intf_score
+            #     parse_next = lines[idx+1].split()
+            #     dist_score, bw_score, intf_score = float(parse_next[1]), float(parse_next[2]), float(parse_next[3])
+            #     score_second_ass = dist_score + bw_score + intf_score
+            #     server_node_dict['score'].append([last_timestamp, score_first_ass, score_second_ass])
+            idx += 1
         f.close()
     return receiver_ts_dict, receiver_throughput, server_node_dict, sched_latencies, frame_id_to_senders
 
@@ -264,27 +313,27 @@ def construct_comb(vnum_list, truth_list):
         s += truth_list[int(i)]
     return s
 
-def calculate_detected_areas(frame_id_to_senders):
-    # return 10
-    detected_spaces = []
-    for frame_id, v_num in frame_id_to_senders.items():
-        if len(v_num) > 4:
-            detected_spaces.append(2500) # return a dummy variable for now
-            continue
-        if frame_id < 550:
-            wrapped_frame_id = frame_id % 80
-            # print(v_num)
-            v_num_comb = sorted(v_num)
-            key = construct_comb(v_num_comb, ['0', '2', '4', '5']) # , '0', '2', '4', '5', '0', '2', '4', '5'
-            # grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(wrapped_frame_id, v_num))
-            # detected_space = len(grid_label[grid_label != 0])
-            # detected_spaces.append(detected_space)
-            # print(type(wrapped_frame_id))
-            if key is not '':
-                detected_spaces.append(detected_space_label[key][wrapped_frame_id])
-            else:
-                detected_spaces.append(0)
-    return detected_spaces
+# def calculate_detected_areas(frame_id_to_senders):
+#     # return 10
+#     detected_spaces = []
+#     for frame_id, v_num in frame_id_to_senders.items():
+#         if len(v_num) > 4:
+#             detected_spaces.append(2500) # return a dummy variable for now
+#             continue
+#         if frame_id < 550:
+#             wrapped_frame_id = frame_id % 80
+#             # print(v_num)
+#             v_num_comb = sorted(v_num)
+#             key = construct_comb(v_num_comb, ['0', '2', '4', '5']) # , '0', '2', '4', '5', '0', '2', '4', '5'
+#             # grid_label = np.loadtxt('/home/mininet-wifi/all_grid_labels/%06d_%d.txt'%(wrapped_frame_id, v_num))
+#             # detected_space = len(grid_label[grid_label != 0])
+#             # detected_spaces.append(detected_space)
+#             # print(type(wrapped_frame_id))
+#             if key is not '':
+#                 detected_spaces.append(detected_space_label[key][wrapped_frame_id])
+#             else:
+#                 detected_spaces.append(0)
+#     return detected_spaces
 
 
 def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_e2e_latency, expected_num_frames):
@@ -298,10 +347,12 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_
     for frame_id, v_num in sorted(frame_id_to_senders.items()):
         v_ids = v_num.split('-')
         # print(frame_id,v_ids)
-        wrapped_frame_id = frame_id % 80
+        wrapped_frame_id = frame_id % 40
         qb_dict, latency_dict = {}, {}
         real_vids = []
         for v_id in v_ids:
+            if v_id == "":
+                break
             if int(v_id) not in node_id_to_encode:
                 continue
             if frame_id not in node_id_to_encode[int(v_id)].keys():
@@ -316,6 +367,9 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_
                 latency_dict[node_id] = node_to_e2e_latency[node_id][frame_id]
         p = Process(target=calculate_merged_detection_spaces, args=(real_vids, wrapped_frame_id, 
                     qb_dict, detected_spaces, detection_acc, config["scheduler"], num_nodes, latency_dict))
+        while len(processes) > 50:
+            processes[0].join()
+            processes = processes[1:]
         processes.append(p)
         p.start()
         # p.join()
@@ -324,7 +378,7 @@ def calculate_are_carla(frame_id_to_senders, node_id_to_encode, config, node_to_
         start_frame_id = max(frame_id_to_senders.keys())
         while start_frame_id < expected_num_frames:
             for v_id in range(num_nodes):
-                detection_acc.append(calculate_local_detection_spaces(v_id, start_frame_id%80))
+                detection_acc.append(calculate_local_detection_spaces(v_id, start_frame_id%50))
             start_frame_id += 1                    
     for p in processes:
         p.join()
@@ -407,25 +461,33 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         with open(dir+'/summary.pickle', 'rb') as s:
             print(dir+'/summary.pickle')
             latency_dict = pickle.load(s)
+            # latency_dict['e2e-latency'][latency_dict['e2e-latency'] < 0] = 0.4
             e2e_latency = latency_dict['e2e-latency'].tolist()
             while len(e2e_latency) < latency_dict['sent_frames']:
                 e2e_latency.append(vehicle_deadline) # append 10s latency
+            print(dir, np.mean(e2e_latency), len(e2e_latency))
             latency_dict['e2e-latency'] = np.array(e2e_latency)
+            acc_arr = np.array(latency_dict['detection_acc']).reshape(-1, num_nodes)
+            print("node number:", num_nodes, np.mean(acc_arr, axis=0), np.mean(acc_arr))
         with open(dir+'/encode_decisions.pickle', 'rb') as e:
             node_to_encode_choices = pickle.load(e)
     else:
-        helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee
+        # helpees = get_helpees(helpee_conf) # use a set, helpees represents all nodes that have been helpee
+        print(dir)
+        helpees = []
         sender_ts_dict, encode_choice_dict = {}, {}
         # key_to_value node_id_to_send_timestamps, node_id_to_encode_choices
         latency_dict, node_to_ssims, node_to_encode_choices = {}, {}, {}
         # node_id_to_latencies, node_id 
         overhead, dl_latencies, e2e_latencies,frames_with_rst, e2e_latency_each_node = [], {}, [], {}, {}
+        e2e_raw_latency_each_node = {}
         node_to_encode_qb = {}
         node_sent_frames = []
         ctrl_msg_size = []
         for i in range(num_nodes):
             if os.path.exists(dir + '/logs/node%d.log'%i):
-                sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = get_sender_ts(dir + '/logs/node%d.log'%i)
+                sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = \
+                    get_sender_ts(dir + '/logs/node%d.log'%i, config["scheduler"])
                 if last_t == 0:
                     continue
                 # sent_frames += int((last_t - summary_dict['start-ts']) * 10)
@@ -437,6 +499,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
                 dl_latencies[i] = summary_dict['dl-latency']
                 e2e_latencies += summary_dict['e2e-latency']
                 node_to_encode_qb[i] = summary_dict['qb']
+                # e2e_raw_latency_each_node[i] = summary_dict
                 e2e_latency_each_node[i] = summary_dict['latency-e2e-all']
                 frames_with_rst[i] = summary_dict['frames-with-result']
                 if len(computational_overhead) > 0:
@@ -461,6 +524,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies, frame_id_to_senders = get_receiver_ts(dir + '/logs/server.log')
         
         detected_areas, detection_acc = calculate_are_carla(frame_id_to_senders, node_to_encode_qb, config, e2e_latency_each_node, max(node_sent_frames))
+        # detected_areas, detection_acc = [], []
         # detected_areas = None
         # print("Total frames sent in exp", sent_frames)
         # calculate delay
@@ -469,16 +533,17 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         for i in range(num_nodes):
             full_frames = full_frames & receiver_ts_dict[i].keys()
             for frame_idx, recv_ts in receiver_ts_dict[i].items():
-                send_ts = sender_ts_dict[i][frame_idx]
-                latency = recv_ts-sender_ts_dict[i][frame_idx]
-                latency_dict[i][send_ts] = [latency, frame_idx] # add adptation choice
-                if with_ssim:                
-                    latency_dict[i][send_ts] = [latency, frame_idx, get_ssim(node_to_ssims[i], frame_idx)]
-                all_delay.append(latency)
-                if i in helpees:
-                    helpee_delay.append(latency)
-                else:
-                    helper_delay.append(latency)
+                if frame_idx in sender_ts_dict[i]:
+                    send_ts = sender_ts_dict[i][frame_idx]
+                    latency = recv_ts-sender_ts_dict[i][frame_idx]
+                    latency_dict[i][send_ts] = [latency, frame_idx] # add adptation choice
+                    if with_ssim:                
+                        latency_dict[i][send_ts] = [latency, frame_idx, get_ssim(node_to_ssims[i], frame_idx)]
+                    all_delay.append(latency)
+                    if i in helpees:
+                        helpee_delay.append(latency)
+                    else:
+                        helper_delay.append(latency)
         full_frame_delay, full_frame_max_delay = [], []
         for frame in full_frames:
             for i in range(num_nodes):
@@ -507,6 +572,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         latency_dict['detection_acc'] = list(detection_acc)
         latency_dict['dl-latency'] = dl_latencies   
         latency_dict['ctrl-msg-size'] = np.array(ctrl_msg_size)
+        latency_dict['score'] = server_helper_dict['score']
         with open(dir+'/summary.pickle', 'wb') as s:
             pickle.dump(latency_dict, s)
         with open(dir+'/encode_decisions.pickle', 'wb') as e:
@@ -581,11 +647,18 @@ def get_summary_of_settings(settings):
         print("Get stats for setting", setting)
         num_nodes, bw_file, loc, helpee_conf, run_time =\
             int(setting[0]), setting[1], setting[2], setting[3], int(setting[4])
+        if 'mn-wifi' in bw_file:
+            bw_file = bw_file.replace('mn-wifi', 'mininet-wifi')
+        if 'mn-wifi' in loc:
+            loc = loc.replace('mn-wifi', 'mininet-wifi')
+        if 'mn-wifi' in helpee_conf:
+            helpee_conf = helpee_conf.replace('mn-wifi', 'mininet-wifi')
         v2i_bw = get_nodes_v2i_bw(bw_file, run_time, num_nodes, helpee_conf)
         setting_summary.write("-------BW_Summary------\n")
         for i in range(num_nodes):
             setting_summary.write("node%d_bw_mean/std=%f/%f\n"%(i, np.mean(v2i_bw[:, i]), np.std(v2i_bw[:, i])))
         bw_mean.append(np.mean(v2i_bw))
+        
         num_helpees, disconnect_percentage = \
             get_disconect_duration_in_percentage(helpee_conf, run_time, num_nodes)
         connect.append(disconnect_percentage)

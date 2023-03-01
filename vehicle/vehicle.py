@@ -1,6 +1,5 @@
 # this file handles the main process run by each vehicle node
  # -*- coding: utf-8 -*-
-from locale import currency
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,10 +9,10 @@ import bisect
 import socket
 import threading
 import time
+print('time after importing', time.time())
 import pickle
 import config
 import network.message
-import numpy as np
 import ptcl.partition
 import ptcl.pointcloud
 import utils
@@ -23,6 +22,8 @@ import wlan
 import wwan
 import collections
 import statistics as stats
+import cv2
+import imageio
 
 # Define some constants
 HELPEE = 0
@@ -35,8 +36,7 @@ PCD_QB = 11 # point cloud quantization bits
 NO_ADAPTIVE_ENCODE = 0
 ADAPTIVE_ENCODE = 1
 ADAPTIVE_ENCODE_FULL_CHUNK = 2
-
-sys.stderr = sys.stdout
+start_frame_number = 63
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
@@ -55,20 +55,24 @@ parser.add_argument('--adapt_skip_frames', default=False, action="store_true", \
     help="enable adaptive frame skipping when sending takes too long")
 parser.add_argument('--add_loc_noise', default=False, action='store_true', \
     help="enable noise to location")
-parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1])
+parser.add_argument('--v2v_mode', default=0, type=int, choices=[0, 1, 2])
+parser.add_argument('--start_timestamp', default=time.time(), type=float)
 args = parser.parse_args()
 
 control_msg_disabled = True if args.disable_control == 1 else False
 vehicle_id = args.id
 is_adaptive_frame_skipped = args.adapt_skip_frames
 add_noise_to_loc = args.add_loc_noise
-print("Noise enabled?", add_noise_to_loc)
+data_type = "pcd"
+# print("Noise enabled?", add_noise_to_loc, time.time())
 
 pcd_data_type = args.data_type
 if args.data_type == "GTA":
     PCD_DATA_PATH = args.data_path + '/velodyne_2/'
     OXTS_DATA_PATH = args.data_path + '/oxts/'
 else:
+    if 'camera' in args.data_path:
+        data_type = "img"
     PCD_DATA_PATH = args.data_path
     OXTS_DATA_PATH = args.data_path
 
@@ -79,6 +83,8 @@ ADAPTIVE_ENCODE_TYPE = args.adaptive
 SERVER_IP = config.server_ip
 if args.v2v_mode == 1:
     SERVER_IP = "10.0.0.2"
+    if vehicle_id >= 10:
+        SERVER_IP = "10.0.0.12"
 print('fps ' + str(FRAMERATE))
 curr_frame_rate = FRAMERATE
 connection_state = "Connected"
@@ -87,7 +93,7 @@ current_helper_id = 65535
 start_timestamp = 0.0
 last_frame_sent_ts = 0.0
 vehicle_locs = mobility.read_locations(LOCATION_FILE)
-self_loc_trace = vehicle_locs[vehicle_id]
+self_loc_trace = vehicle_locs[vehicle_id%len(vehicle_locs)]
 if len(self_loc_trace) > 5:
     self_loc_trace = self_loc_trace[5:] # manually sync location update with vechiular_perception.py
 self_loc = self_loc_trace[0]
@@ -105,11 +111,9 @@ def self_loc_update_thread():
     """
     global self_loc
     print("[start loc update] at %f" % time.time())
-    # loc_log = open('%d_v.txt'%vehicle_id, 'w+')
     for loc in self_loc_trace:
         t_s = time.time()
         self_loc = loc
-        # loc_log.write(str(time.time()) + ' ' + str(self_loc[0]) + ' ' +str(self_loc[1]) + '\n')
         t_passed = time.time() - t_s
         if t_passed < 0.1:
             time.sleep(0.1-t_passed)
@@ -166,30 +170,36 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
     """
     global capture_finished
     for i in range(config.MAX_FRAMES):
-        if pcd_data_type == "GTA":
-            pcd_f_name = pcd_data_path + "%06d.bin"%i
-            oxts_f_name = oxts_data_path + "%06d.txt"%i
-        elif pcd_data_type == "Carla":
-            pcd_f_name = pcd_data_path + str(1000+i) + ".npy"
-            oxts_f_name = oxts_data_path + str(1000+i) + ".trans.npy"
-        oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
-        pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
-
-        if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
-            partitioned = ptcl.partition.simple_partition(pcd_np, 50)
-            # partitioned = pcd_np
-            pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
-            pcd_data_buffer.append(pcd)
-        else:            
-            partitioned = ptcl.partition.simple_partition(pcd_np, 50)
-            for qb in range(7, PCD_QB+1):
-                encoded, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, qb)
-                pcd_data_buffer_adaptive[qb].append(encoded)
-            # pcd_data_buffer.append(pcd_np)
-        # t_elapsed = time.time() - t_s
-        # print("sleep %f before get the next frame" % (1.0/fps-t_elapsed))
-        # if (1.0/fps-t_elapsed) > 0:
-        #     time.sleep(1.0/fps-t_elapsed)
+        if data_type == "pcd":
+            if pcd_data_type == "GTA":
+                pcd_f_name = pcd_data_path + "%06d.bin"%i
+                oxts_f_name = oxts_data_path + "%06d.txt"%i
+            elif pcd_data_type == "Carla":
+                pcd_f_name = pcd_data_path + str(start_frame_number+i) + ".npy"
+                oxts_f_name = oxts_data_path + str(start_frame_number+i) + ".trans.npy"
+            oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
+            pcd_np = ptcl.pointcloud.read_pointcloud(pcd_f_name, pcd_data_type)
+            if ADAPTIVE_ENCODE_TYPE == NO_ADAPTIVE_ENCODE:
+                partitioned = ptcl.partition.simple_partition(pcd_np, 50)
+                # partitioned = pcd_np
+                pcd, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, PCD_QB)
+                pcd_data_buffer.append(pcd)
+            else:            
+                partitioned = ptcl.partition.simple_partition(pcd_np, 50)
+                for qb in range(7, PCD_QB+1):
+                    encoded, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, qb)
+                    pcd_data_buffer_adaptive[qb].append(encoded)
+        elif data_type == "img":
+            img_f_name = pcd_data_path + str(start_frame_number+i) + "-raw.png"
+            oxts_f_name = oxts_data_path + str(start_frame_number+i) + ".intrinsic.npy"
+            oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
+            # img_np = cv2.imread(img_f_name, cv2.IMREAD_GRAYSCALE)
+            img_np = imageio.imread(img_f_name)
+            is_success, im_buf_arr = cv2.imencode(".jpg", img_np)
+            print("img len", len(im_buf_arr.tobytes()))
+            for qb in range(8, PCD_QB+1):
+                pcd_data_buffer_adaptive[qb].append(im_buf_arr.tobytes())
+            
     capture_finished = True
 
 
@@ -259,7 +269,7 @@ def get_encoding_qb(e2e_frame_latency):
     for id, latency in recent_latencies:
         if id in encoding_sizes:
             thrpt = encoding_sizes[id] / latency
-            print('thrpt:', thrpt)
+            # print('thrpt:', thrpt)
             thrpts.append(thrpt)
             cnt += 1
             if cnt == 5:
@@ -285,7 +295,7 @@ def map_thrpt_to_encoding_level(thrpt):
     elif thrpt >= 0.64:
         return 8
     else:
-        return 7
+        return 8
 
 
 def send(socket, data, id, type, num_chunks=1, chunks=None):
@@ -321,10 +331,6 @@ def get_curr_tranmist_frame_id():
     return int((time.time() - start_timestamp)*FRAMERATE)
 
 
-def get_time_to_next_ready_frame():
-    offset = time.time() - start_timestamp
-
-
 def v2i_data_send_thread():
     """Thread to handle V2I data sending
     """
@@ -345,6 +351,7 @@ def v2i_data_send_thread():
                 continue
             data_f_id = curr_f_id % config.MAX_FRAMES
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # pcd = b""
             curr_frame_id += 1
             frame_lock.release()
             last_frame_sent_ts = time.time()
@@ -388,7 +395,7 @@ def v2i_ack_recv_thread(soc):
             print("[Recv ack from server] frame %d, latency %f, dl latency %f"%(frame_id, frame_latency, downlink_latency),
                 time.time())
             e2e_frame_latency_lock.acquire()
-            e2e_frame_latency[frame_id] = frame_latency
+            e2e_frame_latency[frame_id] = (frame_latency-downlink_latency)
             e2e_frame_latency_lock.release()
         elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
             print("[Recv rst from server] frame %d, DL latency %f"%(frame_id, downlink_latency),
@@ -453,7 +460,7 @@ def notify_helpee_node(helpee_id):
     Args:
         helpee_id (int): helpee id to notify
     """
-    # print("[notifying the helpee]")
+    print("[notifying the helpee]")
     send_note_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     msg = vehicle_id.to_bytes(2, 'big')
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_ASSIGNMENT)
@@ -477,6 +484,7 @@ class ServerControlThread(threading.Thread):
             # Note: sending location information is done in VehicleConnThread.run()
             # triggered by receiving location info from helpees
             global current_helpee_id, self_group, current_mode
+            # print("v2i_control_socket", v2i_control_socket)
             data, msg_type = wwan.recv_control_msg(v2i_control_socket)
             
             if is_helper_recv() and msg_type == network.message.TYPE_ASSIGNMENT:
@@ -584,7 +592,8 @@ class VehicleControlThread(threading.Thread):
                     print("[Helpee get helper assignment] helper_id: "\
                             + str(helper_id) + ' ' + str(time.time()), flush=True)
                     if helper_id != current_helper_id:
-                        helper_ip = "10.0.0." + str(helper_id+2)   
+                        print("[helpee connect to helper] ", helper_id)
+                        helper_ip = addr[0]  
                         new_send_thread = VehicleDataSendThread(helper_ip, helper_data_recv_port, helper_id)
                         new_send_thread.daemon = True
                         new_send_thread.start()
@@ -692,7 +701,7 @@ class VehicleDataControlRecvThread(threading.Thread):
                     print("[V2V Recv ack from helper] frame %d, latency %f, DL latency %f"
                         %(frame_id, frame_latency, downlink_latency))
                     e2e_frame_latency_lock.acquire()
-                    e2e_frame_latency[frame_id] = frame_latency
+                    e2e_frame_latency[frame_id] = (frame_latency - downlink_latency)
                     e2e_frame_latency_lock.release()
                 elif msg_type == network.message.TYPE_SERVER_REPLY_MSG:
                     print("[V2V Recv rst from helper] frame %d, DL latency %f"%
@@ -806,7 +815,8 @@ class VehicleDataSendThread(threading.Thread):
         try:
             self.v2v_data_send_sock.connect((helper_ip, helper_port))
             self.is_helper_alive = True
-            self.ack_recv_thread = threading.Thread(target=self.ack_recv_thread, args=())
+            print("connect to helper!")
+            # self.ack_recv_thread = threading.Thread(target=self.ack_recv_thread, args=())
             current_helper_id = helper_id
         except:
             print('[Connection to helper failed]')
@@ -828,6 +838,7 @@ class VehicleDataSendThread(threading.Thread):
                 # time.sleep(0.01)
                 continue
             pcd, num_chunks = get_encoded_frame(curr_frame_id, get_latency(e2e_frame_latency))
+            # pcd = b""
             oxts = oxts_data_buffer[curr_frame_id % config.MAX_FRAMES]
             curr_frame_id += 1
             frame_lock.release()
@@ -915,7 +926,7 @@ def send_control_msgs(node_type):
         if node_type == HELPEE:
             wlan.broadcast_sos_msg(v2v_control_socket, vehicle_id)
     if scheduler_mode == 'minDist' or scheduler_mode == 'combined' or scheduler_mode == 'bwAware' \
-        or scheduler_mode == 'random':
+        or scheduler_mode == 'random' or scheduler_mode == 'routeAware':
         # send helpee/helper info/loc 
         if node_type == HELPER:
             wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, control_seq_num, add_noise=add_noise_to_loc)
@@ -966,6 +977,9 @@ def check_connection_state(disconnect_timestamps):
 
 def main():
     global start_timestamp
+    while time.time() < args.start_timestamp:
+        time.sleep(0.005)
+    print('starting', time.time())
     # senser_data_capture_thread = threading.Thread(target=sensor_data_capture, \
     #          args=(PCD_DATA_PATH, OXTS_DATA_PATH, FRAMERATE))
     # senser_data_capture_thread.start()

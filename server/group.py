@@ -40,6 +40,10 @@ def devide_vehicle_to_groups(location_map):
 # recursively partition the group in smaller sizes (containing less vehicles) if # of vehicles 
 # is more than a threshold x
 def get_group_id_based_on_location(location, grid_size=80):
+    if location[1] > 25:
+        return (0, 0)
+    else:
+        return (1, 0)
     x_id, y_id = int(location[0]/grid_size), int(location[1]/grid_size)
     return (x_id, y_id)
 

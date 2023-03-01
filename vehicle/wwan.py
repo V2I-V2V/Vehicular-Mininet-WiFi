@@ -4,7 +4,6 @@ import socket
 import threading
 import time
 import utils
-import fcntl, os
 import network.message
 import config
 import mobility_noise
@@ -35,8 +34,8 @@ def send_location(vehicle_type, vehicle_id, position, client_socket, seq_num, ad
         loc_x, loc_y = mobility_noise.add_random_noise_on_loc(position[0], position[1], std_deviation=30.0)
     else:
         loc_x, loc_y = position[0], position[1]
-    x = int(loc_x).to_bytes(2, 'big')
-    y = int(loc_y).to_bytes(2, 'big')
+    x = int(loc_x).to_bytes(2, 'big', signed=True)
+    y = int(loc_y).to_bytes(2, 'big', signed=True)
     seq = seq_num.to_bytes(4, 'big')
     msg = v_type + v_id + x + y + seq
     header = network.message.construct_control_msg_header(msg, network.message.TYPE_LOCATION)
@@ -55,23 +54,20 @@ def send_route(vehicle_type, vehicle_id, route_bytes, client_socket, seq_num):
 
 
 def recv_control_msg(client_socket):
-    try:
-        header, payload = network.message.recv_msg(client_socket, network.message.TYPE_CONTROL_MSG)
-        _, msg_type = network.message.parse_control_msg_header(header)
-        if msg_type == network.message.TYPE_ASSIGNMENT:
-            # msg = client_socket.recv(2)
-            helpee_id = int.from_bytes(payload, "big")
-            return helpee_id, msg_type
-        elif msg_type == network.message.TYPE_GROUP:
-            group_id = pickle.loads(payload)
-            return group_id, msg_type
-        elif msg_type == network.message.TYPE_FALLBACK:
-            return 0, msg_type
-        elif msg_type == network.message.TYPE_RECONNECT:
-            return 0, msg_type
-    except socket.timeout:
-        # print("got error during recv")
-        return 65534
+    # try:
+    header, payload = network.message.recv_msg(client_socket, network.message.TYPE_CONTROL_MSG)
+    _, msg_type = network.message.parse_control_msg_header(header)
+    if msg_type == network.message.TYPE_ASSIGNMENT:
+        # msg = client_socket.recv(2)
+        helpee_id = int.from_bytes(payload, "big")
+        return helpee_id, msg_type
+    elif msg_type == network.message.TYPE_GROUP:
+        group_id = pickle.loads(payload)
+        return group_id, msg_type
+    elif msg_type == network.message.TYPE_FALLBACK:
+        return 0, msg_type
+    elif msg_type == network.message.TYPE_RECONNECT:
+        return 0, msg_type
 
 
 class ClientThread(threading.Thread):

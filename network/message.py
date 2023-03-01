@@ -3,6 +3,8 @@ import struct
 import pickle
 from tokenize import group
 
+from numpy.lib.function_base import sinc
+
 TYPE_CONTROL_MSG = 0
 TYPE_DATA_MSG = 1
 TYPE_SERVER_REPLY_MSG = 2
@@ -78,15 +80,36 @@ def construct_reply_msg_header(msg_payload, msg_type, frame_id):
     | payload length  |    frame id     |  message type   |    timestamp    |
 
     Args:
-        msg_payload ([type]): [description]
-        msg_type ([type]): [description]
-        frame_id ([type]): [description]
+        msg_payload (bytes): [description]
+        msg_type (int): Message type macro (defined in the beginning of this file)
+        frame_id (int): Frame ID
     """
     msg_len = len(msg_payload)
     encoded_ts = struct.pack('!d', time.time())
     header = msg_len.to_bytes(4, 'big') + frame_id.to_bytes(2, 'big') \
                 + msg_type.to_bytes(2, 'big') + encoded_ts
     return header
+
+
+def construct_carspeak_msg_header(frame_id, chunk_idx, loc):
+    """Construct CarSpeak Header
+    |---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 2 bytes ----|---- 8 bytes ----|
+    |    frame id     |   chunk index   |   location x    |    location y   |    timestamp    |
+    
+    """
+    encoded_ts = struct.pack('!d', time.time())
+    header = frame_id.to_bytes(2, 'big') + chunk_idx.to_bytes(2, 'big') \
+                + int(loc[0]).to_bytes(2, 'big', signed=True) \
+                + int(loc[1]).to_bytes(2, 'big', signed=True) + encoded_ts
+    return header
+
+
+def parse_carspeak_header(data):
+    frame_id = int.from_bytes(data[:2], "big")
+    chunk_idx = int.from_bytes(data[2:4], 'big')
+    x, y = int.from_bytes(data[4:6], 'big', signed=True), int.from_bytes(data[6:8], 'big', signed=True)
+    ts = struct.unpack('!d', data[8:16])[0]
+    return frame_id, chunk_idx, x, y, ts
 
 
 def send_msg(socket, header, msg_payload, is_udp=False, remote_addr=None):
@@ -143,20 +166,9 @@ def recv_msg(socket, type, is_udp=False):
             payload = b''
             to_recv = msg_payload_size
             start_time = time.time()
-            buffer_drained = False
             thrpt_cnt_bytes = 0
-            first_buffer_empty_recv_time = 0.0
             while len(payload) < msg_payload_size:
-                # recv_s = time.time()
                 data_recv = socket.recv(65536 if to_recv > 65536 else to_recv)
-                # recv_elapsed = time.time() - recv_s
-                # # print("recv take %f"%recv_elapsed)
-                # if buffer_drained is False and recv_elapsed > 0.0003:
-                #     start_time = time.time()
-                #     buffer_drained = True
-                #     first_buffer_empty_recv_time = recv_elapsed
-                # if buffer_drained:
-                #     thrpt_cnt_bytes += len(data_recv)
                 if len(data_recv) < 0:
                     print("[Socket closed]")
                     if type == TYPE_DATA_MSG:
@@ -223,8 +235,8 @@ def vehicle_parse_location_packet_data(data):
     """
     # return helpee id, location
     helpee_id = int.from_bytes(data[0:2], "big")
-    x = int.from_bytes(data[2:4], "big")
-    y = int.from_bytes(data[4:6], "big")
+    x = int.from_bytes(data[2:4], "big", signed=True)
+    y = int.from_bytes(data[4:6], "big", signed=True)
     seq_num = int.from_bytes(data[6:10], "big")
     group_id = pickle.loads(data[12:])
     return helpee_id, [x, y], seq_num, group_id
@@ -257,8 +269,8 @@ def vehicle_parse_sos_packet_data(data):
 def server_parse_location_msg(msg_payload):
     v_type = int.from_bytes(msg_payload[0:2], "big")
     v_id = int.from_bytes(msg_payload[2:4], "big")
-    x = int.from_bytes(msg_payload[4:6], "big")
-    y = int.from_bytes(msg_payload[6:8], "big")
+    x = int.from_bytes(msg_payload[4:6], "big", signed=True)
+    y = int.from_bytes(msg_payload[6:8], "big", signed=True)
     seq_num = int.from_bytes(msg_payload[8:12], "big")
     return v_type, v_id, x, y, seq_num
 

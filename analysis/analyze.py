@@ -17,9 +17,13 @@ import matplotlib.legend as mlegend
 from util import *
 from analyze_single_exp import construct_ts_assignment_array, construct_ts_scores_array
 
-font = {'family' : 'DejaVu Sans',
-        'size'   : 15}
-matplotlib.rc('font', **font)
+# font = {'family' : 'DejaVu Sans',
+#         'size'   : 15}
+# matplotlib.rc('font', **font)
+
+plt.rc('font', family='sans-serif', serif='cm10')
+plt.rc('text', usetex=False)
+plt.rcParams.update({'font.size': 18})
 
 setting_to_folder = {}
 result_each_run = {}
@@ -129,6 +133,8 @@ def tablelegend(ax, col_labels=None, row_labels=None, title_label="", *args, **k
 def get_key_from_config(config, dir=''):
     global num_nodes
     scheduler = config["scheduler"]
+    if 'fixed' in scheduler:
+        scheduler = 'fixed ' + '-'.join(scheduler.split()[2:])
     network = config["network_trace"].split('/')[-1][:-4]
     mobility = config["location_file"].split('/')[-1][:-4]
     helpee = config["helpee_conf"].split('/')[-1][:-4]
@@ -417,7 +423,6 @@ def plot_full_frame(partial_results, name, idx):
         setting_to_accuracy, setting_to_latency = {} ,{}
         cnt = 0
         for label in labels:
-            # print(label)
             assert label[idx] == ticks[cnt]      
             setting_to_diff_latency_frames[label] = []
             setting_to_diff_latency_frames_std[label] = []
@@ -456,9 +461,9 @@ def plot_full_frame(partial_results, name, idx):
             ax.errorbar(np.arange(1,len(selected_threshold)+1), setting_to_diff_latency_frames[label], \
                     yerr=setting_to_diff_latency_frames_std[label], capsize=2, color=sched_to_color[label[idx]], \
                     ls=linestyles[label[idx]], label=label[idx])
-            print(label[idx], "Mean threshold value")
-            print(setting_to_diff_latency_frames[label])
-            print(setting_to_diff_latency_frames_std[label])
+            # print(label[idx], "Mean threshold value")
+            # print(setting_to_diff_latency_frames[label])
+            # print(setting_to_diff_latency_frames_std[label])
             cnt += 1
         
         ax.set_xticks(np.arange(1,len(selected_threshold)+1))
@@ -493,7 +498,7 @@ def plot_full_frame(partial_results, name, idx):
             ax.plot([setting_to_diff_latency_frames[label][2], setting_to_diff_latency_frames[label][7]],
                 [np.mean(setting_to_accuracy[label]), np.mean(setting_to_accuracy[label])], '--', \
                 color=sched_to_color[label[idx]], linewidth=1)
-            print(name, label, np.mean(setting_to_accuracy[label]))
+            # print(name, label, np.mean(setting_to_accuracy[label]))
             # ax.errorbar(np.mean(setting_to_latency[label]), np.mean(setting_to_accuracy[label]), \
             #     xerr=np.std(setting_to_latency[label]), yerr=np.std(setting_to_accuracy[label]), capsize=2,
             #     color=sched_to_color[label[idx]], marker=sched_to_marker[label[idx]])
@@ -520,12 +525,16 @@ def plot_full_frame(partial_results, name, idx):
                 color=sched_to_color[schedule[idx]])
             # print(schedule, np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
 
-        plt.ylim([0.5, 0.75])
-        plt.xlabel("Frame Latency (s)")
+        # plt.ylim([0.5, 0.75])
+        # ax.annotate("Better", fontsize=20, horizontalalignment="center", xy=(0.2, 0.45), xycoords='data',
+        #     xytext=(0.2, 0.63), textcoords='data',
+        #     arrowprops=dict(arrowstyle="<-, head_width=0.3", connectionstyle="arc3", lw=3)
+        #     )
+        plt.xlabel("Detection Latency (s)")
         plt.ylabel("Detection Accuracy")
         plt.legend()
         plt.tight_layout()
-        plt.savefig('analysis-results/aggregated-two-dim-acc-latency.png')
+        plt.savefig('analysis-results/%s-acc-latency.png'%name)
     
             
 
@@ -548,14 +557,13 @@ def plot_based_on_setting(num_nodes):
     result = construct_result_based_on_keys(all_keys)
     result_full_frame = construct_full_frame_result_based_on_keys(all_keys)
     result_all_frame = construct_frame_result_based_on_keys(all_keys)
-    # print(result)
     combined_latency_improvement = {}
     for loc in LOC:
         for bw in BW:
             for helpee in HELPEE:
-                partial_results = find_data_with_partial_keys((loc, bw, helpee), result)
-                plot_dict_data_box(partial_results, str([loc, bw, helpee]), 2)
-                plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 2)
+                # partial_results = find_data_with_partial_keys((loc, bw, helpee), result)
+                # plot_dict_data_box(partial_results, str([loc, bw, helpee]), 2)
+                # plot_dict_data_cdf(partial_results, str([loc, bw, helpee]), 2)
                 partial_results = find_data_with_partial_keys((loc, bw, helpee), result_all_frame)
                 plot_full_frame(partial_results, str([loc, bw, helpee]), 2)
         
@@ -687,6 +695,7 @@ def get_all_runs_results(data_dir, key, with_ssim=False, parse_exp_stats=True):
     with open('analysis-results/setting_to_folder.json', 'w') as f:
         json.dump(setting_to_folder, f)
 
+
 def plot_bar_across_runs():
     fig = plt.figure(figsize=(50, 8))
     ax = fig.add_subplot(111)
@@ -724,6 +733,7 @@ def plot_bars_compare_schedules(schedules):
     schedule_helpee_data, schedule_helper_data = {}, {}
     schedule_to_frames_within_threshold = {}
     sched_to_latency = {}
+    sched_to_latency_std = {}
     schedule_to_detected_spaces, sched_to_acc = {}, {}
     for schedule in schedules:
         for k, v in result_each_run.items():
@@ -732,17 +742,18 @@ def plot_bars_compare_schedules(schedules):
                     schedule_overhead[schedule] = v['overhead']
                     # schedule_dl_latency[schedule] = v['dl-latency']
                     server_compute_time[schedule] = v['sched_latency']
-                    schedule_data[schedule] = v['all']
+                    schedule_data[schedule] = v['e2e-latency']
                     schedule_helpee_data[schedule] = v['helpee']
                     schedule_helper_data[schedule] = v['helper']
                     schedule_to_frames_within_threshold[schedule] = [get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)]
                     schedule_to_detected_spaces[schedule] = [np.mean(v['detected_areas'])]
                     sched_to_acc[schedule] = [np.mean(v['detection_acc'])]
                     sched_to_latency[schedule] = [np.mean(v['e2e-latency'])]
+                    sched_to_latency_std[schedule] = [np.std(v['e2e-latency'])]
                 else:
                     schedule_overhead[schedule] = np.hstack((schedule_overhead[schedule], v['overhead']))
                     # schedule_dl_latency[schedule] = np.hstack((schedule_dl_latency[schedule], v['dl-latency']))
-                    schedule_data[schedule] = np.hstack((schedule_data[schedule], v['all']))
+                    schedule_data[schedule] = np.hstack((schedule_data[schedule], v['e2e-latency']))
                     schedule_helpee_data[schedule] = np.hstack((schedule_helpee_data[schedule], v['helpee']))
                     schedule_helper_data[schedule] = np.hstack((schedule_helper_data[schedule], v['helper']))
                     server_compute_time[schedule] = np.hstack((server_compute_time[schedule], v['sched_latency']))
@@ -752,6 +763,7 @@ def plot_bars_compare_schedules(schedules):
                     schedule_to_detected_spaces[schedule].append(np.mean(v['detected_areas']))
                     sched_to_acc[schedule].append(np.mean(v['detection_acc']))
                     sched_to_latency[schedule].append(np.mean(v['e2e-latency']))
+                    sched_to_latency_std[schedule].append(np.std(v['e2e-latency']))
     for schedule in schedule_data.keys():
         ax.boxplot(schedule_data[schedule], positions=np.array([x_positions[cnt]-0.2]), whis=(5, 95), autorange=True, showfliers=False)
         ax.boxplot(schedule_helpee_data[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
@@ -774,16 +786,7 @@ def plot_bars_compare_schedules(schedules):
     plt.ylabel('Computational Overhead (s)')
     plt.savefig('analysis-results/schedule_overhead.png') 
     
-    # fig = plt.figure(figsize=(9,6))
-    # ax = fig.add_subplot(111)
-    # cnt = 0
-    # for schedule in schedule_data.keys():
-    #     ax.boxplot(schedule_dl_latency[schedule], positions=np.array([x_positions[cnt]]), whis=(5, 95), autorange=True, showfliers=False)
-    #     cnt += 1
-    # ax.set_xticks(x_positions)
-    # ax.set_xticklabels(schedules)
-    # plt.ylabel('DL latency (s)')
-    # plt.savefig('analysis-results/schedule_dl_latency.png')     
+      
 
 
     fig = plt.figure(figsize=(9,6))
@@ -813,21 +816,7 @@ def plot_bars_compare_schedules(schedules):
         plt.ylabel('Percentage of frame in schedule (%3f s, %3f SSIM)'%(LATENCY_THRESHOLD, SSIM_THRESHOLD))
     plt.tight_layout()
     plt.savefig('analysis-results/schedule_frames_within_latency.png')
-
-    # fig = plt.figure(figsize=(24,8))
-    # cnt = 1
-    # for schedule in schedule_data.keys():
-    #     ax = fig.add_subplot(1, len(schedules), cnt)
-    #     # bins = np.arange(0, 1, 0.2)
-    #     arr = ax.hist(schedule_data[schedule], bins=4, cumulative=True)
-    #     ax.set_xlabel(schedule)
-    #     # for i in range(len(bins)-1):
-    #     #     plt.text(arr[1][i],arr[0][i],str(arr[0][i]))
-    #     cnt += 1
-    # plt.xticks(np.arange(0,4,1))
-    # plt.gca().set(title='Frame latency frequency Histogram', ylabel='# of frames')
-    # plt.xlabel('Latency (s)')
-    # plt.savefig('analysis-results/frames_latency_histogram.png')
+    
     
     fig = plt.figure(figsize=(12,6))
     ax = fig.add_subplot(111)
@@ -863,46 +852,26 @@ def plot_bars_compare_schedules(schedules):
     plt.xlabel('Latency (s)')
     plt.savefig('analysis-results/frames_latency_diff_threshold.png')
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-
-    for schedule in schedule_data.keys():
-        ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(schedule_to_detected_spaces[schedule]),
-        label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],
-        color=sched_to_color[schedule])
-        ax.scatter(sched_to_different_latency_mean[schedule][4], np.mean(schedule_to_detected_spaces[schedule]),
-        label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],
-        color=sched_to_color[schedule])
-
-    plt.ylim([2000, 5200])
-    plt.xlabel("# of frame within latency threshold")
-    plt.ylabel("Detected space ($m^2$)")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig('analysis-results/aggregated-two-dim.png')
 
     fig = plt.figure(figsize=(9,6))
     ax = fig.add_subplot(111)
     ims, plot_schedules = [], []
     for schedule in schedule_data.keys():
-        plot_schedules.append(shced_to_displayed_name[schedule])
+        display_schedule = schedule
+        if 'fixed' in schedule:
+            display_schedule = 'fixed-adapt'
+        plot_schedules.append(shced_to_displayed_name[display_schedule])
         im = ax.scatter(sched_to_different_latency_mean[schedule][0], np.mean(sched_to_acc[schedule]),
-            marker=sched_to_marker[schedule], color=sched_to_color[schedule])
+            marker=sched_to_marker[display_schedule], color=sched_to_color[display_schedule])
         ims.append(im)
         im = ax.scatter(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]),
-            marker=sched_to_marker[schedule], color=sched_to_color[schedule], alpha=0.5)
+            marker=sched_to_marker[display_schedule], color=sched_to_color[display_schedule], alpha=0.5)
         ims.append(im)
         im = ax.scatter(sched_to_different_latency_mean[schedule][4], np.mean(sched_to_acc[schedule]),
-            marker=sched_to_marker[schedule], edgecolor=sched_to_color[schedule], facecolors='none')
+            marker=sched_to_marker[display_schedule], edgecolor=sched_to_color[display_schedule], facecolors='none')
         ims.append(im)
         ax.plot([sched_to_different_latency_mean[schedule][0], sched_to_different_latency_mean[schedule][4]],
-            [np.mean(sched_to_acc[schedule]), np.mean(sched_to_acc[schedule])], '--', color=sched_to_color[schedule], linewidth=1)
-        # ax.errorbar(sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]), \
-        #     xerr=sched_to_different_latency_std[schedule][1], yerr=np.std(sched_to_acc[schedule]), capsize=2,
-        #     color=sched_to_color[schedule])
-        # print(schedule, sched_to_different_latency_mean[schedule][1], np.mean(sched_to_acc[schedule]))
-        # print(schedule, sched_to_different_latency_std[schedule][1], np.std(sched_to_acc[schedule]))
-
+            [np.mean(sched_to_acc[schedule]), np.mean(sched_to_acc[schedule])], '--', color=sched_to_color[display_schedule], linewidth=1)
 
     # create blank rectangle
     extra = Rectangle((0, 0), 0.5, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
@@ -926,82 +895,132 @@ def plot_bars_compare_schedules(schedules):
     ax.legend(legend_handle, legend_labels, ncol = len(plot_schedules) + 1, shadow = True, 
               handletextpad = -2, fontsize=14, bbox_to_anchor=(0.9,1.45))
 
-    # plt.ylim([0.5, 0.75])
     plt.xlabel("% of frames with detection results delivered within latency threshold")
     plt.ylabel("Detection Accuracy")
     # plt.legend()
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim-acc.png')
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(10,5))
     ax = fig.add_subplot(111)
+    e2e_summary_dict = {}
     for schedule in schedule_data.keys():
+        display_schedule = schedule
+        if 'fixed' in schedule:
+            display_schedule = 'fixed-adapt'
+        latency, accuracy = np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule])
         ax.scatter(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
-            label='Harbor' if schedule == 'combined-adapt' else schedule, marker=sched_to_marker[schedule],\
-            color=sched_to_color[schedule])
-        ax.errorbar(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]), \
-            xerr=np.std(sched_to_latency[schedule]), yerr=np.std(sched_to_acc[schedule]), capsize=2,
-            color=sched_to_color[schedule])
-        # print(schedule, np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
-
-    plt.ylim([0.5, 0.75])
-    plt.xlabel("Frame Latency (s)")
+            label=shced_to_displayed_name[display_schedule], marker=sched_to_marker[display_schedule],\
+            color=sched_to_color[display_schedule])
+        # ax.plot([np.mean(sched_to_latency[schedule]), np.percentile(sched_to_latency[schedule], 90)], [np.mean(sched_to_acc[schedule]), np.mean(sched_to_acc[schedule])],
+        #         '--.', marker=sched_to_marker[schedule], color=sched_to_color[schedule], alpha=0.5, lw=1)
+        ax.errorbar(np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
+                    xerr=np.std(sched_to_latency[schedule]), yerr=np.std(sched_to_acc[schedule]), capsize=2, 
+                    color=sched_to_color[display_schedule])
+        e2e_summary_dict[schedule] = (np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]),
+                    np.std(sched_to_latency[schedule]), np.std(sched_to_acc[schedule]))
+        # annotate
+        print(schedule, np.mean(sched_to_latency[schedule]), np.mean(sched_to_acc[schedule]))
+        
+        if shced_to_displayed_name[display_schedule] == 'Harbor':
+            ax.annotate(shced_to_displayed_name[display_schedule], (latency, accuracy), color=sched_to_color[schedule])
+        elif shced_to_displayed_name[display_schedule] == 'no-deadline-aware':
+            ax.annotate(shced_to_displayed_name[display_schedule], (latency + 0.065, accuracy+0.001), color=sched_to_color[schedule])
+        elif shced_to_displayed_name[display_schedule] == 'no-prioritization':
+            ax.annotate(shced_to_displayed_name[display_schedule], (latency -0.003, accuracy-0.003), color=sched_to_color[schedule])
+        elif shced_to_displayed_name[display_schedule] == 'no-ddl-aware+no-prio':
+            ax.annotate(shced_to_displayed_name[display_schedule], (latency + 0.075, accuracy-0.003), color=sched_to_color[schedule])  
+        # elif 'fixed' in shced_to_displayed_name[display_schedule]:
+        #     pass
+        else:
+            ax.annotate(schedule[:-6], (latency, accuracy), color=sched_to_color[display_schedule])
+    ax.annotate("Better", fontsize=20, horizontalalignment="center", xy=(0.375, 0.675), xycoords='data',
+            xytext=(0.4, 0.65), textcoords='data',
+            arrowprops=dict(arrowstyle="->, head_width=0.3", connectionstyle="arc3", lw=3)
+            )
+    ax.grid(linestyle='--')
+    with open('analysis-results/latency.pickle', 'wb') as s:
+            pickle.dump(sched_to_latency, s)
+    with open('analysis-results//acc.pickle', 'wb') as s:
+        pickle.dump(sched_to_acc, s)
+    plt.xlabel("Detection Latency (s)")
     plt.ylabel("Detection Accuracy")
-    plt.legend()
+    # plt.xlim(0.1, 0.2)
+    # plt.ylim(0.7, 0.8)
+    plt.gca().invert_xaxis()
     plt.tight_layout()
     plt.savefig('analysis-results/aggregated-two-dim-acc-latency.png')
-
-    # sched_to_different_metric_cnts = {}
-    # latency_thresholds = [0.1, 0.2, 0.3]
-    # space_thresholds = [3000, 4000, 4500, 5000]
-    # for schedule in schedules:
-    #     sched_to_different_metric_cnts[schedule] = {}
-    #     for t in latency_thresholds:
-    #         for s in space_thresholds:
-    #             sched_to_different_latency_cnts[schedule][(t,s)] = []
-    #     for k, v in result_each_run.items():
-    #         if schedule in k:
-    #             for t in latency_thresholds:
-    #                 for s in space_thresholds:
-    #                     sched_to_different_latency_cnts[schedule][(t,s)].append(
-    #                         get_num_frames_within_latency_above_detected_space(v, t, s)
-    #                     )
-    # fig = plt.figure(figsize=(10,5))
-    # ax = fig.add_subplot(111)
-    # cnt = 0
-    # xticks = []
-    # selected_metric = (0.2, 3000)
-    # for schedule in sched_to_different_latency_cnts:
-    #     xticks.append('Harbor' if schedule == 'combined-adapt' else schedule)
-    #     ax.bar(cnt, np.mean(sched_to_different_latency_cnts[schedule][selected_metric]),
-    #         align='center', label='Harbor' if schedule == 'combined-adapt' else schedule, color=sched_to_color[schedule],
-    #         alpha=0.5)
-    #     ax.errorbar(cnt, np.mean(sched_to_different_latency_cnts[schedule][selected_metric]),
-    #         yerr=np.std(sched_to_different_latency_cnts[schedule][selected_metric]), capsize=3,
-    #         color=sched_to_color[schedule])
-    #     cnt += 1
-    # plt.xticks(np.arange(len(sched_to_different_latency_cnts.keys())), xticks)
-    # plt.ylabel("# of frames with\n(%0.2f s latency, %d $m^2$ detected space)" % selected_metric)
-    # plt.tight_layout()
-    # plt.savefig('analysis-results/frames-%0.2flatency-%dspace.png'%selected_metric)
-
-
+    import json
+    e2e_dict = json.dumps(e2e_summary_dict)
+    f = open('live_new.json', 'w')
+    f.write(e2e_dict)
+    f.close()
     
-    # fig = plt.figure(figsize=(8,6))
-    # ax = fig.add_subplot(111)
-    # cnt = 0
-    # xticks = []
-    # for schedule in sorted(schedule_data.keys()):
-    #     xticks.append('pure-V2I' if schedule == 'emp' else schedule)
-    #     ax.bar(cnt, np.mean(schedule_to_detected_spaces[schedule]), align='center', 
-    #         label='pure-V2I' if schedule == 'emp' else schedule, color=sched_to_color[schedule],
-    #         alpha=0.5)
-    #     cnt += 1
-    # plt.xticks(np.arange(len(schedule_data.keys())), xticks)
-    # plt.ylim([4000, 5200])
-    # plt.ylabel("Detected space ($m^2$)")
-    # plt.tight_layout()
-    # plt.savefig('analysis-results/detected_space.png')
+    # latency bar
+    fig = plt.figure(figsize=(6,4))
+    ax = fig.add_subplot(111)
+    cnt = 0
+    ticks = []
+    for schedule in sorted(schedule_data.keys()):
+        display_schedule = schedule
+        if 'fixed' in schedule:
+            display_schedule = 'fixed-adapt'
+    # for schedule in reversed(['combined-unoptimized-delivery-adapt', 'combined-deadline-unaware-adapt', 'combined-no-prioritization-adapt', 'combined-adapt']):
+        ticks.append(shced_to_displayed_name[display_schedule])
+        latency, err = np.mean(sched_to_latency[schedule]), np.std(sched_to_latency[schedule])
+        ax.barh(cnt, latency, yerr=err, color=sched_to_color[display_schedule], alpha=0.7)
+        print(schedule, latency)
+        ax.errorbar(latency, cnt, xerr=err, capsize=4, color=sched_to_color[display_schedule])
+        cnt += 1
+    ax.set_yticks(np.arange(cnt))
+    ax.set_yticklabels(ticks)
+    plt.xlabel("Detection Latency (s)")   
+    plt.tight_layout()
+    plt.savefig('analysis-results/latency-bar.pdf')
+    
+    
+    # latency cdf
+    fig = plt.figure(figsize=(6.5,5))
+    ax = fig.add_subplot(111)
+    e2e_summary_dict = {}
+    for schedule in sorted(schedule_data.keys()):
+        display_schedule = schedule
+        if 'fixed' in schedule:
+            display_schedule = 'fixed-adapt'
+        ticks.append(shced_to_displayed_name[display_schedule])
+        latency, err = np.mean(sched_to_latency[schedule]), np.std(sched_to_latency[schedule])
+        if schedule == 'distributed-adapt' or schedule == 'routeAware-adapt':
+            ls = linestyles[schedule]  
+        elif schedule in sched_to_line_style:
+            ls = sched_to_line_style[schedule]
+        else:
+            ls = '-'
+        e2e_summary_dict[schedule] = schedule_data[schedule].tolist()
+        sns.ecdfplot(schedule_data[schedule], ls=ls, color=sched_to_color[display_schedule], label=shced_to_displayed_name[display_schedule])
+        print(schedule, np.percentile(schedule_data[schedule], 90), np.percentile(schedule_data[schedule], 95), np.percentile(schedule_data[schedule], 99))
+    plt.legend()
+    plt.grid(linestyle='--')
+    plt.xlabel("Detection Latency (s)")   
+    plt.ylabel("CDF") 
+    plt.tight_layout()
+    plt.savefig('analysis-results/latency-cdf.pdf')    
+    import json
+    e2e_dict = json.dumps(e2e_summary_dict)
+    f = open('assignment.json', 'w')
+    f.write(e2e_dict)
+    f.close()    
+    
+
+
+import scipy.stats
+
+
+def mean_confidence_interval(data, confidence=0.95):
+    a = 1.0 * np.array(data)
+    n = len(a)
+    m, se = np.mean(a), scipy.stats.sem(a)
+    h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+    return h
 
 def plot_bar_compare_encode():
     fig = plt.figure(figsize=(12,6))
@@ -1210,7 +1229,7 @@ def main():
         if args.task[0] == 'get_folder_on_setting':        
             print(tuple(args.task[1:]))
             rst = get_folder_based_on_setting(data_dir, tuple(args.task[1:]))
-            print(rst)
+            print(sorted(rst))
             return
         elif args.task[0] == 'compare_sched':
             compare_sched_in_one_plot = True
@@ -1252,7 +1271,7 @@ def main():
 
     # plot_compare_schedule_by_setting()
     # name of figure 'compare-schedule-by-[set]'
-    plot_based_on_setting(num_nodes)
+    # plot_based_on_setting(num_nodes)
     
     
     # 111 lte-28 helpee-start-middle

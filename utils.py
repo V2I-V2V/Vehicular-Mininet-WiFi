@@ -1,9 +1,7 @@
 # this file handles throughput calculation, signal strength info related calculation
 import numpy as np
 import math
-import os
 import random
-import config
 
 def random_number(start, end):
     return (end - start) * random.random() + start
