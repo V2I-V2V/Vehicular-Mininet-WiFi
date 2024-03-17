@@ -29,7 +29,7 @@ NODE_LEFT_TIMEOUT = 0.5
 SCHED_PERIOD = 0.2
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEADLINE = 0.20
-DIVIDE_THRESHOLD = 20
+DIVIDE_THRESHOLD = 10
 
 sys.stderr = sys.stdout
 
@@ -206,6 +206,7 @@ class SchedThread(threading.Thread):
                         network.message.send_msg(client_sockets[real_helper], header, assignment_payload)      
             elif self.ready_to_schedule(scheduler_mode):
                 for group_id, v_ids in group_map.items():
+                    print("group map", group_map)
                     # group_loc_map = group.find_vehicle_location_in_group(group_id, group_map, location_map)
                     # group_route_map = group.find_vehicle_route_in_group(group_id, group_map, route_map)                    
                     positions = []
@@ -333,7 +334,7 @@ class ControlConnectionThread(threading.Thread):
                 if v_id not in node_seq_nums.keys() or \
                 node_seq_nums[v_id] < seq_num:
                     # only update location when seq num is larger
-                    # print("Recv loc msg with seq num %d from vehicle %d" % (seq_num, v_id))
+                    print("[meta] Recv metadata msg with seq num %d from vehicle %d" % (seq_num, v_id), time.time())
                     # print("[T2] recv loc msg from ", v_id, time.time())
                     location_map[v_id] = (x, y)
                     vehicle_types[v_id] = v_type

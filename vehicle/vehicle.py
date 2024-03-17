@@ -22,8 +22,8 @@ import wlan
 import wwan
 import collections
 import statistics as stats
-import cv2
-import imageio
+# import cv2
+# import imageio
 
 # Define some constants
 HELPEE = 0
@@ -36,13 +36,13 @@ PCD_QB = 11 # point cloud quantization bits
 NO_ADAPTIVE_ENCODE = 0
 ADAPTIVE_ENCODE = 1
 ADAPTIVE_ENCODE_FULL_CHUNK = 2
-start_frame_number = 63
+start_frame_number = 255
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--id', default=0, type=int, help='vehicle id')
 parser.add_argument('-d', '--data_path', default='~/DeepGTAV-data/object-0227-1/',\
                     type=str, help='point cloud and oxts data path')
-parser.add_argument('--data_type', default="GTA", choices=["GTA", "Carla"])
+parser.add_argument('--data_type', default="Carla", choices=["GTA", "Carla"])
 parser.add_argument('-l', '--location_file', default=os.path.dirname(os.path.abspath(__file__)) + "/input/object-0227-loc.txt", \
                     type=str, help='location file name')
 parser.add_argument('-c', '--helpee_conf', default=os.path.dirname(os.path.abspath(__file__)) + "/input/helpee_conf/helpee-nodes.txt",\
@@ -81,7 +81,10 @@ HELPEE_CONF = args.helpee_conf
 FRAMERATE = args.fps
 ADAPTIVE_ENCODE_TYPE = args.adaptive
 SERVER_IP = config.server_ip
+if vehicle_id >= 50:
+    SERVER_IP = "172.0.0.1"
 if args.v2v_mode == 1:
+    print("run in V2V mode")
     SERVER_IP = "10.0.0.2"
     if vehicle_id >= 10:
         SERVER_IP = "10.0.0.12"
@@ -130,7 +133,7 @@ try:
                                             config.server_ctrl_port, recv_sched_scheme=True)
     v2i_data_socket = wwan.setup_p2p_links(vehicle_id, SERVER_IP, config.server_data_port)
 except OSError as e:
-    print('no route to host in V2V mode')
+    print('no route to host in V2V mode', e)
     v2i_control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     v2v_no_route = True
     scheduler_mode = 'v2v'
@@ -169,6 +172,7 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
         fps (float): Frame rate to load data to buffer
     """
     global capture_finished
+    start_frame_number = 255
     for i in range(config.MAX_FRAMES):
         if data_type == "pcd":
             if pcd_data_type == "GTA":
@@ -189,16 +193,16 @@ def sensor_data_capture(pcd_data_path, oxts_data_path, fps):
                 for qb in range(7, PCD_QB+1):
                     encoded, ratio = ptcl.pointcloud.dracoEncode(partitioned, PCD_ENCODE_LEVEL, qb)
                     pcd_data_buffer_adaptive[qb].append(encoded)
-        elif data_type == "img":
-            img_f_name = pcd_data_path + str(start_frame_number+i) + "-raw.png"
-            oxts_f_name = oxts_data_path + str(start_frame_number+i) + ".intrinsic.npy"
-            oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
-            # img_np = cv2.imread(img_f_name, cv2.IMREAD_GRAYSCALE)
-            img_np = imageio.imread(img_f_name)
-            is_success, im_buf_arr = cv2.imencode(".jpg", img_np)
-            print("img len", len(im_buf_arr.tobytes()))
-            for qb in range(8, PCD_QB+1):
-                pcd_data_buffer_adaptive[qb].append(im_buf_arr.tobytes())
+        # elif data_type == "img":
+        #     img_f_name = pcd_data_path + str(start_frame_number+i) + "-raw.png"
+        #     oxts_f_name = oxts_data_path + str(start_frame_number+i) + ".intrinsic.npy"
+        #     oxts_data_buffer.append(ptcl.pointcloud.read_oxts(oxts_f_name, pcd_data_type))
+        #     # img_np = cv2.imread(img_f_name, cv2.IMREAD_GRAYSCALE)
+        #     img_np = imageio.imread(img_f_name)
+        #     is_success, im_buf_arr = cv2.imencode(".jpg", img_np)
+        #     print("img len", len(im_buf_arr.tobytes()))
+        #     for qb in range(8, PCD_QB+1):
+        #         pcd_data_buffer_adaptive[qb].append(im_buf_arr.tobytes())
             
     capture_finished = True
 
@@ -928,6 +932,7 @@ def send_control_msgs(node_type):
     if scheduler_mode == 'minDist' or scheduler_mode == 'combined' or scheduler_mode == 'bwAware' \
         or scheduler_mode == 'random' or scheduler_mode == 'routeAware':
         # send helpee/helper info/loc 
+        print("[meta] send meta msg", time.time())
         if node_type == HELPER:
             wwan.send_location(HELPER, vehicle_id, self_loc, v2i_control_socket, control_seq_num, add_noise=add_noise_to_loc)
         else:
@@ -998,8 +1003,8 @@ def main():
     t_elapsed = time.time() - t_start
     print("read and encode takes %f" % t_elapsed)
     # explicitly sync on encoding
-    if t_elapsed < 55:
-        time.sleep(55-t_elapsed)
+    if t_elapsed < 80:
+        time.sleep(80-t_elapsed)
     start_timestamp = time.time()
     print("[start timestamp] ", start_timestamp)
     loction_update_thread = threading.Thread(target=self_loc_update_thread, args=())

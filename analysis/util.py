@@ -16,7 +16,7 @@ import multiprocessing
 import pickle
 from multiprocessing import Process
 
-computation_overhead = 0 # 0.050
+computation_overhead = 0.030 # 0.050
 computation_overhead_v2v = 0.050 # 0.140
 # vehicle_deadline = 0.5
 
@@ -165,15 +165,18 @@ def get_computation_overhead(filename):
         lines = f.readlines()
         for line in lines:
             parse = line.split() 
-            if line.startswith('[start timestamp]'):
-                t1 = float(parse[-1])
-            # elif line.startswith('[Loc msg size]') or line.startswith('[Loc msg size]'):
-            #     t1 = float(parse[-1])
-            elif line.startswith('disconnect to server'):
-                t1 = float(parse[-1])
-            elif line.startswith('[Helpee get helper assignment]'):
-                t5 = float(parse[-1])
-                computation_latency.append(t5-t1)
+            try:
+                if line.startswith('[start timestamp]'):
+                    t1 = float(parse[-1])
+                # elif line.startswith('[Loc msg size]') or line.startswith('[Loc msg size]'):
+                #     t1 = float(parse[-1])
+                elif line.startswith('disconnect to server'):
+                    t1 = float(parse[-1])
+                elif line.startswith('[Helpee get helper assignment]'):
+                    t5 = float(parse[-1])
+                    computation_latency.append(t5-t1)
+            except Exception as e:
+                pass
     return computation_latency
 
 
@@ -186,51 +189,64 @@ def get_sender_ts(filename, scheme):
     with open(filename, 'r') as f:
         lines = f.readlines()
         for line in lines:
-            parse = line.split()
-            if line.startswith('[start timestamp]'):
-                start_ts = float(parse[-1])
-                summary_dict['start-ts'] = start_ts
-            elif line.startswith('fps '):
-                fps = int(parse[-1])
-            elif line.startswith("[V2I"):
-                frame = int(parse[-2])
-                sender_ts[frame] = frame * 1.0/fps + start_ts
-                last_t = float(parse[-1])
-            elif line.startswith("[V2V send"):
-                frame = int(parse[-5])
-                sender_ts[frame] = frame * 1.0/fps + start_ts
-                last_t = float(parse[-1])
-            elif line.startswith('frame id:') and 'qb:' in line:
-                frame_id, qb = int(parse[2]), int(parse[-1])
-                summary_dict['qb'][frame_id] = qb
-                encode_choice[frame_id] = qb
-            elif line.startswith("frame id:"):
-                frame = int(parse[2])
-                last_t = float(parse[-1])
-            elif line.startswith("read and encode takes"):
-                encode_t = math.ceil(float(parse[-1]))
-            elif line.startswith("[relay throughput]"):
-                last_t = float(parse[-1])
-            elif line.startswith("[Recv rst from server]") \
-                or line.startswith("[V2V Recv rst from helper]"):                
-                timestamp = float(parse[-1])
-                frame = int(parse[-5][:-1])
-                if frame not in summary_dict['frames-with-result']:
-                    e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
-                    summary_dict['e2e-raw'].append(e2e_latency)
-                    if 'v2v' in scheme:
-                        # print("V2V scheme use V2V computation latency")
-                        e2e_latency += computation_overhead_v2v
-                    else:
-                        e2e_latency += computation_overhead  
-                    if e2e_latency > vehicle_deadline:
-                        e2e_latency = vehicle_deadline
+            try:
+                parse = line.split()
+                if line.startswith('[start timestamp]'):
+                    start_ts = float(parse[-1])
+                    summary_dict['start-ts'] = start_ts
+                elif line.startswith('fps '):
+                    fps = int(parse[-1])
+                elif line.startswith("[V2I"):
+                    frame = int(parse[-2])
+                    sender_ts[frame] = frame * 1.0/fps + start_ts
+                    last_t = float(parse[-1])
+                elif line.startswith("[V2V send"):
+                    frame = int(parse[-5])
+                    sender_ts[frame] = frame * 1.0/fps + start_ts
+                    last_t = float(parse[-1])
+                elif line.startswith('frame id:') and 'qb:' in line:
+                    frame_id, qb = int(parse[2]), int(parse[-1])
+                    summary_dict['qb'][frame_id] = qb
+                    encode_choice[frame_id] = qb
+                elif line.startswith("frame id:"):
+                    frame = int(parse[2])
+                    last_t = float(parse[-1])
+                elif line.startswith("read and encode takes"):
+                    encode_t = math.ceil(float(parse[-1]))
+                elif line.startswith("[relay throughput]"):
+                    last_t = float(parse[-1])
+                elif line.startswith("[Recv rst from server]") \
+                    or line.startswith("[V2V Recv rst from helper]"):     
+                    timestamp = float(parse[-1])
+                    last_t = float(parse[-1])
+                    frame = int(parse[-5][:-1])
+                    if timestamp < 1710000000:
+                        continue
+                    if frame not in summary_dict['frames-with-result']:
+                        e2e_latency = timestamp - (frame * 1.0/fps + start_ts)
+                        summary_dict['e2e-raw'].append(e2e_latency)
+                        if 'v2v' in scheme:
+                            # print("V2V scheme use V2V computation latency")
+                            e2e_latency += computation_overhead_v2v
+                        else:
+                            e2e_latency += computation_overhead  
+                        if e2e_latency > vehicle_deadline:
+                            e2e_latency = vehicle_deadline
+                        
+                        if e2e_latency < 0:
+                            print("problematic!!!", e2e_latency, timestamp, (frame * 1.0/fps + start_ts), filename, line)
+                            # exit(1)
+                            continue
 
-                    summary_dict['latency-e2e-all'][frame] = e2e_latency
-                    summary_dict['e2e-latency'].append(e2e_latency)
-                    summary_dict['frames-with-result'].append(frame)
-                    summary_dict['dl-latency'].append(float(parse[-2]))
-
+                        summary_dict['latency-e2e-all'][frame] = e2e_latency
+                        summary_dict['e2e-latency'].append(e2e_latency)
+                        summary_dict['frames-with-result'].append(frame)
+                        summary_dict['dl-latency'].append(float(parse[-2]))
+            except Exception as e:
+                # print(e)
+                pass
+    
+    # print(filename, summary_dict['start-ts'])
     expected_frames = int((last_t - summary_dict['start-ts']) * 10)
     for frame_id in range(expected_frames):
         if frame_id not in summary_dict['latency-e2e-all']:
@@ -251,58 +267,61 @@ def get_receiver_ts(filename):
         idx = 0
         last_timestamp = 0
         for line in lines:
-            if line.startswith("[Full frame recved]"):
-                parse = line.split()
-                sender_id = int(parse[4][:-1])
-                frame = int(parse[6])
-                thrpt = float(parse[8])
-                ts = float(parse[-1])
-                # receiver_ts_dict[sender_id].append(ts)
-                if sender_id not in receiver_ts_dict.keys():
-                    receiver_throughput[sender_id] = []
-                    receiver_ts_dict[sender_id] = {}
-                receiver_throughput[sender_id].append([ts, thrpt])
-                receiver_ts_dict[sender_id][frame] = ts
-            elif line.startswith("Helpers:"):
-                parse = line.split()
-                helper_cnt, helpee_cnt, ts = int(parse[1]), int(parse[3]), float(parse[-1])
-                server_node_dict['time'].append(ts)
-                server_node_dict['helper_num'].append(helper_cnt)
-                server_node_dict['helpee_num'].append(helpee_cnt)
-                last_timestamp = float(parse[-1])
-            elif line.startswith("One round sched takes"):
-                sched_latency = float(line.split()[-1])
-                sched_latencies.append(sched_latency)
-            elif line.startswith("[All frame in schedule, Send rst back to node]"):
-                # get node id
-                parse = line.split()
-                node_num = int(parse[-2])
-                frame = int(parse[-1])
-                node_ids = []
-                for i in range(node_num):
-                    node_ids.append(str(i))
-                senders = '-'.join(node_ids)
-                # print(node_ids)
-                # print('senders', senders)
-                frame_id_to_senders[frame] = senders
-            elif line.startswith("[Deadline passed, Send rst back to node]"):
-                # get node id
-                parse = line.split()
-                frame = int(parse[-1])
-                recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
-                recved_node_arr = eval(recved_node_str)
-                node_ids = [str(idx) for idx, ele in enumerate(recved_node_arr) if ele == 1]
-                senders = '-'.join(node_ids)
-                frame_id_to_senders[frame] = senders
-            # elif line.startswith('(1,'):
-            #     parse = line.split()
-            #     dist_score, bw_score, intf_score = float(parse[1]), float(parse[2]), float(parse[3])
-            #     score_first_ass = dist_score + bw_score + intf_score
-            #     parse_next = lines[idx+1].split()
-            #     dist_score, bw_score, intf_score = float(parse_next[1]), float(parse_next[2]), float(parse_next[3])
-            #     score_second_ass = dist_score + bw_score + intf_score
-            #     server_node_dict['score'].append([last_timestamp, score_first_ass, score_second_ass])
-            idx += 1
+            try:
+                if line.startswith("[Full frame recved]"):
+                    parse = line.split()
+                    sender_id = int(parse[4][:-1])
+                    frame = int(parse[6])
+                    thrpt = float(parse[8])
+                    ts = float(parse[-1])
+                    # receiver_ts_dict[sender_id].append(ts)
+                    if sender_id not in receiver_ts_dict.keys():
+                        receiver_throughput[sender_id] = []
+                        receiver_ts_dict[sender_id] = {}
+                    receiver_throughput[sender_id].append([ts, thrpt])
+                    receiver_ts_dict[sender_id][frame] = ts
+                elif line.startswith("Helpers:"):
+                    parse = line.split()
+                    helper_cnt, helpee_cnt, ts = int(parse[1]), int(parse[3]), float(parse[-1])
+                    server_node_dict['time'].append(ts)
+                    server_node_dict['helper_num'].append(helper_cnt)
+                    server_node_dict['helpee_num'].append(helpee_cnt)
+                    last_timestamp = float(parse[-1])
+                # elif line.startswith("One round sched takes"):
+                #     sched_latency = float(line.split()[-1])
+                #     sched_latencies.append(sched_latency)
+                elif line.startswith("[All frame in schedule, Send rst back to node]"):
+                    # get node id
+                    parse = line.split()
+                    node_num = int(parse[-2])
+                    frame = int(parse[-1])
+                    node_ids = []
+                    for i in range(node_num):
+                        node_ids.append(str(i))
+                    senders = '-'.join(node_ids)
+                    # print(node_ids)
+                    # print('senders', senders)
+                    frame_id_to_senders[frame] = senders
+                elif line.startswith("[Deadline passed, Send rst back to node]"):
+                    # get node id
+                    parse = line.split()
+                    frame = int(parse[-1])
+                    recved_node_str = line.split('[')[2].split(']')[0].replace(' ', ',')
+                    recved_node_arr = eval(recved_node_str)
+                    node_ids = [str(idx) for idx, ele in enumerate(recved_node_arr) if ele == 1]
+                    senders = '-'.join(node_ids)
+                    frame_id_to_senders[frame] = senders
+                # elif line.startswith('(1,'):
+                #     parse = line.split()
+                #     dist_score, bw_score, intf_score = float(parse[1]), float(parse[2]), float(parse[3])
+                #     score_first_ass = dist_score + bw_score + intf_score
+                #     parse_next = lines[idx+1].split()
+                #     dist_score, bw_score, intf_score = float(parse_next[1]), float(parse_next[2]), float(parse_next[3])
+                #     score_second_ass = dist_score + bw_score + intf_score
+                #     server_node_dict['score'].append([last_timestamp, score_first_ass, score_second_ass])
+                idx += 1
+            except Exception as e:
+                pass
         f.close()
     return receiver_ts_dict, receiver_throughput, server_node_dict, sched_latencies, frame_id_to_senders
 
@@ -463,12 +482,15 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
             latency_dict = pickle.load(s)
             # latency_dict['e2e-latency'][latency_dict['e2e-latency'] < 0] = 0.4
             e2e_latency = latency_dict['e2e-latency'].tolist()
+            # print("e2e_lateency", e2e_latency)
             while len(e2e_latency) < latency_dict['sent_frames']:
-                e2e_latency.append(vehicle_deadline) # append 10s latency
-            print(dir, np.mean(e2e_latency), len(e2e_latency))
+                e2e_latency.append(vehicle_deadline) # append vehicle's local latency
+            e2e_latency = np.array(e2e_latency)
+            print(dir, np.mean(e2e_latency), np.std(e2e_latency), np.mean(e2e_latency)+ np.std(e2e_latency), config['num_of_nodes'], config['scheduler'])
             latency_dict['e2e-latency'] = np.array(e2e_latency)
-            acc_arr = np.array(latency_dict['detection_acc']).reshape(-1, num_nodes)
-            print("node number:", num_nodes, np.mean(acc_arr, axis=0), np.mean(acc_arr))
+            if 'detection_acc' in latency_dict:
+                acc_arr = np.array(latency_dict['detection_acc']).reshape(-1, num_nodes)
+                print("node number:", num_nodes, np.mean(acc_arr, axis=0), np.mean(acc_arr))
         with open(dir+'/encode_decisions.pickle', 'rb') as e:
             node_to_encode_choices = pickle.load(e)
     else:
@@ -488,6 +510,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
             if os.path.exists(dir + '/logs/node%d.log'%i):
                 sender_ts_dict[i], node_to_encode_choices[i], encode_t, last_t, summary_dict = \
                     get_sender_ts(dir + '/logs/node%d.log'%i, config["scheduler"])
+                # print(summary_dict)
                 if last_t == 0:
                     continue
                 # sent_frames += int((last_t - summary_dict['start-ts']) * 10)
@@ -506,9 +529,10 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
                     # print("overhead", np.mean(computational_overhead))
                     overhead.extend(computational_overhead)
                 latency_dict[i] = {}
-                if with_ssim:
-                    ssims = get_ssims(dir+'/node%d_ssim.log'%i)
-                    node_to_ssims[i] = ssims
+                # if with_ssim:
+                #     ssims = get_ssims(dir+'/node%d_ssim.log'%i)
+                #     node_to_ssims[i] = ssims
+        # print("Num nodes", num_nodes, node_sent_frames)
         sent_frames = (num_nodes*max(node_sent_frames))
         # compensate for no frame sent, fill e2e latency:
         for i in range(num_nodes):
@@ -523,7 +547,7 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
 
         receiver_ts_dict, receiver_thrpt, server_helper_dict, sched_latencies, frame_id_to_senders = get_receiver_ts(dir + '/logs/server.log')
         
-        detected_areas, detection_acc = calculate_are_carla(frame_id_to_senders, node_to_encode_qb, config, e2e_latency_each_node, max(node_sent_frames))
+        # detected_areas, detection_acc = calculate_are_carla(frame_id_to_senders, node_to_encode_qb, config, e2e_latency_each_node, max(node_sent_frames))
         # detected_areas, detection_acc = [], []
         # detected_areas = None
         # print("Total frames sent in exp", sent_frames)
@@ -547,12 +571,13 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         full_frame_delay, full_frame_max_delay = [], []
         for frame in full_frames:
             for i in range(num_nodes):
-                full_frame_delay.append(receiver_ts_dict[i][frame] - sender_ts_dict[i][frame])
+                if frame in receiver_ts_dict[i] and frame in sender_ts_dict[i]:
+                    full_frame_delay.append(receiver_ts_dict[i][frame] - sender_ts_dict[i][frame])
             full_frame_max_delay.append(max(full_frame_delay[-num_nodes:]))
         for frame_id in frame_id_to_senders:
             delay = []
             for i in range(num_nodes):
-                if frame_id in receiver_ts_dict[i]:
+                if frame_id in receiver_ts_dict[i] and frame_id in sender_ts_dict[i]:
                     delay.append(receiver_ts_dict[i][frame_id]-sender_ts_dict[i][frame_id])
             # full_frame_max_delay.append(max(delay))
         
@@ -568,8 +593,8 @@ def get_stats_on_one_run(dir, num_nodes, helpee_conf, config, with_ssim=False):
         latency_dict['frames-with-rst'] = frames_with_rst
         latency_dict['overhead'] = np.array(overhead)
         latency_dict['sched_latency'] = np.array(sched_latencies)
-        latency_dict['detected_areas'] = list(detected_areas)
-        latency_dict['detection_acc'] = list(detection_acc)
+        # latency_dict['detected_areas'] = list(detected_areas)
+        # latency_dict['detection_acc'] = list(detection_acc)
         latency_dict['dl-latency'] = dl_latencies   
         latency_dict['ctrl-msg-size'] = np.array(ctrl_msg_size)
         latency_dict['score'] = server_helper_dict['score']
@@ -726,5 +751,10 @@ def get_control_msg_size(filename):
         for line in lines:
             parse = line.split()
             if line.startswith('[route msg]') or line.startswith('[Loc msg'):
-                control_msg_sizes.append(int(parse[-2]))
+                try:
+                    control_msg_sizes.append(int(parse[-2]))
+                except Exception as e:
+                    # print(e)
+                    pass
+
     return np.sum(control_msg_sizes)

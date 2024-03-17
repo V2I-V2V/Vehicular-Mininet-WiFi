@@ -6,15 +6,15 @@ def main():
     settings = []
     # scheds = ['fixed'] # 'v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt'
     # settings = parse_config_setting_all_fixed('/home/mininet-wifi/v2x_exp_comprehensive/config_bench_2.txt', sched=scheds)
-    scheds = ['combined-adapt'] # 'v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt', 'v2v-adapt-group'
-    settings += parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_case.txt', sched=scheds)
+    scheds = ['v2v-adapt', 'v2i-adapt', 'combined-adapt-group'] # 'v2v', 'v2i', 'v2v-adapt', 'v2i-adapt', 'combined-adapt', 'v2v-adapt-group', 'minDist-adapt-group', 'combined-adapt-group'
+    settings += parse_config_setting('/home/mininet-wifi/v2x_exp_comprehensive/config_scale.txt', sched=scheds)
     
     # print(len(setstings))
     # exit(0)
     # write_log()
-    start = 0
+    start = 36
     for setting in settings[start:]:
-        for i in range(2):
+        for i in range(1):
             num_nodes, sched, loc, bw_trace, helpee_conf = setting
             loc = os.path.dirname(os.path.abspath(__file__)) + "/input/locations/" + loc
             bw_trace = os.path.dirname(os.path.abspath(__file__)) + "/input/traces/" + bw_trace
@@ -34,8 +34,8 @@ def main():
                 config_params['ptcl_config'] = input_path + "/pcds/carla-town03-cam.txt"
             else:
                 config_params['ptcl_config'] = input_path + "/pcds/carla-town03-nocam.txt"
-            config_params['ptcl_config'] = input_path + "/pcds/carla-town03-nocam.txt"
-            # config_params["ptcl_config"] = input_path + "/pcds/carla-town05-160.txt"
+            # config_params['ptcl_config'] = input_path + "/pcds/carla-town03-nocam.txt"
+            config_params["ptcl_config"] = input_path + "/pcds/carla-town03-100.txt"
             # if 'carla-town05-120' in loc:
             #     config_params["ptcl_config"] = input_path + "/pcds/carla-town05-120.txt"
             # elif 'carla-loc-trace' in loc:
@@ -68,16 +68,19 @@ def main():
             config_params["routing"] = 'olsrd'
             # if sched == 'combined-adapt':
             #     config_params["routing"] = 'custom'
-            config_params["t"] = '50'
+            config_params["t"] = '100'
             print(config_params)
             write_config_to_file(config_params, folder + "/config.txt")
             # config_params = parse_config_from_file(folder + "/config.txt")
             if 'group' in sched:
                 run_experiment(config_params, is_save_data=False, is_run_app=True, 
                             is_tcpdump_enabled=False, is_grouping=True)
+
             else:
                 run_experiment(config_params, is_save_data=False, is_run_app=True, 
                             is_tcpdump_enabled=False)
+                # run_experiment(config_params, is_save_data=False, is_run_app=False, 
+                #             is_tcpdump_enabled=False, is_grouping=True)
             check_exception_in_output()
             move_output(folder, is_save_data=False)
             if sched != "carspeak":

@@ -8,7 +8,7 @@ def get_routes(vehicle_id):
     routing_table = {}
     routes = pyroute2.IPRoute().get_routes()
     for route in routes:
-        print(route)
+        # print(route)
         # print(route['attrs'])
         dst = ""
         nexthop = ""

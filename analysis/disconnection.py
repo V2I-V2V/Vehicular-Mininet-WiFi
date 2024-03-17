@@ -1,5 +1,4 @@
 import sys
-from typing_extensions import runtime
 import numpy as np
 import matplotlib
 from numpy.lib.shape_base import tile

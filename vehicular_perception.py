@@ -2,6 +2,7 @@ import sys, os
 from numpy.lib import utils
 from mininet.log import setLogLevel, info
 from mininet.link import TCLink
+from mininet.node import OVSBridge
 from mn_wifi.link import wmediumd, adhoc, Intf
 from mn_wifi.cli import CLI
 from mn_wifi.net import Mininet_wifi
@@ -47,7 +48,7 @@ CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def replay_trace(node, ifname, trace):
     intf = node.intf(ifname)
-    time.sleep(59)
+    time.sleep(20)
     print("start update bw:", time.time(), "total length", min(len(trace), time_to_run-20))
     for throughput_idx in range(min(len(trace), time_to_run-20)):
         start_t = time.time()
@@ -81,7 +82,6 @@ def create_adhoc_links(net, node, ifname, channel_num=5, ssid='adhocNet'):
     kwargs = dict()
     if routing == 'olsrd':
         kwargs['proto'] = 'olsrd'
-    # channel_num = 5
     net.addLink(node, cls=adhoc, intf=ifname, ssid=ssid, \
                 mode='g', channel=channel_num, **kwargs)
     node.setTxPower(tx_power)
@@ -136,7 +136,7 @@ def config_mobility(net, stations, loc_file, plot=False):
 def setup_ip(node, ip, ifname):
     node.setIP(ip, intf=ifname)
     node.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
-    node.cmd('echo 1 > /proc/sys/net/ipv4/tcp_frto')
+    # node.cmd('echo 1 > /proc/sys/net/ipv4/tcp_frto')
     # node.cmd('echo 1 > /proc/sys/net/ipv4/tcp_low_latency')
 
 
@@ -193,6 +193,7 @@ def run_application(server, stations, scheduler, assignment_str, helpee_conf=Non
         stations[0].cmd(v2v_server_cmd)    
 
     time.sleep(4)
+    
     vehicle_app_commands = []
     for node_num in range(len(stations)):
         vehicle_app_cmd = 'python3 -u %s/vehicle/vehicle.py -i %d -d %s -l %s -c %s -f %d -n %d --adaptive %d --v2v_mode %d --start_timestamp %f'\
@@ -240,6 +241,8 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     server, stations = create_nodes(net, num_nodes, locations)
     s1 = net.addSwitch('s1')
     c1 = net.addController('c1')
+    s2 = net.addSwitch('s2')
+    c2 = net.addController('c2')
     net.setPropagationModel(model="logDistance", exp=4)
 
     info("*** Configuring wifi nodes\n")
@@ -248,7 +251,13 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     ### configure adhoc and wired interfaces ###
     info("*** Creating links\n")
     net.addLink(server, s1, cls=TCLink)
+    net.addLink(server, s2, cls=TCLink)
+    server.setIP("172.0.0.1/24", intf='server-eth1')
     for sta_idx in range(len(stations)):
+        if sta_idx < 50:
+            create_wired_links(net, stations[sta_idx], s1, bw=v2i_bw[sta_idx%len(v2i_bw)])
+        else:
+            create_wired_links(net, stations[sta_idx], s2, bw=v2i_bw[sta_idx%len(v2i_bw)])
         if not grouping:
             create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx)
         else:
@@ -263,7 +272,6 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
                 else:
                     create_adhoc_links(net, stations[sta_idx], 'sta%d-wlan0'%sta_idx, channel_num=11, ssid='v2v-group2')
                     
-        create_wired_links(net, stations[sta_idx], s1, bw=v2i_bw[sta_idx%len(v2i_bw)])
 
     ### plot if enabled ###
     if enable_plot:
@@ -273,30 +281,37 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     info("*** Addressing...\n")
     server.cmd('echo 1 > /proc/sys/net/ipv4/ip_forward')
     for sta_idx in range(num_nodes):
-        setup_ip(stations[sta_idx], '192.168.0.%d/24'%(sta_idx+2), 'sta%d-eth1'%sta_idx)
+        # print("*** Setting intf for node %d" % sta_idx)
+        if sta_idx < 50:
+            setup_ip(stations[sta_idx], '192.168.0.%d/24'%(sta_idx+2), 'sta%d-eth1'%sta_idx)
+        else:
+            setup_ip(stations[sta_idx], '172.0.0.%d/24'%(sta_idx+2), 'sta%d-eth1'%sta_idx)
 
     info("*** Starting network\n")
     net.build()
     c1.start()
+    c2.start()
     s1.start([c1])
+    s2.start([c2])
+
+
+    # ### Prioritize Traffic ### 
+    # for sta_idx in range(num_nodes):
+    #     configure_priority(stations[sta_idx], 'sta%d-wlan0'%sta_idx)
+        # stations[sta_idx].cmd('iwconfig sta%d-wlan0 retry limit 15'%sta_idx)
 
     ### Trace replaying ###
     replaying_threads = []
     # if not v2v_mode:
     # it should not matter if we replay trace on v2v mode
-    for i in range(num_nodes):
-        replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i%len(v2i_bw_traces.keys())])
-        replaying_threads.append(replaying_thread)
+    # for i in range(num_nodes):
+    #     replaying_thread = replay_trace_thread_on_sta(stations[i], "sta%d-eth1"%i, v2i_bw_traces[i%len(v2i_bw_traces.keys())])
+    #     replaying_threads.append(replaying_thread)
 
 
     ### Configure routing if custom
-    if routing == 'custom':
-        run_custom_routing(stations)
-
-    # ### Prioritize Traffic ### 
-    for sta_idx in range(num_nodes):
-        configure_priority(stations[sta_idx], 'sta%d-wlan0'%sta_idx)
-        # stations[sta_idx].cmd('iwconfig sta%d-wlan0 retry limit 15'%sta_idx)
+    # if routing == 'custom':
+    #     run_custom_routing(stations)
 
     ### Run application ###
     if run_app is True:
@@ -322,8 +337,29 @@ def setup_topology(num_nodes, locations=default_loc, loc_file=default_loc_file, 
     if run_app:
         start = time.time()
         print("--- start sleep", start)
-        time.sleep(time_to_run)
+        # time.sleep(time_to_run)
+
+        # instead of sleep here, change it to assign vehicle uplink bandwidth instead
+
+        count = 0
+        while count < time_to_run:
+            start_t = time.time()     
+            for idx, station in enumerate(stations):
+                bw_sta_idx = idx % len(v2i_bw_traces.keys())
+                bw_idx = count % len(v2i_bw_traces[idx])
+                bandwidth = v2i_bw_traces[bw_sta_idx][bw_idx] + 0.001
+                ifname = 'sta%d-eth1'%idx
+                intf = station.intf(ifname)
+                intf.config(bw=bandwidth)
+                # print("*** Setting bw for node %d" % idx, bandwidth)
+            elapsed_t = time.time() - start_t
+            sleep_t = 1.0 - elapsed_t
+            count += 1
+            if sleep_t > 0:
+                time.sleep(sleep_t)
+
         print("--- stop", time.time() - start)
+        # CLI(net)
     else:
         CLI(net)
 
@@ -344,7 +380,7 @@ if __name__ == '__main__':
     if '-n' in sys.argv:
         num_nodes = int(sys.argv[sys.argv.index('-n')+1])
         if num_nodes > 100 and '--run_app' in sys.argv:
-            print("Not supported node num to run application, plz use 6 nodes for now!")
+            print("Not supported node num to run application, plz less than 100 nodes for now!")
             sys.exit()
 
     ### define default values ###

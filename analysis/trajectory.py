@@ -35,7 +35,7 @@ def plot_trajectory(loc_file, save_dir='./'):
     plt.legend()
     plt.tight_layout()
     plt.savefig(save_dir + 'traj.png')
-    plot_distance_for_each_node(trajs, save_dir)
+    # plot_distance_for_each_node(trajs, save_dir)
 
 
 def get_node_dists(loc):

@@ -746,7 +746,7 @@ def plot_bars_compare_schedules(schedules):
                     schedule_helpee_data[schedule] = v['helpee']
                     schedule_helper_data[schedule] = v['helper']
                     schedule_to_frames_within_threshold[schedule] = [get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)]
-                    schedule_to_detected_spaces[schedule] = [np.mean(v['detected_areas'])]
+                    # schedule_to_detected_spaces[schedule] = [np.mean(v['detected_areas'])]
                     sched_to_acc[schedule] = [np.mean(v['detection_acc'])]
                     sched_to_latency[schedule] = [np.mean(v['e2e-latency'])]
                     sched_to_latency_std[schedule] = [np.std(v['e2e-latency'])]
@@ -760,7 +760,7 @@ def plot_bars_compare_schedules(schedules):
                     schedule_to_frames_within_threshold[schedule] = \
                         np.hstack((schedule_to_frames_within_threshold[schedule], \
                             get_percentage_frames_within_threshold(v, LATENCY_THRESHOLD, SSIM_THRESHOLD)))
-                    schedule_to_detected_spaces[schedule].append(np.mean(v['detected_areas']))
+                    # schedule_to_detected_spaces[schedule].append(np.mean(v['detected_areas']))
                     sched_to_acc[schedule].append(np.mean(v['detection_acc']))
                     sched_to_latency[schedule].append(np.mean(v['e2e-latency']))
                     sched_to_latency_std[schedule].append(np.std(v['e2e-latency']))
@@ -843,7 +843,7 @@ def plot_bars_compare_schedules(schedules):
         # print("*******")
         # print(schedule, sched_to_different_latency_mean[schedule])
         # print(sched_to_different_latency_std[schedule][1])
-        ax.plot(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], '-o', label=schedule if schedule is not 'combined-loc' else 'combined-loc-3.5m')
+        ax.plot(np.arange(0, len(selected_thresholds)), sched_to_different_latency_mean[schedule], '-o', label=schedule if schedule != 'combined-loc' else 'combined-loc-3.5m')
         ax.set_xticks(np.arange(0, len(selected_thresholds)))
         ax.set_xticklabels(selected_thresholds)
     plt.legend()
@@ -1266,8 +1266,8 @@ def main():
         return
     
     # compare schedule
-    schedules = SCHEDULERS
-    plot_bars_compare_schedules(schedules) # plot_bars_comapring_schedules(SCHEDULERS)
+    # schedules = SCHEDULERS
+    # plot_bars_compare_schedules(schedules) # plot_bars_comapring_schedules(SCHEDULERS)
 
     # plot_compare_schedule_by_setting()
     # name of figure 'compare-schedule-by-[set]'
