@@ -1,4 +1,4 @@
-# Vehicular-Mininet-WiFi
+# Harbor: Boosting Collaborative Vehicular Perception on the Edge with Vehicle-to-Vehicle Communication
 Scripts to run mininet-wifi experiments on vehicular perception.
 
 ## Intsall Mininet-WiFi with python3 (Skip if already installed)
